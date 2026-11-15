@@ -23,7 +23,7 @@ Work through these phases in order. Do not jump ahead to a later phase.
 
 ## Current rules
 
-- We are in the local testing phase (3): running and fixing tests is allowed; do not start optimizing yet
+- We are in the optimize phase (4): improve performance, footprint and startup time without changing API behaviour; measure before and after each change
 - Work directly on `main`. Do not open pull requests for now
 
 ## Conventions
