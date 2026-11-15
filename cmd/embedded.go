@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gitea.dev/modules/assetfs"
 	"gitea.dev/modules/glob"
@@ -27,7 +26,7 @@ func newEmbeddedCommand() *cli.Command {
 	return &cli.Command{
 		Name:        "embedded",
 		Usage:       "Extract embedded resources",
-		Description: "A command for extracting embedded resources, like templates and images",
+		Description: "A command for extracting embedded resources, like gitignore, license and label templates",
 		Commands: []*cli.Command{
 			newEmbeddedListCommand(),
 			newEmbeddedViewCommand(),
@@ -41,13 +40,6 @@ func newEmbeddedListCommand() *cli.Command {
 		Name:   "list",
 		Usage:  "List files matching the given pattern",
 		Action: runList,
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "include-vendored",
-				Aliases: []string{"vendor"},
-				Usage:   "Include files under public/vendor as well",
-			},
-		},
 	}
 }
 
@@ -56,13 +48,6 @@ func newEmbeddedViewCommand() *cli.Command {
 		Name:   "view",
 		Usage:  "View a file matching the given pattern",
 		Action: runView,
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "include-vendored",
-				Aliases: []string{"vendor"},
-				Usage:   "Include files under public/vendor as well",
-			},
-		},
 	}
 }
 
@@ -72,11 +57,6 @@ func newEmbeddedExtractCommand() *cli.Command {
 		Usage:  "Extract resources",
 		Action: runExtract,
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "include-vendored",
-				Aliases: []string{"vendor"},
-				Usage:   "Include files under public/vendor as well",
-			},
 			&cli.BoolFlag{
 				Name:  "overwrite",
 				Usage: "Overwrite files if they already exist",
@@ -281,11 +261,6 @@ func collectAssetFilesByPattern(c *cli.Command, globs []glob.Glob, path string, 
 		return
 	}
 	for _, name := range files {
-		if path == "public" &&
-			strings.HasPrefix(name, "vendor/") &&
-			!c.Bool("include-vendored") {
-			continue
-		}
 		matchName := path + "/" + name
 		for _, g := range globs {
 			if g.Match(matchName) {
