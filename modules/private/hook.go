@@ -103,12 +103,6 @@ func HookPostReceive(ctx context.Context, ownerName, repoName string, opts HookO
 	return requestJSONResp(req, &HookPostReceiveResult{})
 }
 
-// HookProcReceive proc-receive hook
-func HookProcReceive(ctx context.Context, ownerName, repoName string, opts HookOptions) (*HookProcReceiveResult, ResponseExtra) {
-	req := newInternalRequestAPIForHooks(ctx, "proc-receive", ownerName, repoName, opts)
-	return requestJSONResp(req, &HookProcReceiveResult{})
-}
-
 // SSHLog sends ssh error log response
 func SSHLog(ctx context.Context, isErr bool, msg string) error {
 	reqURL := setting.LocalURL + "api/internal/ssh/log"

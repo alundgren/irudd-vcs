@@ -21,9 +21,7 @@ import (
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
-	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
-	"gitea.dev/services/agit"
 	gitea_context "gitea.dev/services/context"
 	pull_service "gitea.dev/services/pull"
 )
@@ -131,8 +129,6 @@ func HookPreReceive(ctx *gitea_context.PrivateContext) {
 			preReceiveBranch(ourCtx, oldCommitID, newCommitID, refFullName)
 		case refFullName.IsTag():
 			preReceiveTag(ourCtx, refFullName)
-		case git.DefaultFeatures().SupportProcReceive && refFullName.IsFor():
-			preReceiveFor(ourCtx, refFullName)
 		default:
 			ourCtx.assertCanWriteRef(refFullName)
 		}
@@ -426,39 +422,6 @@ func preReceiveTag(ctx *preReceiveContext, refFullName git.RefName) {
 			UserMsg: fmt.Sprintf("Tag %s is protected", tagName),
 		})
 		return
-	}
-}
-
-func preReceiveFor(ctx *preReceiveContext, refFullName git.RefName) {
-	if !ctx.AssertCreatePullRequest() {
-		return
-	}
-
-	if ctx.Repo.Repository.IsEmpty {
-		ctx.JSON(http.StatusForbidden, private.Response{
-			UserMsg: "Can't create pull request for an empty repository.",
-		})
-		return
-	}
-
-	if ctx.opts.IsWiki {
-		ctx.JSON(http.StatusForbidden, private.Response{
-			UserMsg: "Pull requests are not supported on the wiki.",
-		})
-		return
-	}
-
-	_, _, err := agit.GetAgitBranchInfo(ctx, ctx.Repo.Repository.ID, refFullName.ForBranchName())
-	if err != nil {
-		if !errors.Is(err, util.ErrNotExist) {
-			ctx.JSON(http.StatusForbidden, private.Response{
-				UserMsg: fmt.Sprintf("Unexpected ref: %s", refFullName),
-			})
-		} else {
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: err.Error(),
-			})
-		}
 	}
 }
 

@@ -15,7 +15,6 @@ import (
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
-	"gitea.dev/models/pull"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
@@ -30,7 +29,6 @@ import (
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	asymkey_service "gitea.dev/services/asymkey"
-	"gitea.dev/services/automergequeue"
 	notify_service "gitea.dev/services/notify"
 )
 
@@ -294,15 +292,6 @@ func markPullRequestAsMergeable(ctx context.Context, pr *issues_model.PullReques
 		log.Error("Update[%-v]: %v", pr, err)
 	}
 
-	// if there is a scheduled merge for this pull request, start the auto merge check (again)
-	exist, _, err := pull.GetScheduledMergeByPullID(ctx, pr.ID)
-	if err != nil {
-		log.Error("GetScheduledMergeByPullID[%-v]: %v", pr, err)
-		return
-	} else if !exist {
-		return
-	}
-	automergequeue.StartPRCheckAndAutoMerge(ctx, pr)
 }
 
 // getMergeCommit checks if a pull request has been merged
