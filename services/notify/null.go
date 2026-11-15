@@ -8,7 +8,6 @@ import (
 
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	packages_model "gitea.dev/models/packages"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
@@ -196,14 +195,6 @@ func (*NullNotifier) SyncDeleteRef(ctx context.Context, doer *user_model.User, r
 
 // RepoPendingTransfer places a place holder function
 func (*NullNotifier) RepoPendingTransfer(ctx context.Context, doer, newOwner *user_model.User, repo *repo_model.Repository) {
-}
-
-// PackageCreate places a place holder function
-func (*NullNotifier) PackageCreate(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-}
-
-// PackageDelete places a place holder function
-func (*NullNotifier) PackageDelete(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
 }
 
 // ChangeDefaultBranch places a place holder function

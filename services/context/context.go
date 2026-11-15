@@ -60,7 +60,6 @@ type Context struct {
 
 	Repo    *Repository
 	Org     *Organization
-	Package *Package
 }
 
 func init() {

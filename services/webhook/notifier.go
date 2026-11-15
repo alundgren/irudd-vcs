@@ -8,8 +8,6 @@ import (
 
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/organization"
-	packages_model "gitea.dev/models/packages"
 	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
@@ -945,39 +943,4 @@ func (m *webhookNotifier) SyncCreateRef(ctx context.Context, pusher *user_model.
 
 func (m *webhookNotifier) SyncDeleteRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, refFullName git.RefName) {
 	m.DeleteRef(ctx, pusher, repo, refFullName)
-}
-
-func (m *webhookNotifier) PackageCreate(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-	notifyPackage(ctx, doer, pd, api.HookPackageCreated)
-}
-
-func (m *webhookNotifier) PackageDelete(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-	notifyPackage(ctx, doer, pd, api.HookPackageDeleted)
-}
-
-func notifyPackage(ctx context.Context, sender *user_model.User, pd *packages_model.PackageDescriptor, action api.HookPackageAction) {
-	source := EventSource{
-		Repository: pd.Repository,
-		Owner:      pd.Owner,
-	}
-
-	apiPackage, err := convert.ToPackage(ctx, pd, sender)
-	if err != nil {
-		log.Error("Error converting package: %v", err)
-		return
-	}
-
-	var org *api.Organization
-	if pd.Owner.IsOrganization() {
-		org = convert.ToOrganization(ctx, organization.OrgFromUser(pd.Owner))
-	}
-
-	if err := PrepareWebhooks(ctx, source, webhook_module.HookEventPackage, &api.PackagePayload{
-		Action:       action,
-		Package:      apiPackage,
-		Organization: org,
-		Sender:       convert.ToUser(ctx, sender, nil),
-	}); err != nil {
-		log.Error("PrepareWebhooks: %v", err)
-	}
 }

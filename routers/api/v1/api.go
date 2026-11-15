@@ -70,7 +70,6 @@ import (
 
 	auth_model "gitea.dev/models/auth"
 	"gitea.dev/models/organization"
-	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
@@ -215,15 +214,6 @@ func doerNeedTwoFactorAuth(ctx gocontext.Context, doer *user_model.User) (bool, 
 	return !has, nil
 }
 
-func reqPackageAccess(accessMode perm.AccessMode) func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if ctx.Package.AccessMode < accessMode && !ctx.IsUserSiteAdmin() {
-			ctx.APIError(http.StatusForbidden, "user should have specific permission or be a site admin")
-			return
-		}
-	}
-}
-
 func checkTokenPublicOnly() func(ctx *context.APIContext) {
 	return func(ctx *context.APIContext) {
 		if !ctx.PublicOnly {
@@ -267,13 +257,6 @@ func checkTokenPublicOnly() func(ctx *context.APIContext) {
 			case auth_model.AccessTokenScopeCategoryNotification:
 				if !ctx.TokenCanAccessRepo(ctx.Repo.Repository) {
 					ctx.APIError(http.StatusForbidden, "token scope is limited to public notifications")
-					return
-				}
-			case auth_model.AccessTokenScopeCategoryPackage:
-				// a public-only token must not reach limited-visibility owners either,
-				// matching the org/user public-only enforcement above
-				if ctx.Package != nil && !ctx.Package.Owner.Visibility.IsPublic() {
-					ctx.APIError(http.StatusForbidden, "token scope is limited to public packages")
 					return
 				}
 			}

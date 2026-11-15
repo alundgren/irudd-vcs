@@ -12,21 +12,16 @@ import (
 
 	"gitea.dev/models/db"
 	"gitea.dev/models/organization"
-	packages_model "gitea.dev/models/packages"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/eventsource"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
-	"gitea.dev/services/agit"
 	asymkey_service "gitea.dev/services/asymkey"
 	org_service "gitea.dev/services/org"
-	"gitea.dev/services/packages"
-	container_service "gitea.dev/services/packages/container"
 	repo_service "gitea.dev/services/repository"
 )
 
@@ -79,13 +74,6 @@ func RenameUser(ctx context.Context, u *user_model.User, newUserName string, doe
 	}
 
 	if err = user_model.NewUserRedirect(ctx, u.ID, oldUserName, newUserName); err != nil {
-		return err
-	}
-
-	if err := agit.UserNameChanged(ctx, u, newUserName); err != nil {
-		return err
-	}
-	if err := container_service.UpdateRepositoryNames(ctx, u, newUserName); err != nil {
 		return err
 	}
 
@@ -199,13 +187,6 @@ func DeleteUser(ctx context.Context, u *user_model.User, purge bool) error {
 				}
 			}
 		}
-
-		// Delete Packages
-		if setting.Packages.Enabled {
-			if _, err := packages.RemoveAllPackages(ctx, u.ID); err != nil {
-				return err
-			}
-		}
 	}
 
 	if err := db.WithTx(ctx, func(ctx context.Context) error {
@@ -227,13 +208,6 @@ func DeleteUser(ctx context.Context, u *user_model.User, purge bool) error {
 			return fmt.Errorf("GetOrganizationCount: %w", err)
 		} else if count > 0 {
 			return organization.ErrUserHasOrgs{UID: u.ID}
-		}
-
-		// Check ownership of packages.
-		if ownsPackages, err := packages_model.HasOwnerPackages(ctx, u.ID); err != nil {
-			return fmt.Errorf("HasOwnerPackages: %w", err)
-		} else if ownsPackages {
-			return packages_model.ErrUserOwnPackages{UID: u.ID}
 		}
 
 		if err := deleteUser(ctx, u, purge); err != nil {
@@ -298,7 +272,7 @@ func DeleteInactiveUsers(ctx context.Context, olderThan time.Duration) error {
 	for _, u := range inactiveUsers {
 		if err = DeleteUser(ctx, u, false); err != nil {
 			// Ignore inactive users that were ever active but then were set inactive by admin
-			if repo_model.IsErrUserOwnRepos(err) || organization.IsErrUserHasOrgs(err) || packages_model.IsErrUserOwnPackages(err) {
+			if repo_model.IsErrUserOwnRepos(err) || organization.IsErrUserHasOrgs(err) {
 				log.Warn("Inactive user %q has repositories, organizations or packages, skipping deletion: %v", u.Name, err)
 				continue
 			}

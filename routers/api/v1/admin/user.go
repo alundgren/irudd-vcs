@@ -12,7 +12,6 @@ import (
 	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	org_model "gitea.dev/models/organization"
-	packages_model "gitea.dev/models/packages"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/password"
@@ -292,7 +291,6 @@ func DeleteUser(ctx *context.APIContext) {
 	if err := user_service.DeleteUser(ctx, ctx.ContextUser, ctx.FormBool("purge")); err != nil {
 		if repo_model.IsErrUserOwnRepos(err) ||
 			org_model.IsErrUserHasOrgs(err) ||
-			packages_model.IsErrUserOwnPackages(err) ||
 			user_model.IsErrDeleteLastAdminUser(err) {
 			ctx.APIError(http.StatusUnprocessableEntity, err.Error())
 		} else {

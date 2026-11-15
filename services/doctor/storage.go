@@ -10,12 +10,10 @@ import (
 	"strings"
 
 	"gitea.dev/models/git"
-	"gitea.dev/models/packages"
 	"gitea.dev/models/repo"
 	"gitea.dev/models/user"
 	"gitea.dev/modules/base"
 	"gitea.dev/modules/log"
-	packages_module "gitea.dev/modules/packages"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/util"
@@ -86,7 +84,6 @@ type checkStorageOptions struct {
 	Avatars      bool
 	RepoAvatars  bool
 	RepoArchives bool
-	Packages     bool
 }
 
 // checkStorage will return a doctor check function to check the requested storage types for "orphaned" stored object/files and optionally delete them
@@ -177,32 +174,6 @@ func checkStorage(opts *checkStorageOptions) func(ctx context.Context, logger lo
 			}
 		}
 
-		if opts.Packages || opts.All {
-			if !setting.Packages.Enabled {
-				logger.Info("Packages isn't enabled (skipped)")
-				return nil
-			}
-			if err := commonCheckStorage(logger, autofix,
-				&commonStorageCheckOptions{
-					storer: storage.Packages,
-					isOrphaned: func(path string, obj storage.Object, stat fs.FileInfo) (bool, error) {
-						key, err := packages_module.RelativePathToKey(path)
-						if err != nil {
-							// If there is an error here then the relative path does not match a valid package
-							// Therefore it is orphaned by default
-							return true, nil
-						}
-
-						exists, err := packages.ExistPackageBlobWithSHA(ctx, string(key))
-
-						return !exists, err
-					},
-					name: "package blob",
-				}); err != nil {
-				return err
-			}
-		}
-
 		return nil
 	}
 }
@@ -258,13 +229,4 @@ func init() {
 		Priority:                   1,
 	})
 
-	Register(&Check{
-		Title:                      "Check if there are orphaned package blobs in storage",
-		Name:                       "storage-packages",
-		IsDefault:                  false,
-		Run:                        checkStorage(&checkStorageOptions{Packages: true}),
-		AbortIfFailed:              false,
-		SkipDatabaseInitialization: false,
-		Priority:                   1,
-	})
 }

@@ -8,7 +8,6 @@ import (
 
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	packages_model "gitea.dev/models/packages"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
@@ -368,20 +367,6 @@ func SyncDeleteRef(ctx context.Context, pusher *user_model.User, repo *repo_mode
 func RepoPendingTransfer(ctx context.Context, doer, newOwner *user_model.User, repo *repo_model.Repository) {
 	for _, notifier := range notifiers {
 		notifier.RepoPendingTransfer(ctx, doer, newOwner, repo)
-	}
-}
-
-// PackageCreate notifies creation of a package to notifiers
-func PackageCreate(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-	for _, notifier := range notifiers {
-		notifier.PackageCreate(ctx, doer, pd)
-	}
-}
-
-// PackageDelete notifies deletion of a package to notifiers
-func PackageDelete(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-	for _, notifier := range notifiers {
-		notifier.PackageDelete(ctx, doer, pd)
 	}
 }
 

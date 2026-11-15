@@ -44,7 +44,6 @@ type APIContext struct {
 
 	Repo       *Repository
 	Org        *APIOrganization
-	Package    *Package
 	PublicOnly bool // Whether the request is for a public endpoint
 }
 
