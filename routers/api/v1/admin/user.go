@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 
-	asymkey_model "gitea.dev/models/asymkey"
 	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	org_model "gitea.dev/models/organization"
@@ -23,9 +22,7 @@ import (
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/web"
-	"gitea.dev/routers/api/v1/user"
 	"gitea.dev/routers/api/v1/utils"
-	asymkey_service "gitea.dev/services/asymkey"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
 	"gitea.dev/services/mailer"
@@ -309,80 +306,6 @@ func DeleteUser(ctx *context.APIContext) {
 		return
 	}
 	log.Trace("Account deleted by admin(%s): %s", ctx.Doer.Name, ctx.ContextUser.Name)
-
-	ctx.Status(http.StatusNoContent)
-}
-
-// CreatePublicKey api for creating a public key to a user
-func CreatePublicKey(ctx *context.APIContext) {
-	// swagger:operation POST /admin/users/{username}/keys admin adminCreatePublicKey
-	// ---
-	// summary: Add a public key on behalf of a user
-	// consumes:
-	// - application/json
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: username
-	//   in: path
-	//   description: username of the user who is to receive a public key
-	//   type: string
-	//   required: true
-	// - name: key
-	//   in: body
-	//   schema:
-	//     "$ref": "#/definitions/CreateKeyOption"
-	// responses:
-	//   "201":
-	//     "$ref": "#/responses/PublicKey"
-	//   "403":
-	//     "$ref": "#/responses/forbidden"
-	//   "422":
-	//     "$ref": "#/responses/validationError"
-
-	form := web.GetForm(ctx).(*api.CreateKeyOption)
-
-	user.CreateUserPublicKey(ctx, *form, ctx.ContextUser.ID)
-}
-
-// DeleteUserPublicKey api for deleting a user's public key
-func DeleteUserPublicKey(ctx *context.APIContext) {
-	// swagger:operation DELETE /admin/users/{username}/keys/{id} admin adminDeleteUserPublicKey
-	// ---
-	// summary: Delete a user's public key
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: username
-	//   in: path
-	//   description: username of the user whose public key is to be deleted
-	//   type: string
-	//   required: true
-	// - name: id
-	//   in: path
-	//   description: id of the key to delete
-	//   type: integer
-	//   format: int64
-	//   required: true
-	// responses:
-	//   "204":
-	//     "$ref": "#/responses/empty"
-	//   "403":
-	//     "$ref": "#/responses/forbidden"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-
-	if err := asymkey_service.DeletePublicKey(ctx, ctx.ContextUser, ctx.PathParamInt64("id")); err != nil {
-		if asymkey_model.IsErrKeyNotExist(err) {
-			ctx.APIErrorNotFound()
-		} else if asymkey_model.IsErrKeyAccessDenied(err) {
-			ctx.APIError(http.StatusForbidden, "You do not have access to this key")
-		} else {
-			ctx.APIErrorInternal(err)
-		}
-		return
-	}
-	log.Trace("Key deleted by admin(%s): %s", ctx.Doer.Name, ctx.ContextUser.Name)
 
 	ctx.Status(http.StatusNoContent)
 }

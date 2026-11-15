@@ -15,7 +15,6 @@ import (
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/common"
-	"gitea.dev/routers/web/misc"
 	"gitea.dev/services/context"
 
 	"gitea.com/go-chi/binding"
@@ -72,7 +71,7 @@ func Routes() *web.Router {
 	// Since internal API will be sent only from Gitea sub commands and it's under control (checked by InternalToken), we can trust the headers.
 	r.AfterRouting(setRealIP)
 
-	r.Get("/dummy", misc.DummyOK)
+	r.Get("/dummy", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Post("/ssh/authorized_keys", AuthorizedPublicKeyByContent)
 	r.Post("/ssh/{id}/update/{repoid}", UpdatePublicKeyInRepo)
 	r.Post("/ssh/log", bind(private.SSHLogOption{}), SSHLog)

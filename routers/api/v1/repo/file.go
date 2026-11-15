@@ -227,44 +227,6 @@ func getBlobForEntry(ctx *context.APIContext) (blob *git.Blob, entry *git.TreeEn
 	return entry.Blob(), entry, when
 }
 
-// GetArchive get archive of a repository
-func GetArchive(ctx *context.APIContext) {
-	// swagger:operation GET /repos/{owner}/{repo}/archive/{archive} repository repoGetArchive
-	// ---
-	// summary: Get an archive of a repository
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: owner
-	//   in: path
-	//   description: owner of the repo
-	//   type: string
-	//   required: true
-	// - name: repo
-	//   in: path
-	//   description: name of the repo
-	//   type: string
-	//   required: true
-	// - name: archive
-	//   in: path
-	//   description: the git reference for download with attached archive format (e.g. master.zip)
-	//   type: string
-	//   required: true
-	// - name: path
-	//   in: query
-	//   type: array
-	//   items:
-	//     type: string
-	//   description: subpath of the repository to download
-	//   collectionFormat: multi
-	// responses:
-	//   200:
-	//     description: success
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-	serveRepoArchive(ctx, ctx.PathParam("*"), ctx.FormStrings("path"))
-}
-
 // GetEditorconfig get editor config of a repository
 func GetEditorconfig(ctx *context.APIContext) {
 	// swagger:operation GET /repos/{owner}/{repo}/editorconfig/{filepath} repository repoGetEditorConfig

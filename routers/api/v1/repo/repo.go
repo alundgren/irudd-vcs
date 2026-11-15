@@ -9,19 +9,14 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
-	"time"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	unit_model "gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/label"
 	"gitea.dev/modules/log"
@@ -36,10 +31,6 @@ import (
 	actions_service "gitea.dev/services/actions"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
-	feed_service "gitea.dev/services/feed"
-	"gitea.dev/services/issue"
-	"gitea.dev/services/migrations"
-	mirror_service "gitea.dev/services/mirror"
 	repo_service "gitea.dev/services/repository"
 )
 
@@ -308,122 +299,6 @@ func Create(ctx *context.APIContext) {
 	CreateUserRepo(ctx, ctx.Doer, *opt)
 }
 
-// Generate Create a repository using a template
-func Generate(ctx *context.APIContext) {
-	// swagger:operation POST /repos/{template_owner}/{template_repo}/generate repository generateRepo
-	// ---
-	// summary: Create a repository using a template
-	// consumes:
-	// - application/json
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: template_owner
-	//   in: path
-	//   description: owner of the template repository
-	//   type: string
-	//   required: true
-	// - name: template_repo
-	//   in: path
-	//   description: name of the template repository
-	//   type: string
-	//   required: true
-	// - name: body
-	//   in: body
-	//   schema:
-	//     "$ref": "#/definitions/GenerateRepoOption"
-	// responses:
-	//   "201":
-	//     "$ref": "#/responses/Repository"
-	//   "403":
-	//     "$ref": "#/responses/forbidden"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-	//   "409":
-	//     description: The repository with the same name already exists.
-	//   "422":
-	//     "$ref": "#/responses/validationError"
-	form := web.GetForm(ctx).(*api.GenerateRepoOption)
-
-	if !ctx.Repo.Repository.IsTemplate {
-		ctx.APIError(http.StatusUnprocessableEntity, "this is not a template repo")
-		return
-	}
-
-	if ctx.Doer.IsOrganization() {
-		ctx.APIError(http.StatusUnprocessableEntity, "not allowed creating repository for organization")
-		return
-	}
-
-	opts := repo_service.GenerateRepoOptions{
-		Name:            form.Name,
-		DefaultBranch:   form.DefaultBranch,
-		Description:     form.Description,
-		Private:         form.Private || setting.Repository.ForcePrivate,
-		GitContent:      form.GitContent,
-		Topics:          form.Topics,
-		GitHooks:        form.GitHooks,
-		Webhooks:        form.Webhooks,
-		Avatar:          form.Avatar,
-		IssueLabels:     form.Labels,
-		ProtectedBranch: form.ProtectedBranch,
-	}
-
-	if !opts.IsValid() {
-		ctx.APIError(http.StatusUnprocessableEntity, "must select at least one template item")
-		return
-	}
-
-	ctxUser := ctx.Doer
-	var err error
-	if form.Owner != ctxUser.Name {
-		ctxUser, err = user_model.GetUserByName(ctx, form.Owner)
-		if err != nil {
-			if user_model.IsErrUserNotExist(err) {
-				ctx.JSON(http.StatusNotFound, map[string]any{
-					"error": "request owner `" + form.Owner + "` does not exist",
-				})
-				return
-			}
-
-			ctx.APIErrorInternal(err)
-			return
-		}
-
-		if !ctx.Doer.IsAdmin && !ctxUser.IsOrganization() {
-			ctx.APIError(http.StatusForbidden, "Only admin can generate repository for other user.")
-			return
-		}
-
-		if !ctx.Doer.IsAdmin {
-			canCreate, err := organization.OrgFromUser(ctxUser).CanCreateOrgRepo(ctx, ctx.Doer.ID)
-			if err != nil {
-				ctx.APIErrorInternal(err)
-				return
-			} else if !canCreate {
-				ctx.APIError(http.StatusForbidden, "Given user is not allowed to create repository in organization.")
-				return
-			}
-		}
-	}
-
-	repo, err := repo_service.GenerateRepository(ctx, ctx.Doer, ctxUser, ctx.Repo.Repository, opts)
-	if err != nil {
-		if repo_model.IsErrRepoAlreadyExist(err) {
-			ctx.APIError(http.StatusConflict, "The repository with the same name already exists.")
-		} else if db.IsErrNameReserved(err) ||
-			db.IsErrNamePatternNotAllowed(err) {
-			ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-		} else {
-			ctx.APIErrorInternal(err)
-		}
-		return
-	}
-	log.Trace("Repository generated [%d]: %s/%s", repo.ID, ctxUser.Name, repo.Name)
-
-	ctx.JSON(http.StatusCreated, convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}))
-}
-
 // CreateOrgRepoDeprecated create one repository of the organization
 func CreateOrgRepoDeprecated(ctx *context.APIContext) {
 	// swagger:operation POST /org/{org}/repos organization createOrgRepoDeprecated
@@ -620,15 +495,6 @@ func Edit(ctx *context.APIContext) {
 		}
 	}
 
-	if opts.MirrorInterval != nil ||
-		opts.EnablePrune != nil ||
-		opts.MirrorUsername != nil ||
-		opts.MirrorPassword != nil ||
-		opts.MirrorToken != nil {
-		if err := updateMirror(ctx, opts); err != nil {
-			return
-		}
-	}
 
 	repo, err := repo_model.GetRepositoryByID(ctx, ctx.Repo.Repository.ID)
 	if err != nil {
@@ -1018,114 +884,6 @@ func updateRepoArchivedState(ctx *context.APIContext, opts api.EditRepoOption) e
 	return nil
 }
 
-// updateMirror updates a repo's mirror Interval and EnablePrune
-func updateMirror(ctx *context.APIContext, opts api.EditRepoOption) error {
-	repo := ctx.Repo.Repository
-
-	// Skip this update if the repo is not a mirror, do not return error.
-	// Because reporting errors only makes the logic more complex&fragile, it doesn't really help end users.
-	if !repo.IsMirror {
-		return nil
-	}
-
-	// get the mirror from the repo
-	mirror, err := repo_model.GetMirrorByRepoID(ctx, repo.ID)
-	if err != nil {
-		log.Error("Failed to get mirror: %s", err)
-		ctx.APIErrorInternal(err)
-		return err
-	}
-
-	// update MirrorInterval
-	if opts.MirrorInterval != nil {
-		// MirrorInterval should be a duration
-		interval, err := time.ParseDuration(*opts.MirrorInterval)
-		if err != nil {
-			log.Error("Wrong format for MirrorInternal Sent: %s", err)
-			ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-			return err
-		}
-
-		// Ensure the provided duration is not too short
-		if interval != 0 && interval < setting.Mirror.MinInterval {
-			err := fmt.Errorf("invalid mirror interval: %s is below minimum interval: %s", interval, setting.Mirror.MinInterval)
-			ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-			return err
-		}
-
-		mirror.Interval = interval
-		mirror.Repo = repo
-		mirror.ScheduleNextUpdate()
-		log.Trace("Repository %s Mirror[%d] Set Interval: %s NextUpdateUnix: %s", repo.FullName(), mirror.ID, interval, mirror.NextUpdateUnix)
-	}
-
-	// update EnablePrune
-	if opts.EnablePrune != nil {
-		mirror.EnablePrune = *opts.EnablePrune
-		log.Trace("Repository %s Mirror[%d] Set EnablePrune: %t", repo.FullName(), mirror.ID, mirror.EnablePrune)
-	}
-
-	authUpdateRequested := opts.MirrorPassword != nil || opts.MirrorToken != nil || opts.MirrorUsername != nil
-	if authUpdateRequested {
-		remoteURL, err := gitrepo.GitRemoteGetURL(ctx, repo, mirror.GetRemoteName())
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return err
-		}
-
-		authUsername := ""
-		if opts.MirrorUsername != nil {
-			authUsername = *opts.MirrorUsername
-		} else if remoteURL.User != nil {
-			authUsername = remoteURL.User.Username()
-		}
-
-		authPassword := ""
-		authToken := ""
-		if opts.MirrorPassword != nil {
-			authPassword = *opts.MirrorPassword
-		}
-		if opts.MirrorToken != nil {
-			authToken = *opts.MirrorToken
-		}
-
-		if opts.MirrorPassword == nil && opts.MirrorToken == nil && remoteURL.User != nil && (authUsername == "" || authUsername == remoteURL.User.Username()) {
-			authPassword, _ = remoteURL.User.Password()
-		}
-
-		if authToken != "" {
-			authPassword = authToken
-		}
-
-		composedAddress, err := git.ParseRemoteAddr(repo.OriginalURL, authUsername, authPassword)
-		if err == nil {
-			err = migrations.IsMigrateURLAllowed(composedAddress, ctx.Doer)
-		}
-		if err != nil {
-			handleRemoteAddrError(ctx, err)
-			return err
-		}
-
-		if err := mirror_service.UpdateAddress(ctx, mirror, composedAddress); err != nil {
-			ctx.APIErrorInternal(err)
-			return err
-		}
-
-		if sanitized, err := util.SanitizeURL(repo.OriginalURL); err == nil {
-			mirror.RemoteAddress = sanitized
-		}
-	}
-
-	// finally update the mirror in the DB
-	if err := repo_model.UpdateMirror(ctx, mirror); err != nil {
-		log.Error("Failed to Set Mirror Interval: %s", err)
-		ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-		return err
-	}
-
-	return nil
-}
-
 // Delete one repository
 func Delete(ctx *context.APIContext) {
 	// swagger:operation DELETE /repos/{owner}/{repo} repository repoDelete
@@ -1175,150 +933,4 @@ func Delete(ctx *context.APIContext) {
 
 	log.Trace("Repository deleted: %s/%s", owner.Name, repo.Name)
 	ctx.Status(http.StatusNoContent)
-}
-
-// GetIssueTemplates returns the issue templates for a repository
-func GetIssueTemplates(ctx *context.APIContext) {
-	// swagger:operation GET /repos/{owner}/{repo}/issue_templates repository repoGetIssueTemplates
-	// ---
-	// summary: Get available issue templates for a repository
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: owner
-	//   in: path
-	//   description: owner of the repo
-	//   type: string
-	//   required: true
-	// - name: repo
-	//   in: path
-	//   description: name of the repo
-	//   type: string
-	//   required: true
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/IssueTemplates"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-	ret := issue.ParseTemplatesFromDefaultBranch(ctx.Repo.Repository, ctx.Repo.GitRepo)
-	if cnt := len(ret.TemplateErrors); cnt != 0 {
-		ctx.Resp.Header().Add("X-Gitea-Warning", "error occurs when parsing issue template: count="+strconv.Itoa(cnt))
-	}
-	ctx.JSON(http.StatusOK, ret.IssueTemplates)
-}
-
-// GetIssueConfig returns the issue config for a repo
-func GetIssueConfig(ctx *context.APIContext) {
-	// swagger:operation GET /repos/{owner}/{repo}/issue_config repository repoGetIssueConfig
-	// ---
-	// summary: Returns the issue config for a repo
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: owner
-	//   in: path
-	//   description: owner of the repo
-	//   type: string
-	//   required: true
-	// - name: repo
-	//   in: path
-	//   description: name of the repo
-	//   type: string
-	//   required: true
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/RepoIssueConfig"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-	issueConfig, _ := issue.GetTemplateConfigFromDefaultBranch(ctx.Repo.Repository, ctx.Repo.GitRepo)
-	ctx.JSON(http.StatusOK, issueConfig)
-}
-
-// ValidateIssueConfig returns validation errors for the issue config
-func ValidateIssueConfig(ctx *context.APIContext) {
-	// swagger:operation GET /repos/{owner}/{repo}/issue_config/validate repository repoValidateIssueConfig
-	// ---
-	// summary: Returns the validation information for a issue config
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: owner
-	//   in: path
-	//   description: owner of the repo
-	//   type: string
-	//   required: true
-	// - name: repo
-	//   in: path
-	//   description: name of the repo
-	//   type: string
-	//   required: true
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/RepoIssueConfigValidation"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-	_, err := issue.GetTemplateConfigFromDefaultBranch(ctx.Repo.Repository, ctx.Repo.GitRepo)
-
-	if err == nil {
-		ctx.JSON(http.StatusOK, api.IssueConfigValidation{Valid: true, Message: ""})
-	} else {
-		ctx.JSON(http.StatusOK, api.IssueConfigValidation{Valid: false, Message: err.Error()})
-	}
-}
-
-func ListRepoActivityFeeds(ctx *context.APIContext) {
-	// swagger:operation GET /repos/{owner}/{repo}/activities/feeds repository repoListActivityFeeds
-	// ---
-	// summary: List a repository's activity feeds
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: owner
-	//   in: path
-	//   description: owner of the repo
-	//   type: string
-	//   required: true
-	// - name: repo
-	//   in: path
-	//   description: name of the repo
-	//   type: string
-	//   required: true
-	// - name: date
-	//   in: query
-	//   description: the date of the activities to be found
-	//   type: string
-	//   format: date
-	// - name: page
-	//   in: query
-	//   description: page number of results to return (1-based)
-	//   type: integer
-	// - name: limit
-	//   in: query
-	//   description: page size of results
-	//   type: integer
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/ActivityFeedsList"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-
-	listOptions := utils.GetListOptions(ctx)
-
-	opts := activities_model.GetFeedsOptions{
-		RequestedRepo:  ctx.Repo.Repository,
-		Actor:          ctx.Doer,
-		IncludePrivate: true,
-		Date:           ctx.FormString("date"),
-		ListOptions:    listOptions,
-	}
-	opts.ApplyPublicOnly(ctx.PublicOnly)
-
-	feeds, count, err := feed_service.GetFeeds(ctx, opts)
-	if err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
-	ctx.SetTotalCountHeader(count)
-
-	ctx.JSON(http.StatusOK, convert.ToActivities(ctx, feeds, ctx.Doer))
 }

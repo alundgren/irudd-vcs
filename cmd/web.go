@@ -15,17 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"gitea.dev/modules/container"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/gtprof"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/process"
-	"gitea.dev/modules/public"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/templates"
 	"gitea.dev/modules/util"
 	"gitea.dev/routers"
-	"gitea.dev/routers/install"
 
 	"github.com/felixge/fgprof"
 	"github.com/urfave/cli/v3"
@@ -48,11 +44,6 @@ and it takes care of all the other things for you`,
 				Aliases: []string{"p"},
 				Value:   "3000",
 				Usage:   "Temporary port number to prevent conflict",
-			},
-			&cli.StringFlag{
-				Name:  "install-port",
-				Value: "3000",
-				Usage: "Temporary port number to run the install page on to prevent conflict",
 			},
 			&cli.StringFlag{
 				Name:    "pid",
@@ -131,38 +122,6 @@ func showWebStartupMessage(msg string) {
 	}
 }
 
-func serveInstall(cmd *cli.Command) error {
-	showWebStartupMessage("Prepare to run install page")
-
-	routers.InitWebInstallPage(graceful.GetManager().HammerContext())
-
-	// Flag for port number in case first time run conflict
-	if cmd.IsSet("port") {
-		if err := setPort(cmd.String("port")); err != nil {
-			return err
-		}
-	}
-	if cmd.IsSet("install-port") {
-		if err := setPort(cmd.String("install-port")); err != nil {
-			return err
-		}
-	}
-	c := install.Routes()
-	err := listen(c, false)
-	if err != nil {
-		log.Error("Unable to open listener for installer. Is Gitea already running?")
-		graceful.GetManager().DoGracefulShutdown()
-	}
-	select {
-	case <-graceful.GetManager().IsShutdown():
-		<-graceful.GetManager().Done()
-		log.Info("PID: %d Gitea Web Finished", os.Getpid())
-		return err
-	default:
-	}
-	return nil
-}
-
 func serveInstalled(c *cli.Command) error {
 	setting.MustInstalled()
 
@@ -186,20 +145,6 @@ func serveInstalled(c *cli.Command) error {
 				log.Error("Unable to update WORK_PATH=%s to config %q: %v\nYou should set it manually, otherwise there might be bugs when accessing the git repositories.", setting.AppWorkPath, setting.CustomConf, err)
 			}
 		}
-	}
-
-	// in old versions, user's custom web files are placed in "custom/public", and they were served as "http://domain.com/assets/xxx"
-	// now, Gitea only serves pre-defined files in the "custom/public" folder basing on the web root, the user should move their custom files to "custom/public/assets"
-	publicFiles, _ := public.AssetFS().ListFiles(".")
-	publicFilesSet := container.SetOf(publicFiles...)
-	publicFilesSet.Remove(".well-known")
-	publicFilesSet.Remove("assets")
-	publicFilesSet.Remove("robots.txt")
-	for _, fn := range publicFilesSet.Values() {
-		log.Error("Found legacy public asset %q in CustomPath. Please move it to %s/public/assets/%s", fn, setting.CustomPath, fn)
-	}
-	if _, err := os.Stat(filepath.Join(setting.CustomPath, "robots.txt")); err == nil {
-		log.Error(`Found legacy public asset "robots.txt" in CustomPath. Please move it to %s/public/robots.txt`, setting.CustomPath)
 	}
 
 	routers.InitWebInstalled(graceful.GetManager().HammerContext())
@@ -268,17 +213,10 @@ func runWeb(ctx context.Context, cmd *cli.Command) error {
 		createPIDFile(cmd.String("pid"))
 	}
 
-	// init the HTML renderer and load templates, if error happens, it will report the error immediately and exit with error log
-	// in dev mode, it won't exit, but watch the template files for changes
-	_ = templates.PageRenderer()
-
 	if !setting.InstallLock {
-		if err := serveInstall(cmd); err != nil {
-			return err
-		}
-	} else {
-		NoInstallListener()
+		return fmt.Errorf("INSTALL_LOCK is not set in %q: irudd-vcs has no install page, configure the server in app.ini", setting.CustomConf)
 	}
+	NoInstallListener()
 
 	if setting.EnablePprof {
 		go servePprof()
