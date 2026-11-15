@@ -10,7 +10,6 @@ import (
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/unittest"
-	"gitea.dev/modules/setting"
 
 	_ "gitea.dev/cmd" // for TestPrimaryKeys
 
@@ -29,9 +28,7 @@ func TestDumpDatabase(t *testing.T) {
 	}
 	assert.NoError(t, db.GetEngine(t.Context()).Sync(new(Version)))
 
-	for _, dbType := range setting.SupportedDatabaseTypes {
-		assert.NoError(t, db.DumpDatabase(filepath.Join(dir, dbType+".sql"), setting.DatabaseType(dbType)))
-	}
+	assert.NoError(t, db.DumpDatabase(filepath.Join(dir, "sqlite3.sql")))
 }
 
 func TestDeleteOrphanedObjects(t *testing.T) {

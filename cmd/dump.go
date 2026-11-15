@@ -49,11 +49,6 @@ func newDumpCommand() *cli.Command {
 				Value:   os.TempDir(),
 				Usage:   "Temporary dir path",
 			},
-			&cli.StringFlag{
-				Name:    "database",
-				Aliases: []string{"d"},
-				Usage:   "Specify the database SQL syntax: sqlite3, mysql, mssql, postgres",
-			},
 			&cli.BoolFlag{
 				Name:    "skip-repository",
 				Aliases: []string{"R"},
@@ -193,14 +188,8 @@ func runDump(ctx context.Context, cmd *cli.Command) error {
 			}
 		}()
 
-		targetDBType := setting.DatabaseType(cmd.String("database"))
-		if targetDBType != "" && targetDBType != setting.Database.Type {
-			log.Info("Dumping database %s => %s...", setting.Database.Type, targetDBType)
-		} else {
-			log.Info("Dumping database...")
-		}
-
-		if err := db.DumpDatabase(dbDump.Name(), targetDBType); err != nil {
+		log.Info("Dumping database...")
+		if err := db.DumpDatabase(dbDump.Name()); err != nil {
 			fatal("Failed to dump database: %v", err)
 		}
 

@@ -11,7 +11,6 @@ import (
 	"gitea.dev/models/migrations"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	issue_service "gitea.dev/services/issue"
 )
 
@@ -133,15 +132,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 	}
 
 	// TODO: function to recalc all counters
-
-	if setting.Database.Type.IsPostgreSQL() {
-		consistencyChecks = append(consistencyChecks, consistencyCheck{
-			Name:         "Sequence values",
-			Counter:      db.CountBadSequences,
-			Fixer:        asFixer(db.FixBadSequences),
-			FixedMessage: "Updated",
-		})
-	}
 
 	consistencyChecks = append(consistencyChecks,
 		// find protected branches without existing repository

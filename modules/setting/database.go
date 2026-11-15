@@ -6,45 +6,34 @@ package setting
 import (
 	"path/filepath"
 	"time"
+
+	"gitea.dev/modules/log"
 )
 
 const DefaultSQLiteBusyTimeout = 20 * 1000
 
-var (
-	// SupportedDatabaseTypes includes all XORM supported databases type, sqlite3 maybe added by the tag-controlled drivers
-	SupportedDatabaseTypes = []string{"mysql", "postgres", "mssql"}
-	// DatabaseTypeNames contains the friendly names for all database types
-	DatabaseTypeNames = map[string]string{"mysql": "MySQL", "postgres": "PostgreSQL", "mssql": "MSSQL", DatabaseTypeSQLite3: "SQLite3"}
+// Database holds the database settings
+var Database = struct {
+	Type DatabaseType
+	Name string // only referenced by legacy migrations for other databases, always empty
+	Path string
 
-	// Database holds the database settings
-	Database = struct {
-		Type    DatabaseType
-		Host    string
-		Name    string
-		User    string
-		Passwd  string
-		Schema  string
-		SSLMode string
-		Path    string
+	SQLiteBusyTimeout int
+	SQLiteJournalMode string
 
-		SQLiteBusyTimeout int
-		SQLiteJournalMode string
-
-		LogSQL             bool
-		CharsetCollation   string
-		DBConnectRetries   int
-		DBConnectBackoff   time.Duration
-		MaxIdleConns       int
-		MaxOpenConns       int
-		ConnMaxLifetime    time.Duration
-		IterateBufferSize  int
-		AutoMigration      bool
-		SlowQueryThreshold time.Duration
-	}{
-		IterateBufferSize:  50,
-		SlowQueryThreshold: 5 * time.Second,
-	}
-)
+	LogSQL             bool
+	DBConnectRetries   int
+	DBConnectBackoff   time.Duration
+	MaxIdleConns       int
+	MaxOpenConns       int
+	ConnMaxLifetime    time.Duration
+	IterateBufferSize  int
+	AutoMigration      bool
+	SlowQueryThreshold time.Duration
+}{
+	IterateBufferSize:  50,
+	SlowQueryThreshold: 5 * time.Second,
+}
 
 // LoadDBSetting loads the database settings
 func LoadDBSetting() {
@@ -53,16 +42,10 @@ func LoadDBSetting() {
 
 func loadDBSetting(rootCfg ConfigProvider) {
 	sec := rootCfg.Section("database")
-	Database.Type = DatabaseType(sec.Key("DB_TYPE").String())
-
-	Database.Host = sec.Key("HOST").String()
-	Database.Name = sec.Key("NAME").String()
-	Database.User = sec.Key("USER").String()
-	Database.Passwd = sec.Key("PASSWD").String()
-
-	Database.Schema = sec.Key("SCHEMA").String()
-	Database.SSLMode = sec.Key("SSL_MODE").MustString("disable")
-	Database.CharsetCollation = sec.Key("CHARSET_COLLATION").String()
+	Database.Type = DatabaseType(sec.Key("DB_TYPE").MustString(DatabaseTypeSQLite3))
+	if !Database.Type.IsSQLite3() {
+		log.Fatal("Unsupported [database] DB_TYPE %q: only %q is supported", Database.Type, DatabaseTypeSQLite3)
+	}
 
 	Database.Path = sec.Key("PATH").MustString(filepath.Join(AppDataPath, "gitea.db"))
 
@@ -75,11 +58,7 @@ func loadDBSetting(rootCfg ConfigProvider) {
 	Database.SQLiteJournalMode = sec.Key("SQLITE_JOURNAL_MODE").MustString("")
 
 	Database.MaxIdleConns = sec.Key("MAX_IDLE_CONNS").MustInt(2)
-	if Database.Type.IsMySQL() {
-		Database.ConnMaxLifetime = sec.Key("CONN_MAX_LIFETIME").MustDuration(3 * time.Second)
-	} else {
-		Database.ConnMaxLifetime = sec.Key("CONN_MAX_LIFETIME").MustDuration(0)
-	}
+	Database.ConnMaxLifetime = sec.Key("CONN_MAX_LIFETIME").MustDuration(0)
 	Database.MaxOpenConns = sec.Key("MAX_OPEN_CONNS").MustInt(0)
 
 	Database.IterateBufferSize = sec.Key("ITERATE_BUFFER_SIZE").MustInt(50)
@@ -98,6 +77,8 @@ const DatabaseTypeSQLite3 = "sqlite3"
 func (t DatabaseType) IsSQLite3() bool {
 	return t == DatabaseTypeSQLite3
 }
+
+// IsMySQL, IsMSSQL and IsPostgreSQL are kept for legacy migrations, they are always false at runtime
 
 func (t DatabaseType) IsMySQL() bool {
 	return t == "mysql"

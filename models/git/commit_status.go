@@ -19,7 +19,6 @@ import (
 	"gitea.dev/modules/commitstatus"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 
@@ -54,80 +53,11 @@ func init() {
 	db.RegisterModel(new(CommitStatusIndex))
 }
 
-func postgresGetCommitStatusIndex(ctx context.Context, repoID int64, sha string) (int64, error) {
-	res, err := db.GetEngine(ctx).Query("INSERT INTO `commit_status_index` (repo_id, sha, max_index) "+
-		"VALUES (?,?,1) ON CONFLICT (repo_id, sha) DO UPDATE SET max_index = `commit_status_index`.max_index+1 RETURNING max_index",
-		repoID, sha)
-	if err != nil {
-		return 0, err
-	}
-	if len(res) == 0 {
-		return 0, db.ErrGetResourceIndexFailed
-	}
-	return strconv.ParseInt(string(res[0]["max_index"]), 10, 64)
-}
-
-func mysqlGetCommitStatusIndex(ctx context.Context, repoID int64, sha string) (int64, error) {
-	if _, err := db.GetEngine(ctx).Exec("INSERT INTO `commit_status_index` (repo_id, sha, max_index) "+
-		"VALUES (?,?,1) ON DUPLICATE KEY UPDATE max_index = max_index+1",
-		repoID, sha); err != nil {
-		return 0, err
-	}
-
-	var idx int64
-	_, err := db.GetEngine(ctx).SQL("SELECT max_index FROM `commit_status_index` WHERE repo_id = ? AND sha = ?",
-		repoID, sha).Get(&idx)
-	if err != nil {
-		return 0, err
-	}
-	if idx == 0 {
-		return 0, errors.New("cannot get the correct index")
-	}
-	return idx, nil
-}
-
-func mssqlGetCommitStatusIndex(ctx context.Context, repoID int64, sha string) (int64, error) {
-	if _, err := db.GetEngine(ctx).Exec(`
-MERGE INTO commit_status_index WITH (HOLDLOCK) AS target
-USING (SELECT ? AS repo_id, ? AS sha) AS source
-(repo_id, sha)
-ON target.repo_id = source.repo_id AND target.sha = source.sha
-WHEN MATCHED
-	THEN UPDATE
-			SET max_index = max_index + 1
-WHEN NOT MATCHED
-	THEN INSERT (repo_id, sha, max_index)
-			VALUES (?, ?, 1);
-`, repoID, sha, repoID, sha); err != nil {
-		return 0, err
-	}
-
-	var idx int64
-	_, err := db.GetEngine(ctx).SQL("SELECT max_index FROM `commit_status_index` WHERE repo_id = ? AND sha = ?",
-		repoID, sha).Get(&idx)
-	if err != nil {
-		return 0, err
-	}
-	if idx == 0 {
-		return 0, errors.New("cannot get the correct index")
-	}
-	return idx, nil
-}
-
 // GetNextCommitStatusIndex retried 3 times to generate a resource index
 func GetNextCommitStatusIndex(ctx context.Context, repoID int64, sha string) (int64, error) {
 	_, err := git.NewIDFromString(sha)
 	if err != nil {
 		return 0, util.NewInvalidArgumentErrorf("invalid sha: %v", err)
-	}
-
-	switch {
-	case setting.Database.Type.IsPostgreSQL():
-		return postgresGetCommitStatusIndex(ctx, repoID, sha)
-	case setting.Database.Type.IsMySQL():
-		return mysqlGetCommitStatusIndex(ctx, repoID, sha)
-	case setting.Database.Type.IsMSSQL():
-		return mssqlGetCommitStatusIndex(ctx, repoID, sha)
 	}
 
 	e := db.GetEngine(ctx)

@@ -110,7 +110,7 @@ func checkDatabase(ctx context.Context, checks checks) status {
 		st.Time = getCheckTime()
 	}
 
-	if setting.Database.Type.IsSQLite3() && st.Status == pass {
+	if st.Status == pass {
 		if _, err := os.Stat(setting.Database.Path); err != nil {
 			st.Status = fail
 			st.Time = getCheckTime()

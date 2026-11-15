@@ -33,13 +33,6 @@ func newXORMEngine() (*xorm.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch {
-	case connOpts.Type.IsMySQL():
-		engine.Dialect().SetParams(map[string]string{"rowFormat": "DYNAMIC"})
-	case connOpts.Type.IsMSSQL():
-		engine.Dialect().SetParams(map[string]string{"DEFAULT_VARCHAR": "nvarchar"})
-	}
-	engine.SetSchema(connOpts.Schema)
 	return engine, nil
 }
 
@@ -100,8 +93,6 @@ func InitEngineWithMigration(ctx context.Context, migrateFunc func(context.Conte
 	if err = xormEngine.Ping(); err != nil {
 		return err
 	}
-
-	preprocessDatabaseCollation(xormEngine)
 
 	// We have to run migrateFunc here in case the user is re-running installation on a previously created DB.
 	// If we do not then table schemas will be changed and there will be conflicts when the migrations run properly.

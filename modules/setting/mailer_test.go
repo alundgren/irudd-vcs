@@ -48,7 +48,7 @@ func TestLoadSettingsForInstallMailServiceFlags(t *testing.T) {
 
 	cfg, err := NewConfigProviderFromData(`
 [database]
-DB_TYPE = postgres
+DB_TYPE = sqlite3
 
 [mailer]
 ENABLED = true

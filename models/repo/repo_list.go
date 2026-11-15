@@ -486,11 +486,7 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 		subQueryCond := builder.NewCond()
 
 		// Topic checking. Topics are present.
-		if setting.Database.Type.IsPostgreSQL() { // postgres stores the topics as json and not as text
-			subQueryCond = subQueryCond.Or(builder.And(builder.NotNull{"topics"}, builder.Neq{"(topics)::text": "[]"}))
-		} else {
-			subQueryCond = subQueryCond.Or(builder.And(builder.Neq{"topics": "null"}, builder.Neq{"topics": "[]"}))
-		}
+		subQueryCond = subQueryCond.Or(builder.And(builder.Neq{"topics": "null"}, builder.Neq{"topics": "[]"}))
 
 		// Description checking. Description not empty
 		subQueryCond = subQueryCond.Or(builder.Neq{"description": ""})
