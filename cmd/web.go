@@ -202,6 +202,7 @@ func runWeb(ctx context.Context, cmd *cli.Command) error {
 
 func setPort(port string) error {
 	setting.AppURL = strings.Replace(setting.AppURL, setting.HTTPPort, port, 1)
+	setting.API.SwaggerURL = strings.Replace(setting.API.SwaggerURL, setting.HTTPPort, port, 1) // derived from the same ROOT_URL
 	setting.HTTPPort = port
 
 	switch setting.Protocol {
