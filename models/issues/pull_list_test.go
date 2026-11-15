@@ -91,7 +91,7 @@ func testCanMaintainerWriteToBranch(t *testing.T) {
 		HeadBranch: "pr-from-head-owner",
 		BaseBranch: "master",
 	}
-	require.NoError(t, issues_model.NewPullRequest(ctx, baseRepo, headOwnerPR.Issue, nil, nil, headOwnerPR))
+	require.NoError(t, issues_model.NewPullRequest(ctx, baseRepo, headOwnerPR.Issue, nil, headOwnerPR))
 
 	// a PR from a user, they might have or not have "write" permission in the target repo
 	anyUserPR := &issues_model.PullRequest{
@@ -104,7 +104,7 @@ func testCanMaintainerWriteToBranch(t *testing.T) {
 		HeadBranch: "pr-from-head-user",
 		BaseBranch: "master",
 	}
-	require.NoError(t, issues_model.NewPullRequest(ctx, baseRepo, anyUserPR.Issue, nil, nil, anyUserPR))
+	require.NoError(t, issues_model.NewPullRequest(ctx, baseRepo, anyUserPR.Issue, nil, anyUserPR))
 
 	doerCanWrite := func(doer *user_model.User, pr *issues_model.PullRequest) bool {
 		headPerm, _ := access.GetIndividualUserRepoPermission(ctx, headRepo, doer)

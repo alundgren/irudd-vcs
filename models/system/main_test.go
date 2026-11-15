@@ -8,9 +8,7 @@ import (
 
 	"gitea.dev/models/unittest"
 
-	_ "gitea.dev/models" // register models
-	_ "gitea.dev/models/actions"
-	_ "gitea.dev/models/activities"
+	_ "gitea.dev/models"        // register models
 	_ "gitea.dev/models/system" // register models of system
 )
 

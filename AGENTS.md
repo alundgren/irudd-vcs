@@ -23,7 +23,7 @@ Work through these phases in order. Do not jump ahead to a later phase.
 
 ## Current rules
 
-- Do not run any tests (unit, integration or e2e) until we reach the local testing phase
+- We are in the local testing phase (3): running and fixing tests is allowed; do not start optimizing yet
 - Work directly on `main`. Do not open pull requests for now
 
 ## Conventions

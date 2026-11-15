@@ -6,13 +6,11 @@ package models
 import (
 	"testing"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/organization"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 
-	_ "gitea.dev/models/actions"
 	_ "gitea.dev/models/system"
 
 	"github.com/stretchr/testify/assert"
@@ -24,8 +22,7 @@ func TestFixturesAreConsistent(t *testing.T) {
 	unittest.CheckConsistencyFor(t,
 		&user_model.User{},
 		&repo_model.Repository{},
-		&organization.Team{},
-		&activities_model.Action{})
+		&organization.Team{})
 }
 
 func TestMain(m *testing.M) {

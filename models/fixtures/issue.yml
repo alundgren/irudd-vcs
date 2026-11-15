@@ -6,7 +6,6 @@
   original_author_id: 0
   name: issue1
   content: content for the first issue
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -23,7 +22,6 @@
   original_author_id: 0
   name: issue2
   content: content for the second issue
-  milestone_id: 1
   priority: 0
   is_closed: false
   is_pull: true
@@ -40,7 +38,6 @@
   original_author_id: 0
   name: issue3
   content: content for the third issue
-  milestone_id: 3
   priority: 0
   is_closed: false
   is_pull: true
@@ -57,7 +54,6 @@
   original_author_id: 0
   name: issue4
   content: content for the fourth issue
-  milestone_id: 0
   priority: 0
   is_closed: true
   is_pull: false
@@ -74,7 +70,6 @@
   original_author_id: 0
   name: issue5
   content: content for the fifth issue
-  milestone_id: 0
   priority: 0
   is_closed: true
   is_pull: false
@@ -91,7 +86,6 @@
   original_author_id: 0
   name: issue6
   content: content6
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -108,7 +102,6 @@
   original_author_id: 0
   name: issue7
   content: content for the seventh issue
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -125,7 +118,6 @@
   original_author_id: 0
   name: pr2
   content: a pull request
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: true
@@ -142,7 +134,6 @@
   original_author_id: 0
   name: pr1
   content: a pull request
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: true
@@ -159,7 +150,6 @@
   original_author_id: 0
   name: issue from deleted account
   content: content from deleted account
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -177,7 +167,6 @@
   original_author_id: 0
   name: pull5
   content: content for the a pull request
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: true
@@ -194,7 +183,6 @@
   original_author_id: 0
   name: pull6
   content: content for the a pull request
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: true
@@ -211,7 +199,6 @@
   original_author_id: 0
   name: issue in active repo
   content: we'll be testing github issue 13171 with this.
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -228,7 +215,6 @@
   original_author_id: 0
   name: issue in archived repo
   content: we'll be testing github issue 13171 with this.
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -245,7 +231,6 @@
   original_author_id: 0
   name: issue in repo not linked to team1
   content: content
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -262,7 +247,6 @@
   original_author_id: 0
   name: just a normal issue
   content: content
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -279,7 +263,6 @@
   original_author_id: 0
   name: a issue with a assignment
   content: content
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -296,7 +279,6 @@
   original_author_id: 0
   name: issue for scoped labels
   content: content
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: false
@@ -313,7 +295,6 @@
   original_author_id: 0
   name: issue for pr
   content: content
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: true
@@ -330,7 +311,6 @@
   original_author_id: 0
   name: issue for pr
   content: content
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: true
@@ -347,7 +327,6 @@
   original_author_id: 0
   name: repo60 pull1
   content: content for the 1st issue
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: true
@@ -364,7 +343,6 @@
   original_author_id: 0
   name: repo61 pull1
   content: content for the 1st issue
-  milestone_id: 0
   priority: 0
   is_closed: false
   is_pull: true

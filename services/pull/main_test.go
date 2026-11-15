@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"gitea.dev/models/unittest"
-
-	_ "gitea.dev/models/actions"
 )
 
 func TestMain(m *testing.M) {

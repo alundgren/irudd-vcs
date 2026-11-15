@@ -460,19 +460,20 @@ func TestSearchRepositoryByTopicName(t *testing.T) {
 		count int
 	}{
 		{
-			name:  "AllPublic/SearchPublicRepositoriesFromTopicAndName",
+			name:  "AllPublic/SearchPublicRepositoriesFromName",
 			opts:  repo_model.SearchRepoOptions{OwnerID: 21, AllPublic: true, Keyword: "graphql"},
-			count: 2,
+			count: 1,
 		},
 		{
+			// topics were removed, so a topic-only search matches nothing
 			name:  "AllPublic/OnlySearchPublicRepositoriesFromTopic",
 			opts:  repo_model.SearchRepoOptions{OwnerID: 21, AllPublic: true, Keyword: "graphql", TopicOnly: true},
-			count: 1,
+			count: 0,
 		},
 		{
 			name:  "AllPublic/OnlySearchMultipleKeywordPublicRepositoriesFromTopic",
 			opts:  repo_model.SearchRepoOptions{OwnerID: 21, AllPublic: true, Keyword: "graphql,golang", TopicOnly: true},
-			count: 2,
+			count: 0,
 		},
 	}
 
@@ -483,24 +484,6 @@ func TestSearchRepositoryByTopicName(t *testing.T) {
 			assert.Equal(t, int64(testCase.count), count)
 		})
 	}
-}
-
-func TestFindUserActionsAccessibleOwnerRepoIDs(t *testing.T) {
-	require.NoError(t, unittest.PrepareTestDatabase())
-	// user2 is on org3's owner team, so it can access org3's private repo3 (which has the actions unit)
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-
-	// org3 is a public org owning repo3 (private) and repo32 (public), both with the actions unit
-	const orgID = 3
-
-	all, err := repo_model.SearchRepositoryIDsByCondition(t.Context(), repo_model.UserActionsAccessibleOwnerRepoCond(orgID, user, false))
-	require.NoError(t, err)
-	assert.Contains(t, all, int64(3), "without public-only the private repo's actions are listed")
-
-	publicOnly, err := repo_model.SearchRepositoryIDsByCondition(t.Context(), repo_model.UserActionsAccessibleOwnerRepoCond(orgID, user, true))
-	require.NoError(t, err)
-	assert.NotContains(t, publicOnly, int64(3), "a public-only token must not list a private repo's actions")
-	assert.Contains(t, publicOnly, int64(32), "a public repo under a public owner stays listed")
 }
 
 // TestUserOrgUnitRepoCondTeamAuthorize pins the team.authorize behavior of userOrgTeamUnitRepoBuilder
@@ -517,17 +500,21 @@ func TestUserOrgUnitRepoCondTeamAuthorize(t *testing.T) {
 		return ids
 	}
 
+	// the fixtures give team2 and team5 a row for every kept unit, so drop their Releases rows
+	_, err := db.GetEngine(t.Context()).Exec("DELETE FROM team_unit WHERE team_id IN (2, 5) AND type = ?", unit.TypeReleases)
+	require.NoError(t, err)
+
 	// Case A: user18 is only on org17's owner team (team5, authorize=owner), linked to the private repo24
-	// but with no Actions team_unit row. The owner authorize must still grant it, mirroring the runtime
+	// but with no Releases team_unit row. The owner authorize must still grant it, mirroring the runtime
 	// HasAdminAccess() short-circuit in access.GetIndividualUserRepoPermission.
-	assert.Contains(t, accessibleRepoIDs(18, 17, unit.TypeActions), int64(24),
+	assert.Contains(t, accessibleRepoIDs(18, 17, unit.TypeReleases), int64(24),
 		"an owner team grants a unit it has no explicit team_unit row for")
 
 	// Cases B and C share one subject so the team_unit row is the only difference: user4 is only on org3's
 	// write team (team2, authorize=write, non-admin), linked to the private repo3. team2 has an explicit
-	// Projects row but none for Actions.
-	assert.Contains(t, accessibleRepoIDs(4, 3, unit.TypeProjects), int64(3),
+	// Code row but none for Releases.
+	assert.Contains(t, accessibleRepoIDs(4, 3, unit.TypeCode), int64(3),
 		"a non-admin team grants a unit it has an explicit team_unit row for")
-	assert.NotContains(t, accessibleRepoIDs(4, 3, unit.TypeActions), int64(3),
+	assert.NotContains(t, accessibleRepoIDs(4, 3, unit.TypeReleases), int64(3),
 		"a non-admin team must NOT grant a unit it has no team_unit row for")
 }

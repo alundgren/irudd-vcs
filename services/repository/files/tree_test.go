@@ -4,12 +4,9 @@
 package files
 
 import (
-	"html/template"
 	"testing"
 
 	"gitea.dev/models/unittest"
-	"gitea.dev/modules/fileicon"
-	"gitea.dev/modules/git"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/services/contexttest"
 
@@ -52,72 +49,4 @@ func TestGetTreeBySHA(t *testing.T) {
 	}
 
 	assert.Equal(t, expectedTree, tree)
-}
-
-func TestGetTreeViewNodes(t *testing.T) {
-	unittest.PrepareTestEnv(t)
-
-	ctx, _ := contexttest.MockContext(t, "user2/repo1")
-	ctx.Repo.RefFullName = git.RefNameFromBranch("sub-home-md-img-check")
-	contexttest.LoadRepo(t, ctx, 1)
-	contexttest.LoadRepoCommit(t, ctx)
-	contexttest.LoadUser(t, ctx, 2)
-	contexttest.LoadGitRepo(t, ctx)
-	defer ctx.Repo.GitRepo.Close()
-
-	curRepoLink := "/any/repo-link"
-	renderedIconPool := fileicon.NewRenderedIconPool()
-	mockIconForFile := func(id string) template.HTML {
-		return template.HTML(`<svg class="svg git-entry-icon octicon-file" width="16" height="16" aria-hidden="true"><use href="#` + id + `"></use></svg>`)
-	}
-	mockIconForFolder := func() template.HTML {
-		// With basic theme (default for folders), we get octicon icons without IDs
-		return template.HTML(`<span>octicon-file-directory-fill(16/)</span>`)
-	}
-	mockOpenIconForFolder := func() template.HTML {
-		// With basic theme (default for folders), we get octicon icons without IDs
-		return template.HTML(`<span>octicon-file-directory-open-fill(16/)</span>`)
-	}
-	treeNodes, err := GetTreeViewNodes(ctx, curRepoLink, renderedIconPool, ctx.Repo.Commit, "", "")
-	assert.NoError(t, err)
-	assert.Equal(t, []*TreeViewNode{
-		{
-			EntryName:     "docs",
-			EntryMode:     "tree",
-			FullPath:      "docs",
-			EntryIcon:     mockIconForFolder(),
-			EntryIconOpen: mockOpenIconForFolder(),
-		},
-	}, treeNodes)
-
-	treeNodes, err = GetTreeViewNodes(ctx, curRepoLink, renderedIconPool, ctx.Repo.Commit, "", "docs/README.md")
-	assert.NoError(t, err)
-	assert.Equal(t, []*TreeViewNode{
-		{
-			EntryName:     "docs",
-			EntryMode:     "tree",
-			FullPath:      "docs",
-			EntryIcon:     mockIconForFolder(),
-			EntryIconOpen: mockOpenIconForFolder(),
-			Children: []*TreeViewNode{
-				{
-					EntryName: "README.md",
-					EntryMode: "blob",
-					FullPath:  "docs/README.md",
-					EntryIcon: mockIconForFile(`svg-mfi-readme`),
-				},
-			},
-		},
-	}, treeNodes)
-
-	treeNodes, err = GetTreeViewNodes(ctx, curRepoLink, renderedIconPool, ctx.Repo.Commit, "docs", "README.md")
-	assert.NoError(t, err)
-	assert.Equal(t, []*TreeViewNode{
-		{
-			EntryName: "README.md",
-			EntryMode: "blob",
-			FullPath:  "docs/README.md",
-			EntryIcon: mockIconForFile(`svg-mfi-readme`),
-		},
-	}, treeNodes)
 }

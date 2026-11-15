@@ -16,6 +16,7 @@ import (
 	webhook_model "gitea.dev/models/webhook"
 	"gitea.dev/modules/hostmatcher"
 	"gitea.dev/modules/setting"
+	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	webhook_module "gitea.dev/modules/webhook"
 
@@ -131,64 +132,16 @@ func TestWebhookDeliverHookTask(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 
 	done := make(chan struct{}, 1)
-	version2Body := `{
-  "body": "[[test/repo](http://localhost:3000/test/repo)] user1 pushed 2 commits to [test](http://localhost:3000/test/repo/src/branch/test):\n[2020558](http://localhost:3000/test/repo/commit/2020558fe2e34debb818a514715839cabd25e778): commit message - user1\n[2020558](http://localhost:3000/test/repo/commit/2020558fe2e34debb818a514715839cabd25e778): commit message - user1",
-  "msgtype": "",
-  "format": "org.matrix.custom.html",
-  "formatted_body": "[<a href=\"http://localhost:3000/test/repo\">test/repo</a>] user1 pushed 2 commits to <a href=\"http://localhost:3000/test/repo/src/branch/test\">test</a>:<br><a href=\"http://localhost:3000/test/repo/commit/2020558fe2e34debb818a514715839cabd25e778\">2020558</a>: commit message - user1<br><a href=\"http://localhost:3000/test/repo/commit/2020558fe2e34debb818a514715839cabd25e778\">2020558</a>: commit message - user1",
-  "io.gitea.commits": [
-    {
-      "id": "2020558fe2e34debb818a514715839cabd25e778",
-      "message": "commit message",
-      "url": "http://localhost:3000/test/repo/commit/2020558fe2e34debb818a514715839cabd25e778",
-      "author": {
-        "name": "user1",
-        "email": "user1@localhost",
-        "username": "user1"
-      },
-      "committer": {
-        "name": "user1",
-        "email": "user1@localhost",
-        "username": "user1"
-      },
-      "verification": null,
-      "timestamp": "0001-01-01T00:00:00Z",
-      "added": null,
-      "removed": null,
-      "modified": null
-    },
-    {
-      "id": "2020558fe2e34debb818a514715839cabd25e778",
-      "message": "commit message",
-      "url": "http://localhost:3000/test/repo/commit/2020558fe2e34debb818a514715839cabd25e778",
-      "author": {
-        "name": "user1",
-        "email": "user1@localhost",
-        "username": "user1"
-      },
-      "committer": {
-        "name": "user1",
-        "email": "user1@localhost",
-        "username": "user1"
-      },
-      "verification": null,
-      "timestamp": "0001-01-01T00:00:00Z",
-      "added": null,
-      "removed": null,
-      "modified": null
-    }
-  ]
-}`
+	var version2Body string
 
 	testVersion := 0
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "PUT", r.Method)
-		assert.True(t, strings.HasPrefix(r.URL.Path, "/webhook/"))
-		assert.Len(t, r.URL.Path, len("/webhook/")+40) // +40 for txnID, a unique ID from payload's sha1 hash
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "/webhook", r.URL.Path)
 		switch testVersion {
 		case 1: // Version 1
 			assert.Equal(t, "push", r.Header.Get("X-GitHub-Event"))
-			assert.Empty(t, r.Header.Get("Content-Type"))
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 			body, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, `{"data": 42}`, string(body))
@@ -213,11 +166,10 @@ func TestWebhookDeliverHookTask(t *testing.T) {
 	hook := &webhook_model.Webhook{
 		RepoID:      3,
 		IsActive:    true,
-		Type:        webhook_module.MATRIX,
+		Type:        webhook_module.GITEA,
 		URL:         s.URL + "/webhook",
-		HTTPMethod:  "PUT",
+		HTTPMethod:  "POST",
 		ContentType: webhook_model.ContentTypeJSON,
-		Meta:        `{"message_type":0}`, // text
 	}
 	assert.NoError(t, webhook_model.CreateWebhook(t.Context(), hook))
 
@@ -248,6 +200,7 @@ func TestWebhookDeliverHookTask(t *testing.T) {
 		p := pushTestPayload()
 		data, err := p.JSONPayload()
 		assert.NoError(t, err)
+		version2Body = string(data) // the gitea type delivers the payload unchanged
 
 		testVersion = 2
 		hookTask := &webhook_model.HookTask{
@@ -281,15 +234,8 @@ func TestWebhookDeliverSpecificTypes(t *testing.T) {
 	}
 
 	cases := map[string]*hookCase{
-		webhook_module.SLACK:      {},
-		webhook_module.DISCORD:    {},
-		webhook_module.DINGTALK:   {},
-		webhook_module.TELEGRAM:   {},
-		webhook_module.MSTEAMS:    {},
-		webhook_module.FEISHU:     {},
-		webhook_module.MATRIX:     {httpMethod: "PUT"},
-		webhook_module.WECHATWORK: {},
-		webhook_module.PACKAGIST:  {},
+		webhook_module.GITEA: {},
+		webhook_module.GOGS:  {},
 	}
 
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -311,11 +257,11 @@ func TestWebhookDeliverSpecificTypes(t *testing.T) {
 		t.Run(typ, func(t *testing.T) {
 			t.Parallel()
 			hook := &webhook_model.Webhook{
-				RepoID:   3,
-				IsActive: true,
-				Type:     typ,
-				URL:      s.URL + "/" + typ,
-				Meta:     "{}",
+				RepoID:      3,
+				IsActive:    true,
+				Type:        typ,
+				URL:         s.URL + "/" + typ,
+				ContentType: webhook_model.ContentTypeJSON,
 			}
 			assert.NoError(t, webhook_model.CreateWebhook(t.Context(), hook))
 
@@ -334,7 +280,7 @@ func TestWebhookDeliverSpecificTypes(t *testing.T) {
 
 			select {
 			case gotBody := <-cases[typ].gotBody:
-				assert.NotEqual(t, string(data), string(gotBody), "request body must be different from the event payload")
+				assert.Equal(t, string(data), string(gotBody), "the remaining hook types deliver the event payload unchanged")
 				assert.Equal(t, hookTask.RequestInfo.Body, string(gotBody), "delivered webhook payload doesn't match saved request")
 			case <-time.After(5 * time.Second):
 				t.Fatal("waited to long for request to happen")
@@ -342,5 +288,44 @@ func TestWebhookDeliverSpecificTypes(t *testing.T) {
 
 			assert.True(t, hookTask.IsSucceed)
 		})
+	}
+}
+
+func pushTestPayload() *api.PushPayload {
+	commit := &api.PayloadCommit{
+		ID:      "2020558fe2e34debb818a514715839cabd25e778",
+		Message: "commit message",
+		URL:     "http://localhost:3000/test/repo/commit/2020558fe2e34debb818a514715839cabd25e778",
+		Author: &api.PayloadUser{
+			Name:     "user1",
+			Email:    "user1@localhost",
+			UserName: "user1",
+		},
+		Committer: &api.PayloadUser{
+			Name:     "user1",
+			Email:    "user1@localhost",
+			UserName: "user1",
+		},
+	}
+
+	return &api.PushPayload{
+		Ref:          "refs/heads/test",
+		Before:       "2020558fe2e34debb818a514715839cabd25e777",
+		After:        "2020558fe2e34debb818a514715839cabd25e778",
+		CompareURL:   "",
+		HeadCommit:   commit,
+		Commits:      []*api.PayloadCommit{commit, commit},
+		TotalCommits: 2,
+		Repo: &api.Repository{
+			HTMLURL:  "http://localhost:3000/test/repo",
+			Name:     "repo",
+			FullName: "test/repo",
+		},
+		Pusher: &api.User{
+			UserName: "user1",
+		},
+		Sender: &api.User{
+			UserName: "user1",
+		},
 	}
 }

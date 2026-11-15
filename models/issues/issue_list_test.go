@@ -8,7 +8,6 @@ import (
 
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/unittest"
-	"gitea.dev/modules/setting"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +48,6 @@ func TestIssueList_LoadIsRead(t *testing.T) {
 
 func TestIssueList_LoadAttributes(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
-	setting.Service.EnableTimetracking = true
 	issueList := issues_model.IssueList{
 		unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: 1}),
 		unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: 4}),
@@ -68,24 +66,11 @@ func TestIssueList_LoadAttributes(t *testing.T) {
 		if issue.AssigneeID > 0 {
 			assert.Equal(t, issue.AssigneeID, issue.Assignee.ID)
 		}
-		if issue.MilestoneID > 0 {
-			assert.Equal(t, issue.MilestoneID, issue.Milestone.ID)
-		}
 		if issue.IsPull {
 			assert.Equal(t, issue.ID, issue.PullRequest.IssueID)
 		}
-		for _, attachment := range issue.Attachments {
-			assert.Equal(t, issue.ID, attachment.IssueID)
-		}
 		for _, comment := range issue.Comments {
 			assert.Equal(t, issue.ID, comment.IssueID)
-		}
-		if issue.ID == int64(1) {
-			assert.Equal(t, int64(400), issue.TotalTrackedTime)
-			assert.NotEmpty(t, issue.Projects)
-			assert.Equal(t, int64(1), issue.Projects[0].ID)
-		} else {
-			assert.Empty(t, issue.Projects)
 		}
 	}
 }

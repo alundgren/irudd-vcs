@@ -19,7 +19,6 @@ import (
 const (
 	// these const values are copied from `models` package to prevent from cycle-import
 	modelsUserTypeOrganization = 1
-	modelsRepoWatchModeDont    = 2
 	modelsCommentTypeComment   = 0
 )
 
@@ -65,11 +64,8 @@ func init() {
 	checkForUserConsistency := func(t TestingT, bean any) {
 		user := reflectionWrap(bean)
 		AssertCountByCond(t, "repository", builder.Eq{"owner_id": user.int("ID")}, user.int("NumRepos"))
-		AssertCountByCond(t, "star", builder.Eq{"uid": user.int("ID")}, user.int("NumStars"))
 		AssertCountByCond(t, "org_user", builder.Eq{"org_id": user.int("ID")}, user.int("NumMembers"))
 		AssertCountByCond(t, "team", builder.Eq{"org_id": user.int("ID")}, user.int("NumTeams"))
-		AssertCountByCond(t, "follow", builder.Eq{"user_id": user.int("ID")}, user.int("NumFollowing"))
-		AssertCountByCond(t, "follow", builder.Eq{"follow_id": user.int("ID")}, user.int("NumFollowers"))
 		if user.int("Type") != modelsUserTypeOrganization {
 			assert.Equal(t, 0, user.int("NumMembers"), "Unexpected number of members for user id: %d", user.int("ID"))
 			assert.Equal(t, 0, user.int("NumTeams"), "Unexpected number of teams for user id: %d", user.int("ID"))
@@ -79,18 +75,12 @@ func init() {
 	checkForRepoConsistency := func(t TestingT, bean any) {
 		repo := reflectionWrap(bean)
 		assert.Equal(t, repo.str("LowerName"), strings.ToLower(repo.str("Name")), "repo: %+v", repo)
-		AssertCountByCond(t, "star", builder.Eq{"repo_id": repo.int("ID")}, repo.int("NumStars"))
 		AssertCountByCond(t, "repository", builder.Eq{"fork_id": repo.int("ID")}, repo.int("NumForks"))
 		if repo.bool("IsFork") {
 			AssertExistsAndLoadMap(t, "repository", builder.Eq{"id": repo.int("ForkID")})
 		}
 
-		actual := GetCountByCond(t, "watch", builder.Eq{"repo_id": repo.int("ID")}.
-			And(builder.Neq{"mode": modelsRepoWatchModeDont}))
-		assert.EqualValues(t, repo.int("NumWatches"), actual,
-			"Unexpected number of watches for repo id: %d", repo.int("ID"))
-
-		actual = GetCountByCond(t, "issue", builder.Eq{"is_pull": false, "repo_id": repo.int("ID")})
+		actual := GetCountByCond(t, "issue", builder.Eq{"is_pull": false, "repo_id": repo.int("ID")})
 		assert.EqualValues(t, repo.int("NumIssues"), actual,
 			"Unexpected number of issues for repo id: %d", repo.int("ID"))
 
@@ -152,19 +142,10 @@ func init() {
 		AssertCountByCond(t, "team_repo", builder.Eq{"team_id": team.int("ID")}, team.int("NumRepos"))
 	}
 
-	checkForActionConsistency := func(t TestingT, bean any) {
-		action := reflectionWrap(bean)
-		if action.int("RepoID") != 1700 { // dangling intentional
-			repoRow := AssertExistsAndLoadMap(t, "repository", builder.Eq{"id": action.int("RepoID")})
-			assert.Equal(t, parseBool(repoRow["is_private"]), action.bool("IsPrivate"), "Unexpected is_private field for action id: %d", action.int("ID"))
-		}
-	}
-
 	consistencyCheckMap["user"] = checkForUserConsistency
 	consistencyCheckMap["repository"] = checkForRepoConsistency
 	consistencyCheckMap["issue"] = checkForIssueConsistency
 	consistencyCheckMap["pull_request"] = checkForPullRequestConsistency
 	consistencyCheckMap["label"] = checkForLabelConsistency
 	consistencyCheckMap["team"] = checkForTeamConsistency
-	consistencyCheckMap["action"] = checkForActionConsistency
 }

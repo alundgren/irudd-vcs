@@ -342,7 +342,7 @@ func TestSubmitReviewClearsStaleReviewRequest(t *testing.T) {
 
 	// submitting the pending review must clear the leftover review request,
 	// otherwise the reviewer can no longer be re-requested afterwards
-	review, _, err := issues_model.SubmitReview(t.Context(), reviewer, issue, issues_model.ReviewTypeComment, "looks good", "", false, nil)
+	review, _, err := issues_model.SubmitReview(t.Context(), reviewer, issue, issues_model.ReviewTypeComment, "looks good", "", false)
 	assert.NoError(t, err)
 	assert.Equal(t, pendingReview.ID, review.ID)
 	assert.Equal(t, issues_model.ReviewTypeComment, review.Type)

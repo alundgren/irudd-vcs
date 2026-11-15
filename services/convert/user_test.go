@@ -20,7 +20,7 @@ func TestUser_ToUser(t *testing.T) {
 
 	apiUser := toUser(t.Context(), user1, true, true)
 	assert.True(t, apiUser.IsAdmin)
-	assert.Contains(t, apiUser.AvatarURL, "://")
+	assert.Empty(t, apiUser.AvatarURL) // avatars were removed
 
 	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2, IsAdmin: false})
 

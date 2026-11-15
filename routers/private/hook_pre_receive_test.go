@@ -42,7 +42,7 @@ func TestPreReceiveCanWriteCodePerBranch(t *testing.T) {
 		BaseBranch:          "master",
 		AllowMaintainerEdit: true,
 	}
-	require.NoError(t, issues_model.NewPullRequest(t.Context(), baseRepo, pr.Issue, nil, nil, pr))
+	require.NoError(t, issues_model.NewPullRequest(t.Context(), baseRepo, pr.Issue, nil, pr))
 
 	// The pusher is the base repo owner (the maintainer) with only read access on the head repo.
 	maintainer := baseRepo.Owner

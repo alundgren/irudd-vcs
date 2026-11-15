@@ -17,21 +17,21 @@ func Test_Attribute(t *testing.T) {
 
 	attributes := Attributes{
 		m: map[string]Attribute{
-			LinguistGenerated:     "true",
-			LinguistDocumentation: "false",
-			LinguistDetectable:    "set",
-			LinguistLanguage:      "Python",
-			GitlabLanguage:        "Java",
-			"filter":              "unspecified",
-			"test":                "",
+			"linguist-generated":     "true",
+			"linguist-documentation": "false",
+			"linguist-detectable":    "set",
+			"linguist-language":      "Python",
+			"gitlab-language":        "Java",
+			"filter":                 "unspecified",
+			"test":                   "",
 		},
 	}
 
 	assert.Empty(t, attributes.Get("test").ToString().Value())
 	assert.Empty(t, attributes.Get("filter").ToString().Value())
-	assert.Equal(t, "Python", attributes.Get(LinguistLanguage).ToString().Value())
-	assert.Equal(t, "Java", attributes.Get(GitlabLanguage).ToString().Value())
-	assert.True(t, attributes.Get(LinguistGenerated).ToBool().Value())
-	assert.False(t, attributes.Get(LinguistDocumentation).ToBool().Value())
-	assert.True(t, attributes.Get(LinguistDetectable).ToBool().Value())
+	assert.Equal(t, "Python", attributes.Get("linguist-language").ToString().Value())
+	assert.Equal(t, "Java", attributes.Get("gitlab-language").ToString().Value())
+	assert.True(t, attributes.Get("linguist-generated").ToBool().Value())
+	assert.False(t, attributes.Get("linguist-documentation").ToBool().Value())
+	assert.True(t, attributes.Get("linguist-detectable").ToBool().Value())
 }

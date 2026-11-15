@@ -9,10 +9,8 @@ import (
 	"testing"
 	"time"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
-	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/organization"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
@@ -67,12 +65,6 @@ func TestDeleteUser(t *testing.T) {
 	t.Run("CleanupOrphanedTables", func(t *testing.T) {
 		assert.NoError(t, unittest.PrepareTestDatabase())
 
-		// assert they exist before deletion
-		unittest.AssertExistsAndLoadBean(t, &auth.TwoFactor{UID: 24})
-		unittest.AssertExistsAndLoadBean(t, &auth.WebAuthnCredential{UserID: 32})
-		unittest.AssertExistsAndLoadBean(t, &activities_model.Notification{UserID: 2})
-		unittest.AssertExistsAndLoadBean(t, &issues_model.IssueWatch{UserID: 2})
-
 		// delete users
 		user24 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 24})
 		assert.NoError(t, DeleteUser(t.Context(), user24, true))
@@ -84,28 +76,10 @@ func TestDeleteUser(t *testing.T) {
 		assert.NoError(t, DeleteUser(t.Context(), user2, true))
 
 		// assert they do not exist after deletion
-		unittest.AssertNotExistsBean(t, &auth.TwoFactor{UID: 24})
-		unittest.AssertNotExistsBean(t, &auth.WebAuthnCredential{UserID: 32})
-		unittest.AssertNotExistsBean(t, &activities_model.Notification{UserID: 2})
-		unittest.AssertNotExistsBean(t, &issues_model.IssueWatch{UserID: 2})
-	})
-}
-
-func TestDeleteUserUnlinkedAttachments(t *testing.T) {
-	t.Run("DeleteExisting", func(t *testing.T) {
-		assert.NoError(t, unittest.PrepareTestDatabase())
-		user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 8})
-		unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: 10})
-
-		assert.NoError(t, deleteUserUnlinkedAttachments(t.Context(), user))
-		unittest.AssertNotExistsBean(t, &repo_model.Attachment{ID: 10})
-	})
-
-	t.Run("NoUnlinkedAttachments", func(t *testing.T) {
-		assert.NoError(t, unittest.PrepareTestDatabase())
-		user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-
-		assert.NoError(t, deleteUserUnlinkedAttachments(t.Context(), user))
+		unittest.AssertNotExistsBean(t, &user_model.User{ID: 24})
+		unittest.AssertNotExistsBean(t, &user_model.User{ID: 32})
+		unittest.AssertNotExistsBean(t, &user_model.User{ID: 2})
+		unittest.AssertNotExistsBean(t, &user_model.EmailAddress{UID: 2})
 	})
 }
 
@@ -135,7 +109,6 @@ func TestCreateUser(t *testing.T) {
 		Email:              "GiteaBot@gitea.io",
 		Passwd:             ";p['////..-++']",
 		IsAdmin:            false,
-		Theme:              setting.UI.DefaultTheme,
 		MustChangePassword: false,
 	}
 
