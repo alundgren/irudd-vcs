@@ -18,8 +18,9 @@ To build from source or make a distribution package, see [docs/build-source.md](
 
 ## Running
 
-There is no install page, so configure the server in `custom/conf/app.ini` before the
-first start and set `INSTALL_LOCK = true` in its `[security]` section.
+There is no install page. If `custom/conf/app.ini` doesn't exist, the first `gitea web`
+creates a minimal one with `INSTALL_LOCK = true` and generated secrets, using SQLite under
+`data/`. An existing config must set `INSTALL_LOCK = true` in its `[security]` section.
 See [app.example.ini](custom/conf/app.example.ini) for the options that are still supported.
 
 ```bash

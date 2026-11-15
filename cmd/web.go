@@ -188,8 +188,8 @@ func runWeb(ctx context.Context, cmd *cli.Command) error {
 		createPIDFile(cmd.String("pid"))
 	}
 
-	if !setting.InstallLock {
-		return fmt.Errorf("INSTALL_LOCK is not set in %q: irudd-vcs has no install page, configure the server in app.ini", setting.CustomConf)
+	if err := bootstrapConfig(cmd); err != nil {
+		return err
 	}
 	NoInstallListener()
 
