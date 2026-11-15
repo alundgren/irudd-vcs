@@ -16,7 +16,6 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/optional"
-	"gitea.dev/modules/util"
 
 	"xorm.io/builder"
 )
@@ -34,14 +33,11 @@ type IssuesOptions struct { //nolint:revive // export stutter
 	MentionedID        int64
 	ReviewRequestedID  int64
 	ReviewedID         int64
-	MilestoneIDs       []int64
-	ProjectIDs         []int64
 	IsClosed           optional.Option[bool]
 	IsPull             optional.Option[bool]
 	LabelIDs           []int64
 	IncludedLabelNames []string
 	ExcludedLabelNames []string
-	IncludeMilestones  []string
 	SortType           string
 	IssueIDs           []int64
 	UpdatedAfterUnix   int64
@@ -98,20 +94,11 @@ func applySorts(sess db.Session, sortType string, priorityRepoID int64) {
 		sess.Desc("issue.priority").Desc("issue.created_unix").Desc("issue.id")
 	case "nearduedate":
 		// 253370764800 is 01/01/9999 @ 12:00am (UTC)
-		sess.Join("LEFT", "milestone", "issue.milestone_id = milestone.id").
-			OrderBy("CASE " +
-				"WHEN issue.deadline_unix = 0 AND (milestone.deadline_unix = 0 OR milestone.deadline_unix IS NULL) THEN 253370764800 " +
-				"WHEN milestone.deadline_unix = 0 OR milestone.deadline_unix IS NULL THEN issue.deadline_unix " +
-				"WHEN milestone.deadline_unix < issue.deadline_unix OR issue.deadline_unix = 0 THEN milestone.deadline_unix " +
-				"ELSE issue.deadline_unix END ASC").
+		sess.OrderBy("CASE WHEN issue.deadline_unix = 0 THEN 253370764800 ELSE issue.deadline_unix END ASC").
 			Asc("issue.created_unix").
 			Asc("issue.id")
 	case "farduedate":
-		sess.Join("LEFT", "milestone", "issue.milestone_id = milestone.id").
-			OrderBy("CASE " +
-				"WHEN milestone.deadline_unix IS NULL THEN issue.deadline_unix " +
-				"WHEN milestone.deadline_unix < issue.deadline_unix OR issue.deadline_unix = 0 THEN milestone.deadline_unix " +
-				"ELSE issue.deadline_unix END DESC").
+		sess.Desc("issue.deadline_unix").
 			Desc("issue.created_unix").
 			Desc("issue.id")
 	case "priorityrepo":
@@ -120,8 +107,6 @@ func applySorts(sess db.Session, sortType string, priorityRepoID int64) {
 			"ELSE 2 END ASC", priorityRepoID).
 			Desc("issue.created_unix").
 			Desc("issue.id")
-	case "project-column-sorting":
-		sess.Asc("project_issue.sorting").Desc("issue.created_unix").Desc("issue.id")
 	default:
 		sess.Desc("issue.created_unix").Desc("issue.id")
 	}
@@ -180,35 +165,6 @@ func applyLabelsCondition(sess db.Session, opts *IssuesOptions) {
 	}
 }
 
-func applyMilestoneCondition(sess db.Session, opts *IssuesOptions) {
-	if len(opts.MilestoneIDs) == 1 && opts.MilestoneIDs[0] == db.NoConditionID {
-		sess.And("issue.milestone_id = 0")
-	} else if len(opts.MilestoneIDs) > 0 {
-		sess.In("issue.milestone_id", opts.MilestoneIDs)
-	}
-
-	if len(opts.IncludeMilestones) > 0 {
-		sess.In("issue.milestone_id",
-			builder.Select("id").
-				From("milestone").
-				Where(builder.In("name", opts.IncludeMilestones)))
-	}
-}
-
-func applyProjectCondition(sess db.Session, opts *IssuesOptions) {
-	projectIDs := util.SliceRemoveAll(opts.ProjectIDs, 0)
-	if len(projectIDs) == 1 && projectIDs[0] == db.NoConditionID { // show those that are in no project
-		sess.And(builder.NotIn("issue.id", builder.Select("issue_id").From("project_issue")))
-	} else if len(projectIDs) == 1 && projectIDs[0] > 0 { // single specific project
-		sess.Join("INNER", "project_issue", "issue.id = project_issue.issue_id AND project_issue.project_id = ?", projectIDs[0])
-	} else if len(projectIDs) > 1 { // multiple projects
-		// FIXME: ISSUE-MULTIPLE-PROJECTS-FILTER: this logic is not right, it should use "AND" but not "OR"
-		sess.And(builder.In("issue.id", builder.Select("issue_id").From("project_issue").Where(builder.In("project_id", projectIDs))))
-	}
-	// empty projectIDs means all projects,
-	// do not need to apply any condition
-}
-
 func applyRepoConditions(sess db.Session, opts *IssuesOptions) {
 	if len(opts.RepoIDs) == 1 {
 		opts.RepoCond = builder.Eq{"issue.repo_id": opts.RepoIDs[0]}
@@ -252,16 +208,12 @@ func applyConditions(sess db.Session, opts *IssuesOptions) {
 		applyReviewedCondition(sess, opts.ReviewedID)
 	}
 
-	applyMilestoneCondition(sess, opts)
-
 	if opts.UpdatedAfterUnix != 0 {
 		sess.And(builder.Gte{"issue.updated_unix": opts.UpdatedAfterUnix})
 	}
 	if opts.UpdatedBeforeUnix != 0 {
 		sess.And(builder.Lte{"issue.updated_unix": opts.UpdatedBeforeUnix})
 	}
-
-	applyProjectCondition(sess, opts)
 
 	if opts.IsPull.Has() {
 		sess.And("issue.is_pull=?", opts.IsPull.Value())

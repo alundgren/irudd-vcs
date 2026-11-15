@@ -7,7 +7,6 @@ package models
 import (
 	"context"
 	"strconv"
-	"strings"
 
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
@@ -85,33 +84,6 @@ func labelStatsCorrectNumClosedIssues(ctx context.Context, id int64) error {
 func labelStatsCorrectNumClosedIssuesRepo(ctx context.Context, id int64) error {
 	_, err := db.GetEngine(ctx).Exec("UPDATE `label` SET num_closed_issues=(SELECT COUNT(*) FROM `issue_label`,`issue` WHERE `issue_label`.label_id=`label`.id AND `issue_label`.issue_id=`issue`.id AND `issue`.is_closed=?) WHERE `label`.repo_id=?", true, id)
 	return err
-}
-
-func milestoneStatsQueryNumIssuesSQL() string {
-	sql := `
-SELECT "milestone".id FROM "milestone"
-WHERE (
-	"milestone".num_closed_issues != (SELECT COUNT(*) FROM "issue" WHERE "issue".milestone_id="milestone".id AND "issue".is_closed=?)
-	OR "milestone".num_issues != (SELECT COUNT(*) FROM "issue" WHERE "issue".milestone_id="milestone".id)
-)
-`
-	return strings.TrimSpace(strings.ReplaceAll(sql, "\"", "`"))
-}
-
-func milestoneStatsCorrectNumIssuesRepo(ctx context.Context, id int64) error {
-	e := db.GetEngine(ctx)
-	results, err := e.Query(milestoneStatsQueryNumIssuesSQL()+" AND `milestone`.repo_id = ?", true, id)
-	if err != nil {
-		return err
-	}
-	for _, result := range results {
-		id, _ := strconv.ParseInt(string(result["id"]), 10, 64)
-		err = issues_model.UpdateMilestoneCounters(ctx, id)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func userStatsCorrectNumRepos(ctx context.Context, id int64) error {
@@ -200,12 +172,6 @@ func CheckRepoStats(ctx context.Context) error {
 			labelStatsCorrectNumClosedIssues,
 			"label count 'num_closed_issues'",
 		},
-		// Milestone.Num{,Closed}Issues
-		{
-			statsQuery(milestoneStatsQueryNumIssuesSQL(), true),
-			issues_model.UpdateMilestoneCounters,
-			"milestone count 'num_closed_issues' and 'num_issues'",
-		},
 		// User.NumRepos
 		{
 			statsQuery("SELECT `user`.id FROM `user` WHERE `user`.num_repos!=(SELECT COUNT(*) FROM `repository` WHERE owner_id=`user`.id)"),
@@ -289,7 +255,6 @@ func UpdateRepoStats(ctx context.Context, id int64) error {
 		repoStatsCorrectNumClosedPulls,
 		labelStatsCorrectNumIssuesRepo,
 		labelStatsCorrectNumClosedIssuesRepo,
-		milestoneStatsCorrectNumIssuesRepo,
 	} {
 		err = f(ctx, id)
 		if err != nil {

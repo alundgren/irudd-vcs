@@ -39,7 +39,6 @@ var ActionsTokenUnitTypes = []unit.Type{
 	unit.TypeActions,
 	unit.TypeWiki,
 	unit.TypeReleases,
-	unit.TypeProjects,
 }
 
 func MakeActionsTokenPermissions(unitAccessMode perm.AccessMode) (ret ActionsTokenPermissions) {

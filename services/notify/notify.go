@@ -214,13 +214,6 @@ func DeleteRelease(ctx context.Context, doer *user_model.User, rel *repo_model.R
 	}
 }
 
-// IssueChangeMilestone notifies change milestone to notifiers
-func IssueChangeMilestone(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldMilestoneID int64) {
-	for _, notifier := range notifiers {
-		notifier.IssueChangeMilestone(ctx, doer, issue, oldMilestoneID)
-	}
-}
-
 // IssueChangeContent notifies change content to notifiers
 func IssueChangeContent(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldContent string) {
 	for _, notifier := range notifiers {

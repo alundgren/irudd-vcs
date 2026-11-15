@@ -66,11 +66,6 @@ type swaggerParameterBodies struct {
 	MarkdownOption api.MarkdownOption
 
 	// in:body
-	CreateMilestoneOption api.CreateMilestoneOption
-	// in:body
-	EditMilestoneOption api.EditMilestoneOption
-
-	// in:body
 	CreateOrgOption api.CreateOrgOption
 	// in:body
 	EditOrgOption api.EditOrgOption
@@ -107,9 +102,6 @@ type swaggerParameterBodies struct {
 	CreateTeamOption api.CreateTeamOption
 	// in:body
 	EditTeamOption api.EditTeamOption
-
-	// in:body
-	AddTimeOption api.AddTimeOption
 
 	// in:body
 	CreateUserOption api.CreateUserOption

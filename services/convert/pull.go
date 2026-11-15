@@ -79,7 +79,6 @@ func ToAPIPullRequest(ctx context.Context, pr *issues_model.PullRequest, doer *u
 		Title:          apiIssue.Title,
 		Body:           apiIssue.Body,
 		Labels:         apiIssue.Labels,
-		Milestone:      apiIssue.Milestone,
 		Assignee:       apiIssue.Assignee,
 		Assignees:      util.SliceNilAsEmpty(apiIssue.Assignees),
 		State:          apiIssue.State,
@@ -96,7 +95,6 @@ func ToAPIPullRequest(ctx context.Context, pr *issues_model.PullRequest, doer *u
 		Deadline:       apiIssue.Deadline,
 		Created:        pr.Issue.CreatedUnix.AsTimePtr(),
 		Updated:        pr.Issue.UpdatedUnix.AsTimePtr(),
-		PinOrder:       util.Iif(apiIssue.PinOrder == -1, 0, apiIssue.PinOrder),
 		ContentVersion: apiIssue.ContentVersion,
 
 		// output "[]" rather than null to align to github outputs
@@ -299,13 +297,7 @@ func ToAPIPullRequests(ctx context.Context, baseRepo *repo_model.Repository, prs
 	if err := issueList.LoadAttachments(ctx); err != nil {
 		return nil, err
 	}
-	if err := issueList.LoadMilestones(ctx); err != nil {
-		return nil, err
-	}
 	if err := issueList.LoadAssignees(ctx); err != nil {
-		return nil, err
-	}
-	if err = issueList.LoadPinOrder(ctx); err != nil {
 		return nil, err
 	}
 
@@ -355,7 +347,6 @@ func ToAPIPullRequests(ctx context.Context, baseRepo *repo_model.Repository, prs
 			Title:          apiIssue.Title,
 			Body:           apiIssue.Body,
 			Labels:         apiIssue.Labels,
-			Milestone:      apiIssue.Milestone,
 			Assignee:       apiIssue.Assignee,
 			Assignees:      apiIssue.Assignees,
 			State:          apiIssue.State,
@@ -372,7 +363,6 @@ func ToAPIPullRequests(ctx context.Context, baseRepo *repo_model.Repository, prs
 			Deadline:       apiIssue.Deadline,
 			Created:        pr.Issue.CreatedUnix.AsTimePtr(),
 			Updated:        pr.Issue.UpdatedUnix.AsTimePtr(),
-			PinOrder:       util.Iif(apiIssue.PinOrder == -1, 0, apiIssue.PinOrder),
 			ContentVersion: apiIssue.ContentVersion,
 
 			AllowMaintainerEdit: pr.AllowMaintainerEdit,

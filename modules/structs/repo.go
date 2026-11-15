@@ -24,17 +24,6 @@ type Permission struct {
 	Pull  bool `json:"pull"`  // Pull indicates if the user can pull code from the repository.
 }
 
-// InternalTracker represents settings for internal tracker
-// swagger:model
-type InternalTracker struct {
-	// Enable time tracking (Built-in issue tracker)
-	EnableTimeTracker bool `json:"enable_time_tracker"`
-	// Let only contributors track time (Built-in issue tracker)
-	AllowOnlyContributorsToTrackTime bool `json:"allow_only_contributors_to_track_time"`
-	// Enable dependencies for issues and pull requests (Built-in issue tracker)
-	EnableIssueDependencies bool `json:"enable_issue_dependencies"`
-}
-
 // ExternalTracker represents settings for external tracker
 // swagger:model
 type ExternalTracker struct {
@@ -97,13 +86,10 @@ type Repository struct {
 	Permissions                   *Permission      `json:"permissions,omitempty"`
 	HasCode                       bool             `json:"has_code"`
 	HasIssues                     bool             `json:"has_issues"`
-	InternalTracker               *InternalTracker `json:"internal_tracker,omitempty"`
 	ExternalTracker               *ExternalTracker `json:"external_tracker,omitempty"`
 	HasWiki                       bool             `json:"has_wiki"`
 	ExternalWiki                  *ExternalWiki    `json:"external_wiki,omitempty"`
 	HasPullRequests               bool             `json:"has_pull_requests"`
-	HasProjects                   bool             `json:"has_projects"`
-	ProjectsMode                  string           `json:"projects_mode"`
 	HasReleases                   bool             `json:"has_releases"`
 	HasPackages                   bool             `json:"has_packages"`
 	HasActions                    bool             `json:"has_actions"`
@@ -188,8 +174,6 @@ type EditRepoOption struct {
 	HasCode *bool `json:"has_code,omitempty"`
 	// either `true` to enable issues for this repository or `false` to disable them.
 	HasIssues *bool `json:"has_issues,omitempty"`
-	// set this structure to configure internal issue tracker
-	InternalTracker *InternalTracker `json:"internal_tracker,omitempty"`
 	// set this structure to use external issue tracker
 	ExternalTracker *ExternalTracker `json:"external_tracker,omitempty"`
 	// either `true` to enable the wiki for this repository or `false` to disable it.
@@ -200,10 +184,6 @@ type EditRepoOption struct {
 	DefaultBranch *string `json:"default_branch,omitempty"`
 	// either `true` to allow pull requests, or `false` to prevent pull request.
 	HasPullRequests *bool `json:"has_pull_requests,omitempty"`
-	// either `true` to enable project unit, or `false` to disable them.
-	HasProjects *bool `json:"has_projects,omitempty"`
-	// `repo` to only allow repo-level projects, `owner` to only allow owner projects, `all` to allow both.
-	ProjectsMode *string `json:"projects_mode,omitempty" binding:"In(repo,owner,all)"`
 	// either `true` to enable releases unit, or `false` to disable them.
 	HasReleases *bool `json:"has_releases,omitempty"`
 	// either `true` to enable packages unit, or `false` to disable them.
@@ -449,12 +429,6 @@ type RepoTransfer struct {
 	Doer      *User   `json:"doer"`
 	Recipient *User   `json:"recipient"`
 	Teams     []*Team `json:"teams"`
-}
-
-// NewIssuePinsAllowed represents an API response that says if new Issue Pins are allowed
-type NewIssuePinsAllowed struct {
-	Issues       bool `json:"issues"`
-	PullRequests bool `json:"pull_requests"`
 }
 
 // UpdateRepoAvatarUserOption options when updating the repo avatar

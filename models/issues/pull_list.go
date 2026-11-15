@@ -23,12 +23,11 @@ import (
 // PullRequestsOptions holds the options for PRs
 type PullRequestsOptions struct {
 	db.ListOptions
-	State       string
-	SortType    string
-	Labels      []int64
-	MilestoneID int64
-	PosterID    int64
-	BaseBranch  string
+	State      string
+	SortType   string
+	Labels     []int64
+	PosterID   int64
+	BaseBranch string
 }
 
 func listPullRequestStatement(ctx context.Context, baseRepoID int64, opts *PullRequestsOptions) db.Session {
@@ -47,10 +46,6 @@ func listPullRequestStatement(ctx context.Context, baseRepoID int64, opts *PullR
 	if len(opts.Labels) > 0 {
 		sess.Join("INNER", "issue_label", "issue.id = issue_label.issue_id").
 			In("issue_label.label_id", opts.Labels)
-	}
-
-	if opts.MilestoneID > 0 {
-		sess.And("issue.milestone_id=?", opts.MilestoneID)
 	}
 
 	if opts.PosterID > 0 {

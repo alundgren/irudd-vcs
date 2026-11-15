@@ -80,7 +80,6 @@ func init() {
 		repo := reflectionWrap(bean)
 		assert.Equal(t, repo.str("LowerName"), strings.ToLower(repo.str("Name")), "repo: %+v", repo)
 		AssertCountByCond(t, "star", builder.Eq{"repo_id": repo.int("ID")}, repo.int("NumStars"))
-		AssertCountByCond(t, "milestone", builder.Eq{"repo_id": repo.int("ID")}, repo.int("NumMilestones"))
 		AssertCountByCond(t, "repository", builder.Eq{"fork_id": repo.int("ID")}, repo.int("NumForks"))
 		if repo.bool("IsFork") {
 			AssertExistsAndLoadMap(t, "repository", builder.Eq{"id": repo.int("ForkID")})
@@ -106,10 +105,6 @@ func init() {
 		actual = GetCountByCond(t, "issue", builder.Eq{"is_pull": true, "is_closed": true, "repo_id": repo.int("ID")})
 		assert.EqualValues(t, repo.int("NumClosedPulls"), actual,
 			"Unexpected number of closed pulls for repo id: %d", repo.int("ID"))
-
-		actual = GetCountByCond(t, "milestone", builder.Eq{"is_closed": true, "repo_id": repo.int("ID")})
-		assert.EqualValues(t, repo.int("NumClosedMilestones"), actual,
-			"Unexpected number of closed milestones for repo id: %d", repo.int("ID"))
 	}
 
 	checkForIssueConsistency := func(t TestingT, bean any) {
@@ -128,20 +123,6 @@ func init() {
 		issueRow := AssertExistsAndLoadMap(t, "issue", builder.Eq{"id": pr.int("IssueID")})
 		assert.True(t, parseBool(issueRow["is_pull"]))
 		assert.Equal(t, parseInt(issueRow["index"]), pr.int("Index"), "Unexpected index for pull request id: %d", pr.int("ID"))
-	}
-
-	checkForMilestoneConsistency := func(t TestingT, bean any) {
-		milestone := reflectionWrap(bean)
-		AssertCountByCond(t, "issue", builder.Eq{"milestone_id": milestone.int("ID")}, milestone.int("NumIssues"))
-
-		actual := GetCountByCond(t, "issue", builder.Eq{"is_closed": true, "milestone_id": milestone.int("ID")})
-		assert.EqualValues(t, milestone.int("NumClosedIssues"), actual, "Unexpected number of closed issues for milestone id: %d", milestone.int("ID"))
-
-		completeness := 0
-		if milestone.int("NumIssues") > 0 {
-			completeness = milestone.int("NumClosedIssues") * 100 / milestone.int("NumIssues")
-		}
-		assert.Equal(t, completeness, milestone.int("Completeness"))
 	}
 
 	checkForLabelConsistency := func(t TestingT, bean any) {
@@ -183,7 +164,6 @@ func init() {
 	consistencyCheckMap["repository"] = checkForRepoConsistency
 	consistencyCheckMap["issue"] = checkForIssueConsistency
 	consistencyCheckMap["pull_request"] = checkForPullRequestConsistency
-	consistencyCheckMap["milestone"] = checkForMilestoneConsistency
 	consistencyCheckMap["label"] = checkForLabelConsistency
 	consistencyCheckMap["team"] = checkForTeamConsistency
 	consistencyCheckMap["action"] = checkForActionConsistency

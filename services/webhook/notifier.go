@@ -595,48 +595,6 @@ func (m *webhookNotifier) IssueChangeLabels(ctx context.Context, doer *user_mode
 	}
 }
 
-func (m *webhookNotifier) IssueChangeMilestone(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldMilestoneID int64) {
-	var hookAction api.HookIssueAction
-	var err error
-	if issue.MilestoneID > 0 {
-		hookAction = api.HookIssueMilestoned
-	} else {
-		hookAction = api.HookIssueDemilestoned
-	}
-
-	if err = issue.LoadAttributes(ctx); err != nil {
-		log.Error("issue.LoadAttributes failed: %v", err)
-		return
-	}
-
-	permission, _ := access_model.GetDoerRepoPermission(ctx, issue.Repo, doer)
-	if issue.IsPull {
-		err = issue.PullRequest.LoadIssue(ctx)
-		if err != nil {
-			log.Error("LoadIssue: %v", err)
-			return
-		}
-		err = PrepareWebhooks(ctx, EventSource{Repository: issue.Repo}, webhook_module.HookEventPullRequestMilestone, &api.PullRequestPayload{
-			Action:      hookAction,
-			Index:       issue.Index,
-			PullRequest: convert.ToAPIPullRequest(ctx, issue.PullRequest, doer),
-			Repository:  convert.ToRepo(ctx, issue.Repo, permission),
-			Sender:      convert.ToUser(ctx, doer, nil),
-		})
-	} else {
-		err = PrepareWebhooks(ctx, EventSource{Repository: issue.Repo}, webhook_module.HookEventIssueMilestone, &api.IssuePayload{
-			Action:     hookAction,
-			Index:      issue.Index,
-			Issue:      convert.ToAPIIssue(ctx, doer, issue),
-			Repository: convert.ToRepo(ctx, issue.Repo, permission),
-			Sender:     convert.ToUser(ctx, doer, nil),
-		})
-	}
-	if err != nil {
-		log.Error("PrepareWebhooks [is_pull: %v]: %v", issue.IsPull, err)
-	}
-}
-
 func (m *webhookNotifier) PushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits) {
 	apiPusher := convert.ToUser(ctx, pusher, nil)
 	apiCommits, apiHeadCommit, err := commits.ToAPIPayloadCommits(ctx, repo)

@@ -375,10 +375,6 @@ const (
 	HookIssueLabelCleared HookIssueAction = "label_cleared"
 	// HookIssueSynchronized synchronized
 	HookIssueSynchronized HookIssueAction = "synchronized"
-	// HookIssueMilestoned is an issue action for when a milestone is set on an issue.
-	HookIssueMilestoned HookIssueAction = "milestoned"
-	// HookIssueDemilestoned is an issue action for when a milestone is cleared on an issue.
-	HookIssueDemilestoned HookIssueAction = "demilestoned"
 	// HookIssueReviewed is an issue action for when a pull request is reviewed
 	HookIssueReviewed HookIssueAction = "reviewed"
 	// HookIssueReviewRequested is an issue action for when a reviewer is requested for a pull request.

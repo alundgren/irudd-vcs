@@ -180,14 +180,12 @@ func updateHookEvents(events []string) webhook_module.HookEvents {
 	hookEvents[webhook_module.HookEventIssues] = issuesHook(events, "issues_only")
 	hookEvents[webhook_module.HookEventIssueAssign] = issuesHook(events, string(webhook_module.HookEventIssueAssign))
 	hookEvents[webhook_module.HookEventIssueLabel] = issuesHook(events, string(webhook_module.HookEventIssueLabel))
-	hookEvents[webhook_module.HookEventIssueMilestone] = issuesHook(events, string(webhook_module.HookEventIssueMilestone))
 	hookEvents[webhook_module.HookEventIssueComment] = issuesHook(events, string(webhook_module.HookEventIssueComment))
 
 	// Pull requests
 	hookEvents[webhook_module.HookEventPullRequest] = pullHook(events, "pull_request_only")
 	hookEvents[webhook_module.HookEventPullRequestAssign] = pullHook(events, string(webhook_module.HookEventPullRequestAssign))
 	hookEvents[webhook_module.HookEventPullRequestLabel] = pullHook(events, string(webhook_module.HookEventPullRequestLabel))
-	hookEvents[webhook_module.HookEventPullRequestMilestone] = pullHook(events, string(webhook_module.HookEventPullRequestMilestone))
 	hookEvents[webhook_module.HookEventPullRequestComment] = pullHook(events, string(webhook_module.HookEventPullRequestComment))
 	hookEvents[webhook_module.HookEventPullRequestReview] = pullHook(events, "pull_request_review")
 	hookEvents[webhook_module.HookEventPullRequestReviewRequest] = pullHook(events, string(webhook_module.HookEventPullRequestReviewRequest))

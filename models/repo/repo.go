@@ -169,12 +169,6 @@ type Repository struct {
 	NumPulls            int
 	NumClosedPulls      int
 	NumOpenPulls        int `xorm:"-"`
-	NumMilestones       int `xorm:"NOT NULL DEFAULT 0"`
-	NumClosedMilestones int `xorm:"NOT NULL DEFAULT 0"`
-	NumOpenMilestones   int `xorm:"-"`
-	NumProjects         int `xorm:"NOT NULL DEFAULT 0"`
-	NumClosedProjects   int `xorm:"NOT NULL DEFAULT 0"`
-	NumOpenProjects     int `xorm:"-"`
 	NumActionRuns       int `xorm:"NOT NULL DEFAULT 0"`
 	NumClosedActionRuns int `xorm:"NOT NULL DEFAULT 0"`
 	NumOpenActionRuns   int `xorm:"-"`
@@ -313,8 +307,6 @@ func (repo *Repository) MarkAsBrokenEmpty() {
 func (repo *Repository) AfterLoad() {
 	repo.NumOpenIssues = repo.NumIssues - repo.NumClosedIssues
 	repo.NumOpenPulls = repo.NumPulls - repo.NumClosedPulls
-	repo.NumOpenMilestones = repo.NumMilestones - repo.NumClosedMilestones
-	repo.NumOpenProjects = repo.NumProjects - repo.NumClosedProjects
 	repo.NumOpenActionRuns = repo.NumActionRuns - repo.NumClosedActionRuns
 	if repo.DefaultWikiBranch == "" {
 		repo.DefaultWikiBranch = setting.Repository.DefaultBranch
@@ -433,12 +425,8 @@ func (repo *Repository) MustGetUnit(ctx context.Context, tp unit.Type) *RepoUnit
 		ru.Config = new(ExternalTrackerConfig)
 	case unit.TypePullRequests:
 		ru.Config = new(PullRequestsConfig)
-	case unit.TypeIssues:
-		ru.Config = new(IssuesConfig)
 	case unit.TypeActions:
 		ru.Config = new(ActionsConfig)
-	case unit.TypeProjects:
-		ru.Config = new(ProjectsConfig)
 	default: // other units don't have config
 	}
 	if ru.Config != nil {

@@ -435,13 +435,6 @@ type swaggerRepoIssueConfigValidation struct {
 	Body api.IssueConfigValidation `json:"body"`
 }
 
-// RepoNewIssuePinsAllowed
-// swagger:response RepoNewIssuePinsAllowed
-type swaggerRepoNewIssuePinsAllowed struct {
-	// in:body
-	Body api.NewIssuePinsAllowed `json:"body"`
-}
-
 // TasksList
 // swagger:response TasksList
 type swaggerRepoTasksList struct {

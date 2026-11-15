@@ -50,10 +50,6 @@ func SearchIssues(ctx *context.APIContext) {
 	//   in: query
 	//   description: Comma-separated list of label names. Fetch only issues that have any of these labels. Non existent labels are discarded.
 	//   type: string
-	// - name: milestones
-	//   in: query
-	//   description: Comma-separated list of milestone names. Fetch only issues that have any of these milestones. Non existent milestones are discarded.
-	//   type: string
 	// - name: q
 	//   in: query
 	//   description: Search string
@@ -169,20 +165,6 @@ func SearchIssues(ctx *context.APIContext) {
 		}
 	}
 
-	var includedMilestones []int64
-	{
-		milestones := ctx.FormTrim("milestones")
-		var includedMilestoneNames []string
-		if len(milestones) > 0 {
-			includedMilestoneNames = strings.Split(milestones, ",")
-		}
-		includedMilestones, err = issues_model.GetMilestoneIDsByNames(ctx, includedMilestoneNames)
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		}
-	}
-
 	limit := util.IfZero(ctx.FormInt("limit"), setting.API.DefaultPagingNum)
 
 	searchOpt := &issue_indexer.SearchOptions{
@@ -196,7 +178,6 @@ func SearchIssues(ctx *context.APIContext) {
 		IsPull:              isPull,
 		IsClosed:            isClosed,
 		IncludedAnyLabelIDs: includedAnyLabels,
-		MilestoneIDs:        includedMilestones,
 		SortBy:              issue_indexer.SortByCreatedDesc,
 	}
 
@@ -286,10 +267,6 @@ func ListIssues(ctx *context.APIContext) {
 	//   description: filter by type (issues / pulls) if set
 	//   type: string
 	//   enum: [issues, pulls]
-	// - name: milestones
-	//   in: query
-	//   description: comma separated list of milestone names or ids. It uses names and fall back to ids. Fetch only issues that have any of this milestones. Non existent milestones are discarded
-	//   type: string
 	// - name: since
 	//   in: query
 	//   description: Only show items updated after the given time. This is a timestamp in RFC 3339 format
@@ -342,36 +319,6 @@ func ListIssues(ctx *context.APIContext) {
 		if err != nil {
 			ctx.APIErrorInternal(err)
 			return
-		}
-	}
-
-	var mileIDs []int64
-	if part := strings.Split(ctx.FormString("milestones"), ","); len(part) > 0 {
-		for i := range part {
-			// uses names and fall back to ids
-			// non existent milestones are discarded
-			mile, err := issues_model.GetMilestoneByRepoIDANDName(ctx, ctx.Repo.Repository.ID, part[i])
-			if err == nil {
-				mileIDs = append(mileIDs, mile.ID)
-				continue
-			}
-			if !issues_model.IsErrMilestoneNotExist(err) {
-				ctx.APIErrorInternal(err)
-				return
-			}
-			id, err := strconv.ParseInt(part[i], 10, 64)
-			if err != nil {
-				continue
-			}
-			mile, err = issues_model.GetMilestoneByRepoID(ctx, ctx.Repo.Repository.ID, id)
-			if err == nil {
-				mileIDs = append(mileIDs, mile.ID)
-				continue
-			}
-			if issues_model.IsErrMilestoneNotExist(err) {
-				continue
-			}
-			ctx.APIErrorInternal(err)
 		}
 	}
 
@@ -435,12 +382,6 @@ func ListIssues(ctx *context.APIContext) {
 				searchOpt.ExcludedLabelIDs = append(searchOpt.ExcludedLabelIDs, -labelID)
 			}
 		}
-	}
-
-	if len(mileIDs) == 1 && mileIDs[0] == db.NoConditionID {
-		searchOpt.MilestoneIDs = []int64{0}
-	} else {
-		searchOpt.MilestoneIDs = mileIDs
 	}
 
 	if createdByID > 0 {
@@ -587,7 +528,6 @@ func CreateIssue(ctx *context.APIContext) {
 	assigneeIDs := make([]int64, 0)
 	var err error
 	if ctx.Repo.Permission.CanWrite(unit.TypeIssues) {
-		issue.MilestoneID = form.Milestone
 		assigneeIDs, err = issues_model.MakeIDsFromAPIAssigneesToAdd(ctx, form.Assignee, form.Assignees)
 		if err != nil {
 			if user_model.IsErrUserNotExist(err) {
@@ -621,7 +561,7 @@ func CreateIssue(ctx *context.APIContext) {
 		form.Labels = make([]int64, 0)
 	}
 
-	if err := issue_service.NewIssue(ctx, ctx.Repo.Repository, issue, form.Labels, nil, assigneeIDs, form.Projects); err != nil {
+	if err := issue_service.NewIssue(ctx, ctx.Repo.Repository, issue, form.Labels, nil, assigneeIDs); err != nil {
 		if errors.Is(err, util.ErrPermissionDenied) || errors.Is(err, util.ErrNotExist) {
 			ctx.APIError(http.StatusBadRequest, err.Error())
 		} else {
@@ -632,10 +572,6 @@ func CreateIssue(ctx *context.APIContext) {
 
 	if form.Closed {
 		if err := issue_service.CloseIssue(ctx, issue, ctx.Doer, ""); err != nil {
-			if issues_model.IsErrDependenciesLeft(err) {
-				ctx.APIError(http.StatusPreconditionFailed, "cannot close this issue because it still has open dependencies")
-				return
-			}
 			ctx.APIErrorInternal(err)
 			return
 		}
@@ -801,24 +737,6 @@ func EditIssue(ctx *context.APIContext) {
 		}
 	}
 
-	if canWrite && form.Milestone != nil &&
-		issue.MilestoneID != *form.Milestone {
-		oldMilestoneID := issue.MilestoneID
-		issue.MilestoneID = *form.Milestone
-		if issue.MilestoneID > 0 {
-			issue.Milestone, err = issues_model.GetMilestoneByRepoID(ctx, ctx.Repo.Repository.ID, *form.Milestone)
-			if err != nil {
-				ctx.APIErrorInternal(err)
-				return
-			}
-		} else {
-			issue.Milestone = nil
-		}
-		if err = issue_service.ChangeMilestoneAssign(ctx, issue, ctx.Doer, oldMilestoneID); err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		}
-	}
 	if form.State != nil {
 		if issue.IsPull {
 			if err := issue.LoadPullRequest(ctx); err != nil {
@@ -838,25 +756,9 @@ func EditIssue(ctx *context.APIContext) {
 		}
 	}
 
-	// Update projects if provided
-	if canWrite && form.Projects != nil {
-		if err := issues_model.IssueAssignOrRemoveProject(ctx, issue, ctx.Doer, *form.Projects); err != nil {
-			if errors.Is(err, util.ErrPermissionDenied) || errors.Is(err, util.ErrNotExist) {
-				ctx.APIError(http.StatusBadRequest, err.Error())
-			} else {
-				ctx.APIErrorInternal(err)
-			}
-			return
-		}
-	}
-
 	// Refetch from database to assign some automatic values
 	issue, err = issues_model.GetIssueByID(ctx, issue.ID)
 	if err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
-	if err = issue.LoadMilestone(ctx); err != nil {
 		ctx.APIErrorInternal(err)
 		return
 	}
@@ -975,10 +877,6 @@ func closeOrReopenIssue(ctx *context.APIContext, issue *issues_model.Issue, stat
 
 	if state == api.StateClosed && !issue.IsClosed {
 		if err := issue_service.CloseIssue(ctx, issue, ctx.Doer, ""); err != nil {
-			if issues_model.IsErrDependenciesLeft(err) {
-				ctx.APIError(http.StatusPreconditionFailed, "cannot close this issue or pull request because it still has open dependencies")
-				return
-			}
 			ctx.APIErrorInternal(err)
 			return
 		}

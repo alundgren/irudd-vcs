@@ -23,65 +23,59 @@ const (
 
 // Service settings
 var Service = struct {
-	DefaultUserVisibility                   string
-	DefaultUserVisibilityMode               structs.VisibleType
-	AllowedUserVisibilityModes              []string
-	AllowedUserVisibilityModesSlice         AllowedVisibility `ini:"-"`
-	DefaultOrgVisibility                    string
-	DefaultOrgVisibilityMode                structs.VisibleType
-	ActiveCodeLives                         int
-	ResetPwdCodeLives                       int
-	RegisterEmailConfirm                    bool
-	RegisterManualConfirm                   bool
-	EmailDomainAllowList                    []glob.Glob
-	EmailDomainBlockList                    []glob.Glob
-	DisableRegistration                     bool
-	AllowOnlyInternalRegistration           bool
-	AllowOnlyExternalRegistration           bool
-	ShowRegistrationButton                  bool
-	EnablePasswordSignInForm                bool
-	ShowMilestonesDashboardPage             bool
-	RequireSignInViewStrict                 bool
-	BlockAnonymousAccessExpensive           bool
-	EnableNotifyMail                        bool
-	EnableBasicAuth                         bool
-	EnablePasskeyAuth                       bool
-	EnableReverseProxyAuth                  bool
-	EnableReverseProxyAuthAPI               bool
-	EnableReverseProxyAutoRegister          bool
-	EnableReverseProxyEmail                 bool
-	EnableReverseProxyFullName              bool
-	EnableCaptcha                           bool
-	RequireCaptchaForLogin                  bool
-	RequireExternalRegistrationCaptcha      bool
-	RequireExternalRegistrationPassword     bool
-	CaptchaType                             string
-	RecaptchaSecret                         string
-	RecaptchaSitekey                        string
-	RecaptchaURL                            string
-	CfTurnstileSecret                       string
-	CfTurnstileSitekey                      string
-	HcaptchaSecret                          string
-	HcaptchaSitekey                         string
-	McaptchaSecret                          string
-	McaptchaSitekey                         string
-	McaptchaURL                             string
-	DefaultKeepEmailPrivate                 bool
-	DefaultAllowCreateOrganization          bool
-	DefaultUserIsRestricted                 bool
-	EnableTimetracking                      bool
-	DefaultEnableTimetracking               bool
-	DefaultEnableDependencies               bool
-	AllowCrossRepositoryDependencies        bool
-	DefaultAllowOnlyContributorsToTrackTime bool
-	NoReplyAddress                          string
-	UserLocationMapURL                      string
-	EnableUserHeatmap                       bool
-	AutoWatchNewRepos                       bool
-	AutoWatchOnChanges                      bool
-	DefaultOrgMemberVisible                 bool
-	UserDeleteWithCommentsMaxTime           time.Duration
-	ValidSiteURLSchemes                     []string
+	DefaultUserVisibility               string
+	DefaultUserVisibilityMode           structs.VisibleType
+	AllowedUserVisibilityModes          []string
+	AllowedUserVisibilityModesSlice     AllowedVisibility `ini:"-"`
+	DefaultOrgVisibility                string
+	DefaultOrgVisibilityMode            structs.VisibleType
+	ActiveCodeLives                     int
+	ResetPwdCodeLives                   int
+	RegisterEmailConfirm                bool
+	RegisterManualConfirm               bool
+	EmailDomainAllowList                []glob.Glob
+	EmailDomainBlockList                []glob.Glob
+	DisableRegistration                 bool
+	AllowOnlyInternalRegistration       bool
+	AllowOnlyExternalRegistration       bool
+	ShowRegistrationButton              bool
+	EnablePasswordSignInForm            bool
+	RequireSignInViewStrict             bool
+	BlockAnonymousAccessExpensive       bool
+	EnableNotifyMail                    bool
+	EnableBasicAuth                     bool
+	EnablePasskeyAuth                   bool
+	EnableReverseProxyAuth              bool
+	EnableReverseProxyAuthAPI           bool
+	EnableReverseProxyAutoRegister      bool
+	EnableReverseProxyEmail             bool
+	EnableReverseProxyFullName          bool
+	EnableCaptcha                       bool
+	RequireCaptchaForLogin              bool
+	RequireExternalRegistrationCaptcha  bool
+	RequireExternalRegistrationPassword bool
+	CaptchaType                         string
+	RecaptchaSecret                     string
+	RecaptchaSitekey                    string
+	RecaptchaURL                        string
+	CfTurnstileSecret                   string
+	CfTurnstileSitekey                  string
+	HcaptchaSecret                      string
+	HcaptchaSitekey                     string
+	McaptchaSecret                      string
+	McaptchaSitekey                     string
+	McaptchaURL                         string
+	DefaultKeepEmailPrivate             bool
+	DefaultAllowCreateOrganization      bool
+	DefaultUserIsRestricted             bool
+	NoReplyAddress                      string
+	UserLocationMapURL                  string
+	EnableUserHeatmap                   bool
+	AutoWatchNewRepos                   bool
+	AutoWatchOnChanges                  bool
+	DefaultOrgMemberVisible             bool
+	UserDeleteWithCommentsMaxTime       time.Duration
+	ValidSiteURLSchemes                 []string
 
 	// Explore page settings
 	Explore struct {
@@ -151,7 +145,6 @@ func loadServiceFrom(rootCfg ConfigProvider) {
 	Service.EmailDomainAllowList = CompileEmailGlobList(sec, "EMAIL_DOMAIN_WHITELIST", "EMAIL_DOMAIN_ALLOWLIST")
 	Service.EmailDomainBlockList = CompileEmailGlobList(sec, "EMAIL_DOMAIN_BLOCKLIST")
 	Service.ShowRegistrationButton = sec.Key("SHOW_REGISTRATION_BUTTON").MustBool(!(Service.DisableRegistration || Service.AllowOnlyExternalRegistration))
-	Service.ShowMilestonesDashboardPage = sec.Key("SHOW_MILESTONES_DASHBOARD_PAGE").MustBool(true)
 
 	// boolean values are considered as "strict"
 	var err error
@@ -190,13 +183,6 @@ func loadServiceFrom(rootCfg ConfigProvider) {
 	Service.DefaultKeepEmailPrivate = sec.Key("DEFAULT_KEEP_EMAIL_PRIVATE").MustBool()
 	Service.DefaultAllowCreateOrganization = sec.Key("DEFAULT_ALLOW_CREATE_ORGANIZATION").MustBool(true)
 	Service.DefaultUserIsRestricted = sec.Key("DEFAULT_USER_IS_RESTRICTED").MustBool(false)
-	Service.EnableTimetracking = sec.Key("ENABLE_TIMETRACKING").MustBool(true)
-	if Service.EnableTimetracking {
-		Service.DefaultEnableTimetracking = sec.Key("DEFAULT_ENABLE_TIMETRACKING").MustBool(true)
-	}
-	Service.DefaultEnableDependencies = sec.Key("DEFAULT_ENABLE_DEPENDENCIES").MustBool(true)
-	Service.AllowCrossRepositoryDependencies = sec.Key("ALLOW_CROSS_REPOSITORY_DEPENDENCIES").MustBool(true)
-	Service.DefaultAllowOnlyContributorsToTrackTime = sec.Key("DEFAULT_ALLOW_ONLY_CONTRIBUTORS_TO_TRACK_TIME").MustBool(true)
 	Service.NoReplyAddress = sec.Key("NO_REPLY_ADDRESS").MustString("noreply." + Domain)
 	Service.UserLocationMapURL = sec.Key("USER_LOCATION_MAP_URL").String()
 	Service.EnableUserHeatmap = sec.Key("ENABLE_USER_HEATMAP").MustBool(true)

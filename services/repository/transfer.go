@@ -13,7 +13,6 @@ import (
 	"gitea.dev/models/organization"
 	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
-	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/gitrepo"
@@ -210,20 +209,6 @@ func transferOwnership(ctx context.Context, doer *user_model.User, newOwnerName 
 		// Remove old team-repository relations.
 		if err := organization.RemoveOrgRepo(ctx, oldOwner.ID, repo.ID); err != nil {
 			return fmt.Errorf("removeOrgRepo: %w", err)
-		}
-
-		// Remove project's issues that belong to old organization's projects
-		projects, err := project_model.GetAllProjectsIDsByOwnerIDAndType(ctx, oldOwner.ID, project_model.TypeOrganization)
-		if err != nil {
-			return fmt.Errorf("Unable to find old org projects: %w", err)
-		}
-		issues, err := issues_model.GetIssueIDsByRepoID(ctx, repo.ID)
-		if err != nil {
-			return fmt.Errorf("Unable to find repo's issues: %w", err)
-		}
-		err = project_model.DeleteAllProjectIssueByIssueIDsAndProjectIDs(ctx, issues, projects)
-		if err != nil {
-			return fmt.Errorf("Unable to delete project's issues: %w", err)
 		}
 	}
 

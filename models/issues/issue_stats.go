@@ -141,10 +141,6 @@ func applyIssuesOptions(sess db.Session, opts *IssuesOptions, issueIDs []int64) 
 
 	applyLabelsCondition(sess, opts)
 
-	applyMilestoneCondition(sess, opts)
-
-	applyProjectCondition(sess, opts)
-
 	applyAssigneeCondition(sess, opts.AssigneeID)
 
 	applyPosterCondition(sess, opts.PosterID)

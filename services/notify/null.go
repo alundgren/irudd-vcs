@@ -108,10 +108,6 @@ func (*NullNotifier) UpdateRelease(ctx context.Context, doer *user_model.User, r
 func (*NullNotifier) DeleteRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
 }
 
-// IssueChangeMilestone places a place holder function
-func (*NullNotifier) IssueChangeMilestone(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldMilestoneID int64) {
-}
-
 // IssueChangeContent places a place holder function
 func (*NullNotifier) IssueChangeContent(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldContent string) {
 }

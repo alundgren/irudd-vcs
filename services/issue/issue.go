@@ -9,7 +9,6 @@ import (
 
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
-	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
 	user_model "gitea.dev/models/user"
@@ -21,7 +20,7 @@ import (
 )
 
 // NewIssue creates new issue with labels for repository.
-func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs []int64, uuids []string, assigneeIDs, projectIDs []int64) error {
+func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs []int64, uuids []string, assigneeIDs []int64) error {
 	if err := issue.LoadPoster(ctx); err != nil {
 		return err
 	}
@@ -45,12 +44,6 @@ func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_mo
 			}
 			assigneeCommentMap[assigneeID] = comment
 		}
-		if len(projectIDs) > 0 {
-			err := issues_model.IssueAssignOrRemoveProject(ctx, issue, issue.Poster, projectIDs)
-			if err != nil {
-				return err
-			}
-		}
 		return nil
 	}); err != nil {
 		return err
@@ -64,9 +57,6 @@ func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_mo
 	notify_service.NewIssue(ctx, issue, mentions)
 	if len(issue.Labels) > 0 {
 		notify_service.IssueChangeLabels(ctx, issue.Poster, issue, issue.Labels, nil)
-	}
-	if issue.Milestone != nil {
-		notify_service.IssueChangeMilestone(ctx, issue.Poster, issue, 0)
 	}
 
 	if len(assigneeIDs) > 0 {
@@ -112,13 +102,6 @@ func ChangeTitle(ctx context.Context, issue *issues_model.Issue, doer *user_mode
 	ReviewRequestNotify(ctx, issue, issue.Poster, reviewNotifiers)
 
 	return nil
-}
-
-// ChangeTimeEstimate changes the time estimate of this issue, as the given user.
-func ChangeTimeEstimate(ctx context.Context, issue *issues_model.Issue, doer *user_model.User, timeEstimate int64) (err error) {
-	issue.TimeEstimate = timeEstimate
-
-	return issues_model.ChangeIssueTimeEstimate(ctx, issue, doer, timeEstimate)
 }
 
 // ChangeIssueRef changes the branch of this issue, as the given user.
@@ -195,11 +178,6 @@ func deleteIssue(ctx context.Context, issue *issues_model.Issue) ([]string, erro
 			return nil, err
 		}
 
-		if err := issues_model.UpdateMilestoneCounters(ctx, issue.MilestoneID); err != nil {
-			return nil, fmt.Errorf("error updating counters for milestone id %d: %w",
-				issue.MilestoneID, err)
-		}
-
 		// find attachments related to this issue and remove them
 		if err := issue.LoadAttachments(ctx); err != nil {
 			return nil, err
@@ -215,19 +193,12 @@ func deleteIssue(ctx context.Context, issue *issues_model.Issue) ([]string, erro
 			&issues_model.ContentHistory{IssueID: issue.ID},
 			&issues_model.Comment{IssueID: issue.ID},
 			&issues_model.IssueLabel{IssueID: issue.ID},
-			&issues_model.IssueDependency{IssueID: issue.ID},
 			&issues_model.IssueAssignees{IssueID: issue.ID},
 			&issues_model.IssueUser{IssueID: issue.ID},
 			&issues_model.Reaction{IssueID: issue.ID},
-			&issues_model.Stopwatch{IssueID: issue.ID},
-			&issues_model.TrackedTime{IssueID: issue.ID},
-			&project_model.ProjectIssue{IssueID: issue.ID},
 			&repo_model.Attachment{IssueID: issue.ID},
 			&issues_model.PullRequest{IssueID: issue.ID},
 			&issues_model.Comment{RefIssueID: issue.ID},
-			&issues_model.IssueDependency{DependencyID: issue.ID},
-			&issues_model.Comment{DependentIssueID: issue.ID},
-			&issues_model.IssuePin{IssueID: issue.ID},
 		); err != nil {
 			return nil, err
 		}

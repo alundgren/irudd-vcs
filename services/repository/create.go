@@ -364,24 +364,8 @@ func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *r
 	units := make([]repo_model.RepoUnit, 0, len(defaultUnits))
 	for _, tp := range defaultUnits {
 		switch tp {
-		case unit.TypeIssues:
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   tp,
-				Config: &repo_model.IssuesConfig{
-					EnableTimetracker:                setting.Service.DefaultEnableTimetracking,
-					AllowOnlyContributorsToTrackTime: setting.Service.DefaultAllowOnlyContributorsToTrackTime,
-					EnableDependencies:               setting.Service.DefaultEnableDependencies,
-				},
-			})
 		case unit.TypePullRequests:
 			units = append(units, repo_model.DefaultPullRequestsUnit(repo.ID))
-		case unit.TypeProjects:
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   tp,
-				Config: &repo_model.ProjectsConfig{ProjectsMode: repo_model.ProjectsModeAll},
-			})
 		default:
 			units = append(units, repo_model.RepoUnit{
 				RepoID: repo.ID,

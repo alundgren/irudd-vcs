@@ -221,7 +221,6 @@ func LoadSettings() {
 	loadIndexerFrom(CfgProvider)
 	loadTaskFrom(CfgProvider)
 	LoadQueueSettings()
-	loadProjectFrom(CfgProvider)
 	loadMimeTypeMapFrom(CfgProvider)
 	loadFederationFrom(CfgProvider)
 }

@@ -59,8 +59,6 @@ type Issue struct {
 	Ref              string        `json:"ref"`
 	Attachments      []*Attachment `json:"assets"`
 	Labels           []*Label      `json:"labels"`
-	Milestone        *Milestone    `json:"milestone"`
-	Projects         []*Project    `json:"projects"`
 	// deprecated
 	Assignee  *User     `json:"assignee"`
 	Assignees []*User   `json:"assignees"`
@@ -76,12 +74,9 @@ type Issue struct {
 	// swagger:strfmt date-time
 	Deadline *time.Time `json:"due_date"`
 
-	TimeEstimate int64 `json:"time_estimate"`
-
 	PullRequest *PullRequestMeta `json:"pull_request"`
 	Repo        *RepositoryMeta  `json:"repository"`
 
-	PinOrder int `json:"pin_order"`
 	// The version of the issue content for optimistic locking
 	ContentVersion int `json:"content_version"`
 }
@@ -97,13 +92,9 @@ type CreateIssueOption struct {
 	Assignees []string `json:"assignees"`
 	// swagger:strfmt date-time
 	Deadline *time.Time `json:"due_date"`
-	// milestone id
-	Milestone int64 `json:"milestone"`
 	// list of label ids
 	Labels []int64 `json:"labels"`
-	// list of project ids
-	Projects []int64 `json:"projects"`
-	Closed   bool    `json:"closed"`
+	Closed bool    `json:"closed"`
 }
 
 // EditIssueOption options for editing an issue
@@ -114,10 +105,7 @@ type EditIssueOption struct {
 	// deprecated
 	Assignee  *string  `json:"assignee"`
 	Assignees []string `json:"assignees"`
-	Milestone *int64   `json:"milestone"`
-	// list of project ids to set (replaces existing projects)
-	Projects *[]int64 `json:"projects"`
-	State    *string  `json:"state"`
+	State     *string  `json:"state"`
 	// swagger:strfmt date-time
 	Deadline       *time.Time `json:"due_date"`
 	RemoveDeadline *bool      `json:"unset_due_date"`

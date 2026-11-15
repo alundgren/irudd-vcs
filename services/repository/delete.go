@@ -12,7 +12,6 @@ import (
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
-	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
 	user_model "gitea.dev/models/user"
@@ -121,7 +120,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		&git_model.LFSLock{RepoID: repoID},
 		&repo_model.LanguageStat{RepoID: repoID},
 		&repo_model.RepoLicense{RepoID: repoID},
-		&issues_model.Milestone{RepoID: repoID},
 		&git_model.ProtectedBranch{RepoID: repoID},
 		&git_model.ProtectedTag{RepoID: repoID},
 		&repo_model.Release{RepoID: repoID},
@@ -130,7 +128,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		&repo_model.RepoTransfer{RepoID: repoID}, // this column doesn't have index, maybe it's fine since the table shouldn't be too large.
 		&repo_model.RepoUnit{RepoID: repoID},
 		&webhook.Webhook{RepoID: repoID},
-		&issues_model.IssuePin{RepoID: repoID},
 	); err != nil {
 		return fmt.Errorf("deleteBeans: %w", err)
 	}
@@ -164,10 +161,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 
 	if _, err := db.Exec(ctx, "UPDATE `user` SET num_repos=num_repos-1 WHERE id=?", repo.OwnerID); err != nil {
 		return err
-	}
-
-	if err := project_model.DeleteProjectByRepoID(ctx, repoID); err != nil {
-		return fmt.Errorf("unable to delete projects for repo[%d]: %w", repoID, err)
 	}
 
 	// Remove LFS objects

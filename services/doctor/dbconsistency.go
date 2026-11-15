@@ -102,9 +102,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 		// find pull requests without base repository
 		genericOrphanCheck("Pull request entries without existing base repository",
 			"pull_request", "repository", "pull_request.base_repo_id=repository.id"),
-		// find tracked times without existing issues/pulls
-		genericOrphanCheck("Orphaned TrackedTimes without existing issue",
-			"tracked_time", "issue", "tracked_time.issue_id=issue.id"),
 		// find attachments without existing issues or releases
 		{
 			Name:    "Orphaned Attachments without existing issues or releases",
@@ -174,12 +171,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 		// find access without repository
 		genericOrphanCheck("Access entries without existing repository",
 			"access", "repository", "access.repo_id=repository.id"),
-		// find stopwatches without existing user
-		genericOrphanCheck("Orphaned Stopwatches without existing User",
-			"stopwatch", "user", "stopwatch.user_id=`user`.id"),
-		// find stopwatches without existing issue
-		genericOrphanCheck("Orphaned Stopwatches without existing Issue",
-			"stopwatch", "issue", "stopwatch.issue_id=`issue`.id"),
 		// find redirects without existing user.
 		genericOrphanCheck("Orphaned Redirects without existing redirect user",
 			"user_redirect", "user", "user_redirect.redirect_user_id=`user`.id"),

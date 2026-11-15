@@ -16,7 +16,6 @@ import (
 
 	"gitea.dev/models/db"
 	"gitea.dev/models/organization"
-	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
@@ -229,10 +228,6 @@ const SpecialDoerNameCodeOwners SpecialDoerNameType = "CODEOWNERS"
 
 // CommentMetaData stores metadata for a comment, these data will not be changed once inserted into database
 type CommentMetaData struct {
-	ProjectColumnID    int64  `json:"project_column_id,omitempty"`
-	ProjectColumnTitle string `json:"project_column_title,omitempty"`
-	ProjectTitle       string `json:"project_title,omitempty"`
-
 	SpecialDoerName SpecialDoerNameType `json:"special_doer_name,omitempty"` // e.g. "CODEOWNERS" for CODEOWNERS-triggered review requests
 }
 
@@ -250,16 +245,6 @@ type Comment struct {
 	Label            *Label   `xorm:"-"`
 	AddedLabels      []*Label `xorm:"-"`
 	RemovedLabels    []*Label `xorm:"-"`
-	OldProjectID     int64
-	ProjectID        int64
-	OldProject       *project_model.Project `xorm:"-"`
-	Project          *project_model.Project `xorm:"-"`
-	OldMilestoneID   int64
-	MilestoneID      int64
-	OldMilestone     *Milestone `xorm:"-"`
-	Milestone        *Milestone `xorm:"-"`
-	TimeID           int64
-	Time             *TrackedTime `xorm:"-"`
 	AssigneeID       int64
 	RemovedAssignee  bool
 	Assignee         *user_model.User   `xorm:"-"`
@@ -271,8 +256,6 @@ type Comment struct {
 	NewTitle         string
 	OldRef           string
 	NewRef           string
-	DependentIssueID int64  `xorm:"index"` // This is used by issue_service.deleteIssue
-	DependentIssue   *Issue `xorm:"-"`
 
 	CommitID        int64
 	Line            int64         // - previous line / + proposed line
@@ -539,55 +522,6 @@ func (c *Comment) LoadLabel(ctx context.Context) error {
 	return nil
 }
 
-// LoadProject if comment.Type is CommentTypeProject, then load project.
-func (c *Comment) LoadProject(ctx context.Context) error {
-	if c.OldProjectID > 0 {
-		var oldProject project_model.Project
-		has, err := db.GetEngine(ctx).ID(c.OldProjectID).Get(&oldProject)
-		if err != nil {
-			return err
-		} else if has {
-			c.OldProject = &oldProject
-		}
-	}
-
-	if c.ProjectID > 0 {
-		var project project_model.Project
-		has, err := db.GetEngine(ctx).ID(c.ProjectID).Get(&project)
-		if err != nil {
-			return err
-		} else if has {
-			c.Project = &project
-		}
-	}
-
-	return nil
-}
-
-// LoadMilestone if comment.Type is CommentTypeMilestone, then load milestone
-func (c *Comment) LoadMilestone(ctx context.Context) error {
-	if c.OldMilestoneID > 0 {
-		var oldMilestone Milestone
-		has, err := db.GetEngine(ctx).ID(c.OldMilestoneID).Get(&oldMilestone)
-		if err != nil {
-			return err
-		} else if has {
-			c.OldMilestone = &oldMilestone
-		}
-	}
-
-	if c.MilestoneID > 0 {
-		var milestone Milestone
-		has, err := db.GetEngine(ctx).ID(c.MilestoneID).Get(&milestone)
-		if err != nil {
-			return err
-		} else if has {
-			c.Milestone = &milestone
-		}
-	}
-	return nil
-}
-
 // LoadAttachments loads attachments (it never returns error, the error during `GetAttachmentsByCommentIDCtx` is ignored)
 func (c *Comment) LoadAttachments(ctx context.Context) error {
 	if len(c.Attachments) > 0 {
@@ -668,25 +602,6 @@ func (c *Comment) IsResolved() bool {
 	return c.ResolveDoerID != 0 && c.Type == CommentTypeCode
 }
 
-// LoadDepIssueDetails loads Dependent Issue Details
-func (c *Comment) LoadDepIssueDetails(ctx context.Context) (err error) {
-	if c.DependentIssueID <= 0 || c.DependentIssue != nil {
-		return nil
-	}
-	c.DependentIssue, err = GetIssueByID(ctx, c.DependentIssueID)
-	return err
-}
-
-// LoadTime loads the associated time for a CommentTypeAddTimeManual
-func (c *Comment) LoadTime(ctx context.Context) error {
-	if c.Time != nil || c.TimeID == 0 {
-		return nil
-	}
-	var err error
-	c.Time, err = GetTrackedTimeByID(ctx, c.IssueID, c.TimeID)
-	return err
-}
-
 // LoadReactions loads comment reactions
 func (c *Comment) LoadReactions(ctx context.Context, repo *repo_model.Repository) (err error) {
 	if c.Reactions != nil {
@@ -764,13 +679,6 @@ func CreateComment(ctx context.Context, opts *CreateCommentOptions) (_ *Comment,
 		}
 
 		var commentMetaData *CommentMetaData
-		if opts.ProjectColumnTitle != "" {
-			commentMetaData = &CommentMetaData{
-				ProjectColumnID:    opts.ProjectColumnID,
-				ProjectColumnTitle: opts.ProjectColumnTitle,
-				ProjectTitle:       opts.ProjectTitle,
-			}
-		}
 		if opts.SpecialDoerName != "" {
 			commentMetaData = &CommentMetaData{
 				SpecialDoerName: opts.SpecialDoerName,
@@ -778,39 +686,33 @@ func CreateComment(ctx context.Context, opts *CreateCommentOptions) (_ *Comment,
 		}
 
 		comment := &Comment{
-			Type:             opts.Type,
-			PosterID:         opts.Doer.ID,
-			Poster:           opts.Doer,
-			IssueID:          opts.Issue.ID,
-			LabelID:          LabelID,
-			OldMilestoneID:   opts.OldMilestoneID,
-			MilestoneID:      opts.MilestoneID,
-			OldProjectID:     opts.OldProjectID,
-			ProjectID:        opts.ProjectID,
-			TimeID:           opts.TimeID,
-			RemovedAssignee:  opts.RemovedAssignee,
-			AssigneeID:       opts.AssigneeID,
-			AssigneeTeamID:   opts.AssigneeTeamID,
-			CommitID:         opts.CommitID,
-			CommitSHA:        opts.CommitSHA,
-			Line:             opts.LineNum,
-			Content:          opts.Content,
-			OldTitle:         opts.OldTitle,
-			NewTitle:         opts.NewTitle,
-			OldRef:           opts.OldRef,
-			NewRef:           opts.NewRef,
-			DependentIssueID: opts.DependentIssueID,
-			TreePath:         opts.TreePath,
-			ReviewID:         opts.ReviewID,
-			Patch:            opts.Patch,
-			RefRepoID:        opts.RefRepoID,
-			RefIssueID:       opts.RefIssueID,
-			RefCommentID:     opts.RefCommentID,
-			RefAction:        opts.RefAction,
-			RefIsPull:        opts.RefIsPull,
-			IsForcePush:      opts.IsForcePush,
-			Invalidated:      opts.Invalidated,
-			CommentMetaData:  commentMetaData,
+			Type:            opts.Type,
+			PosterID:        opts.Doer.ID,
+			Poster:          opts.Doer,
+			IssueID:         opts.Issue.ID,
+			LabelID:         LabelID,
+			RemovedAssignee: opts.RemovedAssignee,
+			AssigneeID:      opts.AssigneeID,
+			AssigneeTeamID:  opts.AssigneeTeamID,
+			CommitID:        opts.CommitID,
+			CommitSHA:       opts.CommitSHA,
+			Line:            opts.LineNum,
+			Content:         opts.Content,
+			OldTitle:        opts.OldTitle,
+			NewTitle:        opts.NewTitle,
+			OldRef:          opts.OldRef,
+			NewRef:          opts.NewRef,
+			TreePath:        opts.TreePath,
+			ReviewID:        opts.ReviewID,
+			Patch:           opts.Patch,
+			RefRepoID:       opts.RefRepoID,
+			RefIssueID:      opts.RefIssueID,
+			RefCommentID:    opts.RefCommentID,
+			RefAction:       opts.RefAction,
+			RefIsPull:       opts.RefIsPull,
+			IsForcePush:     opts.IsForcePush,
+			Invalidated:     opts.Invalidated,
+			CommentMetaData: commentMetaData,
 		}
 		if err = db.Insert(ctx, comment); err != nil {
 			return nil, err
@@ -897,39 +799,6 @@ func createDeadlineComment(ctx context.Context, doer *user_model.User, issue *Is
 	return comment, nil
 }
 
-// Creates issue dependency comment
-func createIssueDependencyComment(ctx context.Context, doer *user_model.User, issue, dependentIssue *Issue, add bool) (err error) {
-	cType := CommentTypeAddDependency
-	if !add {
-		cType = CommentTypeRemoveDependency
-	}
-	if err = issue.LoadRepo(ctx); err != nil {
-		return err
-	}
-
-	// Make two comments, one in each issue
-	opts := &CreateCommentOptions{
-		Type:             cType,
-		Doer:             doer,
-		Repo:             issue.Repo,
-		Issue:            issue,
-		DependentIssueID: dependentIssue.ID,
-	}
-	if _, err = CreateComment(ctx, opts); err != nil {
-		return err
-	}
-
-	opts = &CreateCommentOptions{
-		Type:             cType,
-		Doer:             doer,
-		Repo:             issue.Repo,
-		Issue:            dependentIssue,
-		DependentIssueID: issue.ID,
-	}
-	_, err = CreateComment(ctx, opts)
-	return err
-}
-
 // CreateCommentOptions defines options for creating comment
 type CreateCommentOptions struct {
 	Type  CommentType
@@ -938,38 +807,29 @@ type CreateCommentOptions struct {
 	Issue *Issue
 	Label *Label
 
-	DependentIssueID   int64
-	OldMilestoneID     int64
-	MilestoneID        int64
-	OldProjectID       int64
-	ProjectID          int64
-	ProjectTitle       string
-	ProjectColumnID    int64
-	ProjectColumnTitle string
-	TimeID             int64
-	AssigneeID         int64
-	AssigneeTeamID     int64
-	RemovedAssignee    bool
-	OldTitle           string
-	NewTitle           string
-	OldRef             string
-	NewRef             string
-	CommitID           int64
-	CommitSHA          string
-	Patch              string
-	LineNum            int64
-	TreePath           string
-	ReviewID           int64
-	Content            string
-	Attachments        []string // UUIDs of attachments
-	RefRepoID          int64
-	RefIssueID         int64
-	RefCommentID       int64
-	RefAction          references.XRefAction
-	RefIsPull          bool
-	IsForcePush        bool
-	Invalidated        bool
-	SpecialDoerName    SpecialDoerNameType // e.g. "CODEOWNERS" for CODEOWNERS-triggered review requests
+	AssigneeID      int64
+	AssigneeTeamID  int64
+	RemovedAssignee bool
+	OldTitle        string
+	NewTitle        string
+	OldRef          string
+	NewRef          string
+	CommitID        int64
+	CommitSHA       string
+	Patch           string
+	LineNum         int64
+	TreePath        string
+	ReviewID        int64
+	Content         string
+	Attachments     []string // UUIDs of attachments
+	RefRepoID       int64
+	RefIssueID      int64
+	RefCommentID    int64
+	RefAction       references.XRefAction
+	RefIsPull       bool
+	IsForcePush     bool
+	Invalidated     bool
+	SpecialDoerName SpecialDoerNameType // e.g. "CODEOWNERS" for CODEOWNERS-triggered review requests
 }
 
 // GetCommentByID returns the comment by given ID.

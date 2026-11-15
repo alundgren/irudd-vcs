@@ -40,18 +40,6 @@ func ToSearchOptions(keyword string, opts *issues_model.IssuesOptions) *SearchOp
 		// It's not a TO DO, it's just unnecessary.
 	}
 
-	if len(opts.MilestoneIDs) == 1 && opts.MilestoneIDs[0] == db.NoConditionID {
-		searchOpt.MilestoneIDs = []int64{0}
-	} else {
-		searchOpt.MilestoneIDs = opts.MilestoneIDs
-	}
-
-	if len(opts.ProjectIDs) == 1 && opts.ProjectIDs[0] == db.NoConditionID {
-		searchOpt.NoProjectOnly = true
-	} else {
-		searchOpt.ProjectIDs = opts.ProjectIDs
-	}
-
 	searchOpt.AssigneeID = opts.AssigneeID
 
 	// See the comment of issues_model.SearchOptions for the reason why we need to convert
@@ -96,7 +84,7 @@ func ToSearchOptions(keyword string, opts *issues_model.IssuesOptions) *SearchOp
 		searchOpt.SortBy = SortByDeadlineAsc
 	case "farduedate":
 		searchOpt.SortBy = SortByDeadlineDesc
-	case "priority", "priorityrepo", "project-column-sorting":
+	case "priority", "priorityrepo":
 		// Unsupported sort type for search
 		fallthrough
 	default:

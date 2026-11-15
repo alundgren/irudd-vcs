@@ -42,7 +42,6 @@ var (
 	ErrIsWorkInProgress          = errors.New("work in progress PRs cannot be merged")
 	ErrIsChecking                = errors.New("cannot merge while conflict checking is in progress")
 	ErrNotMergeableState         = errors.New("not in mergeable state")
-	ErrDependenciesLeft          = errors.New("is blocked by an open dependency")
 	ErrHeadCommitsNotAllVerified = errors.New("the branch requires signed commits but not all head commits are verified")
 )
 
@@ -213,17 +212,7 @@ func CheckPullMergeable(stdCtx context.Context, doer *user_model.User, perm *acc
 			}
 		}
 
-		if err := checkSigningRequirements(ctx, pr, doer, mergeStyle); err != nil {
-			return err
-		}
-
-		if noDeps, err := issues_model.IssueNoDependenciesLeft(ctx, pr.Issue); err != nil {
-			return err
-		} else if !noDeps {
-			return ErrDependenciesLeft
-		}
-
-		return nil
+		return checkSigningRequirements(ctx, pr, doer, mergeStyle)
 	})
 }
 

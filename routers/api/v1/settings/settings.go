@@ -58,12 +58,11 @@ func GetGeneralRepoSettings(ctx *context.APIContext) {
 	//   "200":
 	//     "$ref": "#/responses/GeneralRepoSettings"
 	ctx.JSON(http.StatusOK, api.GeneralRepoSettings{
-		MirrorsDisabled:      true,
-		HTTPGitDisabled:      setting.Repository.DisableHTTPGit,
-		MigrationsDisabled:   setting.Repository.DisableMigrations,
-		StarsDisabled:        setting.Repository.DisableStars,
-		TimeTrackingDisabled: !setting.Service.EnableTimetracking,
-		LFSDisabled:          !setting.LFS.StartServer,
+		MirrorsDisabled:    true,
+		HTTPGitDisabled:    setting.Repository.DisableHTTPGit,
+		MigrationsDisabled: setting.Repository.DisableMigrations,
+		StarsDisabled:      setting.Repository.DisableStars,
+		LFSDisabled:        !setting.LFS.StartServer,
 	})
 }
 

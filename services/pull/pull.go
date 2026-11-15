@@ -52,7 +52,6 @@ type NewPullRequestOptions struct {
 	AssigneeIDs     []int64
 	Reviewers       []*user_model.User
 	TeamReviewers   []*organization.Team
-	ProjectIDs      []int64
 }
 
 // NewPullRequest creates new pull request with labels for repository.
@@ -64,13 +63,11 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 
 	// user should be a collaborator or a member of the organization for base repo
 	canCreate := issue.Poster.IsAdmin || pr.Flow == issues_model.PullRequestFlowAGit
-	canAssignProject := canCreate
 	if !canCreate {
 		canCreate, err := repo_model.IsOwnerMemberCollaborator(ctx, repo, issue.Poster.ID)
 		if err != nil {
 			return err
 		}
-		canAssignProject = canCreate
 
 		if !canCreate {
 			// or user should have write permission in the head repo
@@ -84,7 +81,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 			if !perm.CanWrite(unit.TypeCode) {
 				return issues_model.ErrMustCollaborator
 			}
-			canAssignProject = perm.CanWrite(unit.TypeProjects)
 		}
 	}
 
@@ -112,12 +108,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 			}
 			assignees[assigneeID] = assignee
 			assigneeCommentMap[assigneeID] = comment
-		}
-
-		if len(opts.ProjectIDs) > 0 && canAssignProject {
-			if err := issues_model.IssueAssignOrRemoveProject(ctx, issue, issue.Poster, opts.ProjectIDs); err != nil {
-				return err
-			}
 		}
 
 		pr.Issue = issue
@@ -185,9 +175,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 	notify_service.NewPullRequest(ctx, pr, mentions)
 	if len(issue.Labels) > 0 {
 		notify_service.IssueChangeLabels(ctx, issue.Poster, issue, issue.Labels, nil)
-	}
-	if issue.Milestone != nil {
-		notify_service.IssueChangeMilestone(ctx, issue.Poster, issue, 0)
 	}
 	for _, assignee := range assignees {
 		notify_service.IssueChangeAssignee(ctx, issue.Poster, issue, assignee, false, assigneeCommentMap[assignee.ID])
@@ -691,7 +678,7 @@ func AdjustPullsCausedByBranchDeleted(ctx context.Context, doer *user_model.User
 
 	var errs []error
 	for _, pr := range prs {
-		if err = issue_service.CloseIssue(ctx, pr.Issue, doer, ""); err != nil && !issues_model.IsErrIssueIsClosed(err) && !issues_model.IsErrDependenciesLeft(err) {
+		if err = issue_service.CloseIssue(ctx, pr.Issue, doer, ""); err != nil && !issues_model.IsErrIssueIsClosed(err) {
 			errs = append(errs, err)
 		}
 		if err == nil {
@@ -731,7 +718,7 @@ func AdjustPullsCausedByBranchDeleted(ctx context.Context, doer *user_model.User
 			errs = append(errs, err)
 		}
 		if err == nil {
-			if err = issue_service.CloseIssue(ctx, pr.Issue, doer, ""); err != nil && !issues_model.IsErrIssueIsClosed(err) && !issues_model.IsErrDependenciesLeft(err) {
+			if err = issue_service.CloseIssue(ctx, pr.Issue, doer, ""); err != nil && !issues_model.IsErrIssueIsClosed(err) {
 				errs = append(errs, err)
 			}
 		}

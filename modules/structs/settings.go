@@ -13,8 +13,6 @@ type GeneralRepoSettings struct {
 	MigrationsDisabled bool `json:"migrations_disabled"`
 	// StarsDisabled indicates if repository starring is disabled
 	StarsDisabled bool `json:"stars_disabled"`
-	// TimeTrackingDisabled indicates if time tracking is disabled
-	TimeTrackingDisabled bool `json:"time_tracking_disabled"`
 	// LFSDisabled indicates if Git LFS support is disabled
 	LFSDisabled bool `json:"lfs_disabled"`
 }

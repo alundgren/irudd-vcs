@@ -30,7 +30,7 @@ const (
 	TypeWiki            // 5 Wiki
 	TypeExternalWiki    // 6 ExternalWiki
 	TypeExternalTracker // 7 ExternalTracker
-	TypeProjects        // 8 Projects
+	_                   // 8 Projects (removed), kept so later values don't shift
 	TypePackages        // 9 Packages
 	TypeActions         // 10 Actions
 
@@ -62,7 +62,6 @@ var (
 		TypeWiki,
 		TypeExternalWiki,
 		TypeExternalTracker,
-		TypeProjects,
 		TypePackages,
 		TypeActions,
 	}
@@ -74,7 +73,6 @@ var (
 		TypePullRequests,
 		TypeReleases,
 		TypeWiki,
-		TypeProjects,
 		TypePackages,
 		TypeActions,
 	}
@@ -92,7 +90,6 @@ var (
 		TypePullRequests,
 		TypeReleases,
 		TypeWiki,
-		TypeProjects,
 		TypePackages,
 	}
 
@@ -282,15 +279,6 @@ var (
 		perm.AccessModeRead,
 	}
 
-	UnitProjects = Unit{
-		TypeProjects,
-		"repo.projects",
-		"/projects",
-		"repo.projects.desc",
-		5,
-		perm.AccessModeOwner,
-	}
-
 	UnitPackages = Unit{
 		TypePackages,
 		"repo.packages",
@@ -318,7 +306,6 @@ var (
 		TypeReleases:        UnitReleases,
 		TypeWiki:            UnitWiki,
 		TypeExternalWiki:    UnitExternalWiki,
-		TypeProjects:        UnitProjects,
 		TypePackages:        UnitPackages,
 		TypeActions:         UnitActions,
 	}

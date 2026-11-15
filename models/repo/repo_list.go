@@ -53,11 +53,6 @@ func ValuesRepository(m map[int64]*Repository) []*Repository {
 	return values
 }
 
-// RepositoryListOfMap make list from values of map
-func RepositoryListOfMap(repoMap map[int64]*Repository) RepositoryList {
-	return RepositoryList(ValuesRepository(repoMap))
-}
-
 func (repos RepositoryList) LoadUnits(ctx context.Context) error {
 	if len(repos) == 0 {
 		return nil
@@ -200,10 +195,6 @@ type SearchRepoOptions struct {
 	Language string
 	// include description in keyword search
 	IncludeDescription bool
-	// None -> include has milestones AND has no milestone
-	// True -> include just has milestones
-	// False -> include just has no milestone
-	HasMilestones optional.Option[bool]
 	// LowerNames represents valid lower names to restrict to
 	LowerNames []string
 	// When specified true, apply some filters over the conditions:
@@ -526,14 +517,6 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 
 	if opts.Archived.Has() {
 		cond = cond.And(builder.Eq{"is_archived": opts.Archived.Value()})
-	}
-
-	if opts.HasMilestones.Has() {
-		if opts.HasMilestones.Value() {
-			cond = cond.And(builder.Gt{"num_milestones": 0})
-		} else {
-			cond = cond.And(builder.Eq{"num_milestones": 0}.Or(builder.IsNull{"num_milestones"}))
-		}
 	}
 
 	if opts.OnlyShowRelevant {

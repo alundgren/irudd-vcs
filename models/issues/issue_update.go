@@ -58,19 +58,6 @@ func SetIssueAsClosed(ctx context.Context, issue *Issue, doer *user_model.User, 
 		}
 	}
 
-	// Check for open dependencies
-	if issue.Repo.IsDependenciesEnabled(ctx) {
-		// only check if dependencies are enabled and we're about to close an issue, otherwise reopening an issue would fail when there are unsatisfied dependencies
-		noDeps, err := IssueNoDependenciesLeft(ctx, issue)
-		if err != nil {
-			return nil, err
-		}
-
-		if !noDeps {
-			return nil, ErrDependenciesLeft{issue.ID}
-		}
-	}
-
 	issue.IsClosed = true
 	issue.ClosedUnix = timeutil.TimeStampNow()
 
@@ -128,13 +115,6 @@ func updateIssueNumbers(ctx context.Context, issue *Issue, doer *user_model.User
 	}
 	for idx := range issue.Labels {
 		if err := updateLabelCols(ctx, issue.Labels[idx], "num_issues", "num_closed_issue"); err != nil {
-			return nil, err
-		}
-	}
-
-	// Update issue count of milestone
-	if issue.MilestoneID > 0 {
-		if err := UpdateMilestoneCounters(ctx, issue.MilestoneID); err != nil {
 			return nil, err
 		}
 	}
@@ -358,20 +338,6 @@ func NewIssueWithIndex(ctx context.Context, doer *user_model.User, opts NewIssue
 	e := db.GetEngine(ctx)
 	opts.Issue.Title = strings.TrimSpace(opts.Issue.Title)
 
-	if opts.Issue.MilestoneID > 0 {
-		milestone, err := GetMilestoneByRepoID(ctx, opts.Issue.RepoID, opts.Issue.MilestoneID)
-		if err != nil && !IsErrMilestoneNotExist(err) {
-			return fmt.Errorf("getMilestoneByID: %w", err)
-		}
-
-		// Assume milestone is invalid and drop silently.
-		opts.Issue.MilestoneID = 0
-		if milestone != nil {
-			opts.Issue.MilestoneID = milestone.ID
-			opts.Issue.Milestone = milestone
-		}
-	}
-
 	if opts.Issue.Index <= 0 {
 		return errors.New("no issue index provided")
 	}
@@ -381,24 +347,6 @@ func NewIssueWithIndex(ctx context.Context, doer *user_model.User, opts NewIssue
 
 	if _, err := e.Insert(opts.Issue); err != nil {
 		return err
-	}
-
-	if opts.Issue.MilestoneID > 0 {
-		if err := UpdateMilestoneCounters(ctx, opts.Issue.MilestoneID); err != nil {
-			return err
-		}
-
-		opts := &CreateCommentOptions{
-			Type:           CommentTypeMilestone,
-			Doer:           doer,
-			Repo:           opts.Repo,
-			Issue:          opts.Issue,
-			OldMilestoneID: 0,
-			MilestoneID:    opts.Issue.MilestoneID,
-		}
-		if _, err = CreateComment(ctx, opts); err != nil {
-			return err
-		}
 	}
 
 	// Update repository issue total count

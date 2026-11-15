@@ -56,34 +56,6 @@ type swaggerResponseLabelList struct {
 	Body []api.Label `json:"body"`
 }
 
-// Milestone
-// swagger:response Milestone
-type swaggerResponseMilestone struct {
-	// in:body
-	Body api.Milestone `json:"body"`
-}
-
-// MilestoneList
-// swagger:response MilestoneList
-type swaggerResponseMilestoneList struct {
-	// in:body
-	Body []api.Milestone `json:"body"`
-}
-
-// TrackedTime
-// swagger:response TrackedTime
-type swaggerResponseTrackedTime struct {
-	// in:body
-	Body api.TrackedTime `json:"body"`
-}
-
-// TrackedTimeList
-// swagger:response TrackedTimeList
-type swaggerResponseTrackedTimeList struct {
-	// in:body
-	Body []api.TrackedTime `json:"body"`
-}
-
 // IssueDeadline
 // swagger:response IssueDeadline
 type swaggerIssueDeadline struct {
@@ -96,20 +68,6 @@ type swaggerIssueDeadline struct {
 type swaggerIssueTemplates struct {
 	// in:body
 	Body []api.IssueTemplate `json:"body"`
-}
-
-// StopWatch
-// swagger:response StopWatch
-type swaggerResponseStopWatch struct {
-	// in:body
-	Body api.StopWatch `json:"body"`
-}
-
-// StopWatchList
-// swagger:response StopWatchList
-type swaggerResponseStopWatchList struct {
-	// in:body
-	Body []api.StopWatch `json:"body"`
 }
 
 // Reaction

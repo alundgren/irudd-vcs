@@ -75,11 +75,6 @@ func ListPullRequests(ctx *context.APIContext) {
 	//   description: Type of sort
 	//   type: string
 	//   enum: [oldest, recentupdate, recentclose, leastupdate, mostcomment, leastcomment, priority]
-	// - name: milestone
-	//   in: query
-	//   description: ID of the milestone
-	//   type: integer
-	//   format: int64
 	// - name: labels
 	//   in: query
 	//   description: Label IDs
@@ -135,7 +130,6 @@ func ListPullRequests(ctx *context.APIContext) {
 		State:       ctx.FormTrim("state"),
 		SortType:    ctx.FormTrim("sort"),
 		Labels:      labelIDs,
-		MilestoneID: ctx.FormInt64("milestone"),
 		PosterID:    posterID,
 		BaseBranch:  ctx.FormTrim("base_branch"),
 	})
@@ -407,9 +401,8 @@ func CreatePullRequest(ctx *context.APIContext) {
 	}
 
 	var (
-		repo        = ctx.Repo.Repository
-		labelIDs    []int64
-		milestoneID int64
+		repo     = ctx.Repo.Repository
+		labelIDs []int64
 	)
 
 	// Get repo/branch information
@@ -474,20 +467,6 @@ func CreatePullRequest(ctx *context.APIContext) {
 		}
 	}
 
-	if form.Milestone > 0 {
-		milestone, err := issues_model.GetMilestoneByRepoID(ctx, ctx.Repo.Repository.ID, form.Milestone)
-		if err != nil {
-			if issues_model.IsErrMilestoneNotExist(err) {
-				ctx.APIErrorNotFound()
-			} else {
-				ctx.APIErrorInternal(fmt.Errorf("GetMilestoneByRepoID: %w", err))
-			}
-			return
-		}
-
-		milestoneID = milestone.ID
-	}
-
 	var deadlineUnix timeutil.TimeStamp
 	if form.Deadline != nil {
 		deadlineUnix = timeutil.TimeStamp(form.Deadline.Unix())
@@ -504,7 +483,6 @@ func CreatePullRequest(ctx *context.APIContext) {
 		Title:        form.Title,
 		PosterID:     ctx.Doer.ID,
 		Poster:       ctx.Doer,
-		MilestoneID:  milestoneID,
 		IsPull:       true,
 		Content:      form.Body,
 		DeadlineUnix: deadlineUnix,
@@ -716,21 +694,6 @@ func EditPullRequest(ctx *context.APIContext) {
 			} else {
 				ctx.APIErrorInternal(err)
 			}
-			return
-		}
-	}
-
-	if ctx.Repo.Permission.CanWrite(unit.TypePullRequests) && form.Milestone != 0 &&
-		issue.MilestoneID != form.Milestone {
-		oldMilestoneID := issue.MilestoneID
-		issue.MilestoneID = form.Milestone
-		issue.Milestone, err = issues_model.GetMilestoneByRepoID(ctx, ctx.Repo.Repository.ID, form.Milestone)
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		}
-		if err = issue_service.ChangeMilestoneAssign(ctx, issue, ctx.Doer, oldMilestoneID); err != nil {
-			ctx.APIErrorInternal(err)
 			return
 		}
 	}

@@ -61,15 +61,8 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 	// check enabled/disabled units
 	hasIssues := false
 	var externalTracker *api.ExternalTracker
-	var internalTracker *api.InternalTracker
-	if unit, err := repo.GetUnit(ctx, unit_model.TypeIssues); err == nil {
-		config := unit.IssuesConfig()
+	if repo.UnitEnabled(ctx, unit_model.TypeIssues) {
 		hasIssues = true
-		internalTracker = &api.InternalTracker{
-			EnableTimeTracker:                config.EnableTimetracker,
-			AllowOnlyContributorsToTrackTime: config.AllowOnlyContributorsToTrackTime,
-			EnableIssueDependencies:          config.EnableDependencies,
-		}
 	} else if unit, err := repo.GetUnit(ctx, unit_model.TypeExternalTracker); err == nil {
 		config := unit.ExternalTrackerConfig()
 		hasIssues = true
@@ -126,14 +119,6 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 		defaultAllowMaintainerEdit = config.DefaultAllowMaintainerEdit
 		defaultTargetBranch = config.DefaultTargetBranch
 	}
-	hasProjects := false
-	projectsMode := repo_model.ProjectsModeAll
-	if unit, err := repo.GetUnit(ctx, unit_model.TypeProjects); err == nil {
-		hasProjects = true
-		config := unit.ProjectsConfig()
-		projectsMode = config.ProjectsMode
-	}
-
 	hasCode := repo.UnitEnabled(ctx, unit_model.TypeCode)
 	hasReleases := repo.UnitEnabled(ctx, unit_model.TypeReleases)
 	hasPackages := repo.UnitEnabled(ctx, unit_model.TypePackages)
@@ -221,10 +206,7 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 		HasCode:                       hasCode,
 		HasIssues:                     hasIssues,
 		ExternalTracker:               externalTracker,
-		InternalTracker:               internalTracker,
 		HasWiki:                       hasWiki,
-		HasProjects:                   hasProjects,
-		ProjectsMode:                  string(projectsMode),
 		HasReleases:                   hasReleases,
 		HasPackages:                   hasPackages,
 		HasActions:                    hasActions,

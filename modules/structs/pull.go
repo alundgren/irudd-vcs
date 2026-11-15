@@ -23,8 +23,6 @@ type PullRequest struct {
 	Body string `json:"body"`
 	// The labels attached to the pull request
 	Labels []*Label `json:"labels"`
-	// The milestone associated with the pull request
-	Milestone *Milestone `json:"milestone"`
 	// The primary assignee of the pull request
 	Assignee *User `json:"assignee"`
 	// The list of users assigned to the pull request
@@ -89,8 +87,6 @@ type PullRequest struct {
 	// swagger:strfmt date-time
 	Closed *time.Time `json:"closed_at"`
 
-	// The pin order for the pull request
-	PinOrder int `json:"pin_order"`
 	// The version of the pull request content for optimistic locking
 	ContentVersion int `json:"content_version"`
 }
@@ -132,8 +128,6 @@ type CreatePullRequestOption struct {
 	Assignee string `json:"assignee"`
 	// The list of assignee usernames
 	Assignees []string `json:"assignees"`
-	// The milestone ID to assign to the pull request
-	Milestone int64 `json:"milestone"`
 	// The list of label IDs to assign to the pull request
 	Labels []int64 `json:"labels"`
 	// swagger:strfmt date-time
@@ -158,8 +152,6 @@ type EditPullRequestOption struct {
 	Assignee string `json:"assignee"`
 	// The new list of assignee usernames
 	Assignees []string `json:"assignees"`
-	// The new milestone ID for the pull request
-	Milestone int64 `json:"milestone"`
 	// The new list of label IDs for the pull request
 	Labels []int64 `json:"labels"`
 	// The new state for the pull request

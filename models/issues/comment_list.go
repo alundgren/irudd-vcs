@@ -86,78 +86,6 @@ func (comments CommentList) loadLabels(ctx context.Context) error {
 	return nil
 }
 
-func (comments CommentList) getMilestoneIDs() []int64 {
-	return container.FilterSlice(comments, func(comment *Comment) (int64, bool) {
-		return comment.MilestoneID, comment.MilestoneID > 0
-	})
-}
-
-func (comments CommentList) loadMilestones(ctx context.Context) error {
-	if len(comments) == 0 {
-		return nil
-	}
-
-	milestoneIDs := comments.getMilestoneIDs()
-	if len(milestoneIDs) == 0 {
-		return nil
-	}
-
-	milestoneMaps := make(map[int64]*Milestone, len(milestoneIDs))
-	left := len(milestoneIDs)
-	for left > 0 {
-		limit := min(left, db.DefaultMaxInSize)
-		err := db.GetEngine(ctx).
-			In("id", milestoneIDs[:limit]).
-			Find(&milestoneMaps)
-		if err != nil {
-			return err
-		}
-		left -= limit
-		milestoneIDs = milestoneIDs[limit:]
-	}
-
-	for _, comment := range comments {
-		comment.Milestone = milestoneMaps[comment.MilestoneID]
-	}
-	return nil
-}
-
-func (comments CommentList) getOldMilestoneIDs() []int64 {
-	return container.FilterSlice(comments, func(comment *Comment) (int64, bool) {
-		return comment.OldMilestoneID, comment.OldMilestoneID > 0
-	})
-}
-
-func (comments CommentList) loadOldMilestones(ctx context.Context) error {
-	if len(comments) == 0 {
-		return nil
-	}
-
-	milestoneIDs := comments.getOldMilestoneIDs()
-	if len(milestoneIDs) == 0 {
-		return nil
-	}
-
-	milestoneMaps := make(map[int64]*Milestone, len(milestoneIDs))
-	left := len(milestoneIDs)
-	for left > 0 {
-		limit := min(left, db.DefaultMaxInSize)
-		err := db.GetEngine(ctx).
-			In("id", milestoneIDs[:limit]).
-			Find(&milestoneMaps)
-		if err != nil {
-			return err
-		}
-		left -= limit
-		milestoneIDs = milestoneIDs[limit:]
-	}
-
-	for _, issue := range comments {
-		issue.OldMilestone = milestoneMaps[issue.MilestoneID]
-	}
-	return nil
-}
-
 func (comments CommentList) getAssigneeIDs() []int64 {
 	return container.FilterSlice(comments, func(comment *Comment) (int64, bool) {
 		return comment.AssigneeID, comment.AssigneeID > 0
@@ -272,65 +200,6 @@ func (comments CommentList) LoadIssues(ctx context.Context) error {
 	for _, comment := range comments {
 		if comment.Issue == nil {
 			comment.Issue = issues[comment.IssueID]
-		}
-	}
-	return nil
-}
-
-func (comments CommentList) getDependentIssueIDs() []int64 {
-	return container.FilterSlice(comments, func(comment *Comment) (int64, bool) {
-		if comment.DependentIssue != nil {
-			return 0, false
-		}
-		return comment.DependentIssueID, comment.DependentIssueID > 0
-	})
-}
-
-func (comments CommentList) loadDependentIssues(ctx context.Context) error {
-	if len(comments) == 0 {
-		return nil
-	}
-
-	e := db.GetEngine(ctx)
-	issueIDs := comments.getDependentIssueIDs()
-	if len(issueIDs) == 0 {
-		return nil
-	}
-	issues := make(map[int64]*Issue, len(issueIDs))
-	left := len(issueIDs)
-	for left > 0 {
-		limit := min(left, db.DefaultMaxInSize)
-		rows, err := e.
-			In("id", issueIDs[:limit]).
-			Rows(new(Issue))
-		if err != nil {
-			return err
-		}
-
-		for rows.Next() {
-			var issue Issue
-			err = rows.Scan(&issue)
-			if err != nil {
-				_ = rows.Close()
-				return err
-			}
-
-			issues[issue.ID] = &issue
-		}
-		_ = rows.Close()
-
-		left -= limit
-		issueIDs = issueIDs[limit:]
-	}
-
-	for _, comment := range comments {
-		if comment.DependentIssue == nil {
-			comment.DependentIssue = issues[comment.DependentIssueID]
-			if comment.DependentIssue != nil {
-				if err := comment.DependentIssue.LoadRepo(ctx); err != nil {
-					return err
-				}
-			}
 		}
 	}
 	return nil
@@ -523,14 +392,6 @@ func (comments CommentList) LoadAttributes(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err = comments.loadMilestones(ctx); err != nil {
-		return err
-	}
-
-	if err = comments.loadOldMilestones(ctx); err != nil {
-		return err
-	}
-
 	if err = comments.loadAssignees(ctx); err != nil {
 		return err
 	}
@@ -543,9 +404,5 @@ func (comments CommentList) LoadAttributes(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err = comments.LoadIssues(ctx); err != nil {
-		return err
-	}
-
-	return comments.loadDependentIssues(ctx)
+	return comments.LoadIssues(ctx)
 }

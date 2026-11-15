@@ -15,12 +15,10 @@ const (
 	HookEventIssues                    HookEventType = "issues"
 	HookEventIssueAssign               HookEventType = "issue_assign"
 	HookEventIssueLabel                HookEventType = "issue_label"
-	HookEventIssueMilestone            HookEventType = "issue_milestone"
 	HookEventIssueComment              HookEventType = "issue_comment"
 	HookEventPullRequest               HookEventType = "pull_request"
 	HookEventPullRequestAssign         HookEventType = "pull_request_assign"
 	HookEventPullRequestLabel          HookEventType = "pull_request_label"
-	HookEventPullRequestMilestone      HookEventType = "pull_request_milestone"
 	HookEventPullRequestComment        HookEventType = "pull_request_comment"
 	HookEventPullRequestReviewApproved HookEventType = "pull_request_review_approved"
 	HookEventPullRequestReviewRejected HookEventType = "pull_request_review_rejected"
@@ -51,12 +49,10 @@ func AllEvents() []HookEventType {
 		HookEventIssues,
 		HookEventIssueAssign,
 		HookEventIssueLabel,
-		HookEventIssueMilestone,
 		HookEventIssueComment,
 		HookEventPullRequest,
 		HookEventPullRequestAssign,
 		HookEventPullRequestLabel,
-		HookEventPullRequestMilestone,
 		HookEventPullRequestComment,
 		HookEventPullRequestReviewApproved,
 		HookEventPullRequestReviewRejected,
@@ -76,9 +72,9 @@ func AllEvents() []HookEventType {
 // Event returns the HookEventType as an event string
 func (h HookEventType) Event() string {
 	switch h {
-	case HookEventIssues, HookEventIssueAssign, HookEventIssueLabel, HookEventIssueMilestone:
+	case HookEventIssues, HookEventIssueAssign, HookEventIssueLabel:
 		return "issues"
-	case HookEventPullRequest, HookEventPullRequestAssign, HookEventPullRequestLabel, HookEventPullRequestMilestone,
+	case HookEventPullRequest, HookEventPullRequestAssign, HookEventPullRequestLabel,
 		HookEventPullRequestSync, HookEventPullRequestReviewRequest:
 		return "pull_request"
 	case HookEventIssueComment, HookEventPullRequestComment:

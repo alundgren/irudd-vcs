@@ -55,11 +55,6 @@ type SearchOptions struct {
 	IncludedAnyLabelIDs []int64 // labels the issues have at least one. It will be ignored if IncludedLabelIDs is not empty. It's an uncommon filter, but it has been supported accidentally by issues.IssuesOptions.IncludedLabelNames.
 	NoLabelOnly         bool    // if the issues have no label, if true, IncludedLabelIDs and ExcludedLabelIDs, IncludedAnyLabelIDs will be ignored
 
-	MilestoneIDs []int64 // milestones the issues have
-
-	ProjectIDs    []int64 // project the issues belong to. FIXME: ISSUE-MULTIPLE-PROJECTS-FILTER: no multiple project filter support yet. Search logic is wrong.
-	NoProjectOnly bool    // if the issues have no project, if true, ProjectIDs will be ignored
-
 	PosterID   string // poster of the issues, "(none)" or "(any)" or a user ID
 	AssigneeID string // assignee of the issues, "(none)" or "(any)" or a user ID
 
@@ -113,9 +108,4 @@ const (
 	//                    It is based on the specified repository in the request, so we cannot add static field to the indexer.
 	//                    If we do something like that query the issues in the specified repository first then append other issues,
 	//                    it will break the pagination.
-	//
-	// - "project-column-sorting":
-	//                    Although it's possible to support it by adding project.ProjectIssue.Sorting to the indexer,
-	//                    but what if the issue belongs to multiple projects?
-	//                    Since it's unsupported to search issues with keyword in project page, we don't need to support it.
 )

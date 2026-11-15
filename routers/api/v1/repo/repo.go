@@ -642,29 +642,9 @@ func updateRepoUnits(ctx *context.APIContext, opts api.EditRepoOption) error {
 			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeIssues)
 		} else if *opts.HasIssues && opts.ExternalTracker == nil && !unit_model.TypeIssues.UnitGlobalDisabled() {
 			// Default to built-in tracker
-			var config *repo_model.IssuesConfig
-
-			if opts.InternalTracker != nil {
-				config = &repo_model.IssuesConfig{
-					EnableTimetracker:                opts.InternalTracker.EnableTimeTracker,
-					AllowOnlyContributorsToTrackTime: opts.InternalTracker.AllowOnlyContributorsToTrackTime,
-					EnableDependencies:               opts.InternalTracker.EnableIssueDependencies,
-				}
-			} else if unit, err := repo.GetUnit(ctx, unit_model.TypeIssues); err != nil {
-				// Unit type doesn't exist so we make a new config file with default values
-				config = &repo_model.IssuesConfig{
-					EnableTimetracker:                true,
-					AllowOnlyContributorsToTrackTime: true,
-					EnableDependencies:               true,
-				}
-			} else {
-				config = unit.IssuesConfig()
-			}
-
 			units = append(units, repo_model.RepoUnit{
 				RepoID: repo.ID,
 				Type:   unit_model.TypeIssues,
-				Config: config,
 			})
 			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeExternalTracker)
 		} else if !*opts.HasIssues {
@@ -772,32 +752,6 @@ func updateRepoUnits(ctx *context.APIContext, opts api.EditRepoOption) error {
 					Config: config,
 				})
 			}
-		}
-	}
-
-	if opts.HasProjects != nil && !unit_model.TypeProjects.UnitGlobalDisabled() {
-		if *opts.HasProjects {
-			unit, err := repo.GetUnit(ctx, unit_model.TypeProjects)
-			var config *repo_model.ProjectsConfig
-			if err != nil {
-				config = &repo_model.ProjectsConfig{
-					ProjectsMode: repo_model.ProjectsModeAll,
-				}
-			} else {
-				config = unit.ProjectsConfig()
-			}
-
-			if opts.ProjectsMode != nil {
-				config.ProjectsMode = repo_model.ProjectsMode(*opts.ProjectsMode)
-			}
-
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   unit_model.TypeProjects,
-				Config: config,
-			})
-		} else {
-			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeProjects)
 		}
 	}
 

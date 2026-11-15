@@ -98,23 +98,6 @@ func (cfg *ExternalTrackerConfig) ToDB() ([]byte, error) {
 	return json.Marshal(cfg)
 }
 
-// IssuesConfig describes issues config
-type IssuesConfig struct {
-	EnableTimetracker                bool
-	AllowOnlyContributorsToTrackTime bool
-	EnableDependencies               bool
-}
-
-// FromDB fills up a IssuesConfig from serialized format.
-func (cfg *IssuesConfig) FromDB(bs []byte) error {
-	return json.UnmarshalHandleDoubleEncode(bs, &cfg)
-}
-
-// ToDB exports a IssuesConfig to a serialized format.
-func (cfg *IssuesConfig) ToDB() ([]byte, error) {
-	return json.Marshal(cfg)
-}
-
 // PullRequestsConfig describes pull requests config
 type PullRequestsConfig struct {
 	IgnoreWhitespaceConflicts     bool
@@ -206,55 +189,6 @@ func DefaultPullRequestsUnit(repoID int64) RepoUnit {
 	return RepoUnit{RepoID: repoID, Type: unit.TypePullRequests, Config: DefaultPullRequestsConfig()}
 }
 
-// ProjectsMode represents the projects enabled for a repository
-type ProjectsMode string
-
-const (
-	// ProjectsModeRepo allows only repo-level projects
-	ProjectsModeRepo ProjectsMode = "repo"
-	// ProjectsModeOwner allows only owner-level projects
-	ProjectsModeOwner ProjectsMode = "owner"
-	// ProjectsModeAll allows both kinds of projects
-	ProjectsModeAll ProjectsMode = "all"
-	// ProjectsModeNone doesn't allow projects
-	ProjectsModeNone ProjectsMode = "none"
-)
-
-// ProjectsConfig describes projects config
-type ProjectsConfig struct {
-	ProjectsMode ProjectsMode
-}
-
-// FromDB fills up a ProjectsConfig from serialized format.
-func (cfg *ProjectsConfig) FromDB(bs []byte) error {
-	// TODO: remove GetProjectsMode, only use ProjectsMode
-	cfg.ProjectsMode = ProjectsModeAll
-	return json.UnmarshalHandleDoubleEncode(bs, &cfg)
-}
-
-// ToDB exports a ProjectsConfig to a serialized format.
-func (cfg *ProjectsConfig) ToDB() ([]byte, error) {
-	return json.Marshal(cfg)
-}
-
-func (cfg *ProjectsConfig) GetProjectsMode() ProjectsMode {
-	if cfg.ProjectsMode != "" {
-		return cfg.ProjectsMode
-	}
-
-	return ProjectsModeAll
-}
-
-func (cfg *ProjectsConfig) IsProjectsAllowed(m ProjectsMode) bool {
-	projectsMode := cfg.GetProjectsMode()
-
-	if m == ProjectsModeNone {
-		return true
-	}
-
-	return projectsMode == m || projectsMode == ProjectsModeAll
-}
-
 // BeforeSet is invoked from XORM before setting the value of a field of this object.
 func (r *RepoUnit) BeforeSet(colName string, val xorm.Cell) {
 	switch colName {
@@ -271,13 +205,9 @@ func (r *RepoUnit) BeforeSet(colName string, val xorm.Cell) {
 			r.Config = new(ExternalTrackerConfig)
 		case unit.TypePullRequests:
 			r.Config = new(PullRequestsConfig)
-		case unit.TypeIssues:
-			r.Config = new(IssuesConfig)
 		case unit.TypeActions:
 			r.Config = new(ActionsConfig)
-		case unit.TypeProjects:
-			r.Config = new(ProjectsConfig)
-		case unit.TypeCode, unit.TypeReleases, unit.TypeWiki, unit.TypePackages:
+		case unit.TypeCode, unit.TypeIssues, unit.TypeReleases, unit.TypeWiki, unit.TypePackages:
 			fallthrough
 		default:
 			r.Config = new(UnitConfig)
@@ -315,11 +245,6 @@ func (r *RepoUnit) ExternalWikiConfig() *ExternalWikiConfig {
 	return r.Config.(*ExternalWikiConfig)
 }
 
-// IssuesConfig returns config for unit.TypeIssues
-func (r *RepoUnit) IssuesConfig() *IssuesConfig {
-	return r.Config.(*IssuesConfig)
-}
-
 // ExternalTrackerConfig returns config for unit.TypeExternalTracker
 func (r *RepoUnit) ExternalTrackerConfig() *ExternalTrackerConfig {
 	return r.Config.(*ExternalTrackerConfig)
@@ -330,11 +255,6 @@ func (r *RepoUnit) ActionsConfig() *ActionsConfig {
 	return r.Config.(*ActionsConfig)
 }
 
-// ProjectsConfig returns config for unit.ProjectsConfig
-func (r *RepoUnit) ProjectsConfig() *ProjectsConfig {
-	return r.Config.(*ProjectsConfig)
-}
-
 func getUnitsByRepoID(ctx context.Context, repoID int64) (units []*RepoUnit, err error) {
 	var tmpUnits []*RepoUnit
 	if err := db.GetEngine(ctx).Where("repo_id = ?", repoID).Find(&tmpUnits); err != nil {
@@ -342,7 +262,7 @@ func getUnitsByRepoID(ctx context.Context, repoID int64) (units []*RepoUnit, err
 	}
 
 	for _, u := range tmpUnits {
-		if !u.Type.UnitGlobalDisabled() {
+		if _, ok := unit.Units[u.Type]; ok && !u.Type.UnitGlobalDisabled() { // skip rows of removed unit types
 			units = append(units, u)
 		}
 	}
