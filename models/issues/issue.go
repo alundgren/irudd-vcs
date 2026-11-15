@@ -298,7 +298,7 @@ func (issue *Issue) Link() string {
 // DiffURL returns the absolute URL to this diff
 func (issue *Issue) DiffURL() string {
 	if issue.IsPull {
-		return fmt.Sprintf("%s/pulls/%d.diff", issue.Repo.HTMLURL(), issue.Index)
+		return fmt.Sprintf("%s/pulls/%d.diff", issue.Repo.APIURL(), issue.Index) // the web diff route is gone
 	}
 	return ""
 }
@@ -306,7 +306,7 @@ func (issue *Issue) DiffURL() string {
 // PatchURL returns the absolute URL to this patch
 func (issue *Issue) PatchURL() string {
 	if issue.IsPull {
-		return fmt.Sprintf("%s/pulls/%d.patch", issue.Repo.HTMLURL(), issue.Index)
+		return fmt.Sprintf("%s/pulls/%d.patch", issue.Repo.APIURL(), issue.Index) // the web patch route is gone
 	}
 	return ""
 }

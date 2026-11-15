@@ -162,9 +162,13 @@ func attachTeamUnits(team *organization.Team, defaultAccessMode perm.AccessMode,
 func attachTeamUnitsMap(team *organization.Team, unitsMap map[string]string) {
 	team.Units = make([]*organization.TeamUnit, 0, len(unitsMap))
 	for unitKey, p := range unitsMap {
+		tp := unit_model.TypeFromKey(unitKey)
+		if tp == unit_model.TypeInvalid {
+			continue // removed or unknown units, e.g. repo.wiki from older clients
+		}
 		team.Units = append(team.Units, &organization.TeamUnit{
 			OrgID:      team.OrgID,
-			Type:       unit_model.TypeFromKey(unitKey),
+			Type:       tp,
 			AccessMode: perm.ParseAccessMode(p),
 		})
 	}
