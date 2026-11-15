@@ -43,14 +43,9 @@ type swaggerParameterBodies struct {
 	CreateIssueCommentOption api.CreateIssueCommentOption
 	// in:body
 	EditIssueCommentOption api.EditIssueCommentOption
-	// in:body
-	IssueMeta api.IssueMeta
 
 	// in:body
 	IssueLabelsOption api.IssueLabelsOption
-
-	// in:body
-	CreateKeyOption api.CreateKeyOption
 
 	// in:body
 	RenameUserOption api.RenameUserOption
@@ -59,11 +54,6 @@ type swaggerParameterBodies struct {
 	CreateLabelOption api.CreateLabelOption
 	// in:body
 	EditLabelOption api.EditLabelOption
-
-	// in:body
-	MarkupOption api.MarkupOption
-	// in:body
-	MarkdownOption api.MarkdownOption
 
 	// in:body
 	CreateOrgOption api.CreateOrgOption
@@ -84,11 +74,7 @@ type swaggerParameterBodies struct {
 	// in:body
 	RenameBranchRepoOption api.RenameBranchRepoOption
 	// in:body
-	TransferRepoOption api.TransferRepoOption
-	// in:body
 	CreateForkOption api.CreateForkOption
-	// in:body
-	GenerateRepoOption api.GenerateRepoOption
 
 	// in:body
 	CreateStatusOption api.CreateStatusOption
@@ -126,9 +112,6 @@ type swaggerParameterBodies struct {
 	CommitDateOptions api.CommitDateOptions
 
 	// in:body
-	RepoTopicOptions api.RepoTopicOptions
-
-	// in:body
 	EditReactionOption api.EditReactionOption
 
 	// in:body
@@ -146,9 +129,6 @@ type swaggerParameterBodies struct {
 	UpdateBranchProtectionPriories api.UpdateBranchProtectionPriories
 
 	// in:body
-	CreateOAuth2ApplicationOptions api.CreateOAuth2ApplicationOptions
-
-	// in:body
 	CreatePullReviewOptions api.CreatePullReviewOptions
 
 	// in:body
@@ -164,19 +144,10 @@ type swaggerParameterBodies struct {
 	DismissPullReviewOptions api.DismissPullReviewOptions
 
 	// in:body
-	MigrateRepoOptions api.MigrateRepoOptions
-
-	// in:body
 	PullReviewRequestOptions api.PullReviewRequestOptions
 
 	// in:body
 	CreateTagOption api.CreateTagOption
-
-	// in:body
-	CreateTagProtectionOption api.CreateTagProtectionOption
-
-	// in:body
-	EditTagProtectionOption api.EditTagProtectionOption
 
 	// in:body
 	CreateAccessTokenOption api.CreateAccessTokenOption
@@ -185,20 +156,5 @@ type swaggerParameterBodies struct {
 	UserSettingsOptions api.UserSettingsOptions
 
 	// in:body
-	CreatePushMirrorOption api.CreatePushMirrorOption
-
-	// in:body
-	UpdateUserAvatarOptions api.UpdateUserAvatarOption
-
-	// in:body
-	UpdateRepoAvatarOptions api.UpdateRepoAvatarOption
-
-	// in:body
-	UserBadgeOption api.UserBadgeOption
-
-	// in:body
 	RenameOrgOption api.RenameOrgOption
-
-	// in:body
-	LockIssueOption api.LockIssueOption
 }

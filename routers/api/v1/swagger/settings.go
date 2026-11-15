@@ -12,13 +12,6 @@ type swaggerResponseGeneralRepoSettings struct {
 	Body api.GeneralRepoSettings `json:"body"`
 }
 
-// GeneralUISettings
-// swagger:response GeneralUISettings
-type swaggerResponseGeneralUISettings struct {
-	// in:body
-	Body api.GeneralUISettings `json:"body"`
-}
-
 // GeneralAPISettings
 // swagger:response GeneralAPISettings
 type swaggerResponseGeneralAPISettings struct {

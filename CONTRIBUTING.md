@@ -8,7 +8,6 @@ This document explains how to contribute changes to the Gitea project. Topic-spe
 | Development workflow   | [docs/development.md](docs/development.md)                       |
 | Build from source      | [docs/build-source.md](docs/build-source.md)                     |
 | Running the tests      | [docs/testing.md](docs/testing.md)                               |
-| Frontend guidelines    | [docs/guidelines-frontend.md](docs/guidelines-frontend.md)       |
 | Backend guidelines     | [docs/guidelines-backend.md](docs/guidelines-backend.md)         |
 | Refactoring            | [docs/guidelines-refactoring.md](docs/guidelines-refactoring.md) |
 | Community Governance   | [docs/community-governance.md](docs/community-governance.md)     |
@@ -28,7 +27,6 @@ This document explains how to contribute changes to the Gitea project. Topic-spe
   - [Styleguide](#styleguide)
   - [Copyright](#copyright)
   - [Testing](#testing)
-  - [Translation](#translation)
   - [Code review](#code-review)
     - [Pull request format](#pull-request-format)
     - [PR title and summary](#pr-title-and-summary)
@@ -45,10 +43,10 @@ This document explains how to contribute changes to the Gitea project. Topic-spe
 
 ## Introduction
 
-It assumes you have followed the [installation instructions](https://docs.gitea.com/category/installation). \
+It assumes you have built and configured the server as described in the [README](README.md). \
 Sensitive security-related issues should be reported to [security@gitea.io](mailto:security@gitea.io).
 
-For configuring IDEs for Gitea development, see the [IDE setup notes](docs/development.md#ide-configuration) and the [contributed configurations](contrib/development/).
+For configuring IDEs, see the [IDE setup notes](docs/development.md#ide-configuration).
 
 ## AI Contribution Policy
 
@@ -111,7 +109,7 @@ If further discussion is needed, we encourage you to open a new issue instead an
 
 ## Building Gitea
 
-See [docs/setup.md](docs/setup.md) for prerequisites and [docs/development.md](docs/development.md)
+See [docs/build-setup.md](docs/build-setup.md) for prerequisites and [docs/development.md](docs/development.md)
 for building Gitea and the development workflow.
 
 ## Styleguide
@@ -131,17 +129,7 @@ Afterwards, copyright should only be modified when the copyright author changes.
 
 ## Testing
 
-Before submitting a pull request, run the linters (`make lint`, or the scoped `make lint-backend` / `make lint-frontend`) and the tests to make sure your changes don't cause a regression elsewhere. See [docs/testing.md](docs/testing.md) for how to run the unit, integration, end-to-end, and migration tests.
-
-## Translation
-
-All translation work happens on [Crowdin](https://translate.gitea.com).
-The only translation that is maintained in this repository is [the English translation](https://github.com/go-gitea/gitea/blob/main/options/locale/locale_en-US.json).
-It is synced regularly with Crowdin. \
-Other locales on main branch **should not** be updated manually as they will be overwritten with each sync. \
-Once a language has reached a **satisfactory percentage** of translated keys (~25%), it will be synced back into this repo and included in the next released version.
-
-The tool `go run build/backport-locale.go` can be used to backport locales from the main branch to release branches that were missed.
+Before submitting a pull request, run the linters (`make lint`, or the scoped `make lint-go`) and the tests to make sure your changes don't cause a regression elsewhere. See [docs/testing.md](docs/testing.md) for how to run the unit, integration, and migration tests.
 
 ## Code review
 

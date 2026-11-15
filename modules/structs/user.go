@@ -106,24 +106,3 @@ type RenameUserOption struct {
 	// unique: true
 	NewName string `json:"new_username" binding:"Required"`
 }
-
-// UpdateUserAvatarUserOption options when updating the user avatar
-type UpdateUserAvatarOption struct {
-	// image must be base64 encoded
-	Image string `json:"image" binding:"Required"`
-}
-
-// Badge represents a user badge
-// swagger:model
-type Badge struct {
-	ID          int64  `json:"id"`
-	Slug        string `json:"slug"`
-	Description string `json:"description"`
-	ImageURL    string `json:"image_url"`
-}
-
-// UserBadgeOption options for link between users and badges
-type UserBadgeOption struct {
-	// example: ["badge1","badge2"]
-	BadgeSlugs []string `json:"badge_slugs" binding:"Required"`
-}

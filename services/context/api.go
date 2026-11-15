@@ -79,13 +79,6 @@ type APIValidationError struct {
 	URL     string `json:"url"`
 }
 
-// APIInvalidTopicsError is error format response to invalid topics
-// swagger:response invalidTopicsError
-type APIInvalidTopicsError struct {
-	Message       string   `json:"message"`
-	InvalidTopics []string `json:"invalidTopics"`
-}
-
 // APIEmpty is an empty response
 // swagger:response empty
 type APIEmpty struct{}

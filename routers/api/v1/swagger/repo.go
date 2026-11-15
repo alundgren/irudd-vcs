@@ -70,20 +70,6 @@ type swaggerResponseAnnotatedTag struct {
 	Body api.AnnotatedTag `json:"body"`
 }
 
-// TagProtectionList
-// swagger:response TagProtectionList
-type swaggerResponseTagProtectionList struct {
-	// in:body
-	Body []api.TagProtection `json:"body"`
-}
-
-// TagProtection
-// swagger:response TagProtection
-type swaggerResponseTagProtection struct {
-	// in:body
-	Body api.TagProtection `json:"body"`
-}
-
 // Reference
 // swagger:response Reference
 type swaggerResponseReference struct {
@@ -180,13 +166,6 @@ type swaggerResponseStatus struct {
 type swaggerResponseCommitStatusList struct {
 	// in:body
 	Body []api.CommitStatus `json:"body"`
-}
-
-// WatchInfo
-// swagger:response WatchInfo
-type swaggerResponseWatchInfo struct {
-	// in:body
-	Body api.WatchInfo `json:"body"`
 }
 
 // SearchResults
@@ -316,20 +295,6 @@ type swaggerFileDeleteResponse struct {
 	Body api.FileDeleteResponse `json:"body"`
 }
 
-// TopicListResponse
-// swagger:response TopicListResponse
-type swaggerTopicListResponse struct {
-	// in: body
-	Body api.TopicListResponse `json:"body"`
-}
-
-// TopicNames
-// swagger:response TopicNames
-type swaggerTopicNames struct {
-	// in: body
-	Body api.TopicName `json:"body"`
-}
-
 // CombinedStatus
 // swagger:response CombinedStatus
 type swaggerCombinedStatus struct {
@@ -337,39 +302,11 @@ type swaggerCombinedStatus struct {
 	Body api.CombinedStatus `json:"body"`
 }
 
-// PushMirror
-// swagger:response PushMirror
-type swaggerPushMirror struct {
-	// in:body
-	Body api.PushMirror `json:"body"`
-}
-
-// PushMirrorList
-// swagger:response PushMirrorList
-type swaggerPushMirrorList struct {
-	// in:body
-	Body []api.PushMirror `json:"body"`
-}
-
 // RepoCollaboratorPermission
 // swagger:response RepoCollaboratorPermission
 type swaggerRepoCollaboratorPermission struct {
 	// in:body
 	Body api.RepoCollaboratorPermission `json:"body"`
-}
-
-// RepoIssueConfig
-// swagger:response RepoIssueConfig
-type swaggerRepoIssueConfig struct {
-	// in:body
-	Body api.IssueConfig `json:"body"`
-}
-
-// RepoIssueConfigValidation
-// swagger:response RepoIssueConfigValidation
-type swaggerRepoIssueConfigValidation struct {
-	// in:body
-	Body api.IssueConfigValidation `json:"body"`
 }
 
 // swagger:response Compare

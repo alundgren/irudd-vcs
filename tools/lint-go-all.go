@@ -18,12 +18,8 @@ func lintGoHeader() bool {
 	headerRE := regexp.MustCompile(`^(// (Copyright [^\n]+|All rights reserved\.)\n)*// Copyright \d{4} (The Gogs Authors|The Gitea Authors|Gitea Authors|Gitea)\.( All rights reserved\.)?\n(// (Copyright [^\n]+|All rights reserved\.)\n)*// SPDX-License-Identifier: [\w.-]+`)
 	generatedRE := regexp.MustCompile(`(?m)^// (Code|This file is) [Gg]enerated.*DO NOT EDIT`)
 	skipDirs := map[string]bool{
-		".git":         true,
-		".venv":        true,
-		"node_modules": true,
-		"public":       true,
-		"vendor":       true,
-		"web_src":      true,
+		".git":   true,
+		"vendor": true,
 	}
 	root, bad := ".", 0
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {

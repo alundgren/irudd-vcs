@@ -40,10 +40,3 @@ type swaggerResponseUserSettings struct {
 	// in:body
 	Body api.UserSettings `json:"body"`
 }
-
-// BadgeList
-// swagger:response BadgeList
-type swaggerResponseBadgeList struct {
-	// in:body
-	Body []api.Badge `json:"body"`
-}

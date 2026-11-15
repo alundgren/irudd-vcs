@@ -59,15 +59,3 @@ type IssueLabelsOption struct {
 	// or a list of strings representing label names
 	Labels []any `json:"labels"`
 }
-
-// LabelTemplate info of a Label template
-type LabelTemplate struct {
-	// Name is the display name of the label template
-	Name string `json:"name"`
-	// example: false
-	Exclusive bool `json:"exclusive"`
-	// example: 00aabb
-	Color string `json:"color"`
-	// Description provides additional context about the label template's purpose
-	Description string `json:"description"`
-}

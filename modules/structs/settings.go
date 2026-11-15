@@ -17,12 +17,6 @@ type GeneralRepoSettings struct {
 	LFSDisabled bool `json:"lfs_disabled"`
 }
 
-// GeneralUISettings contains global ui settings exposed by API
-type GeneralUISettings struct {
-	// AllowedReactions contains the list of allowed emoji reactions
-	AllowedReactions []string `json:"allowed_reactions"`
-}
-
 // GeneralAPISettings contains global api settings exposed by it
 type GeneralAPISettings struct {
 	// MaxResponseItems is the maximum number of items returned in API responses

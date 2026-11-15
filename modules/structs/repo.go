@@ -194,38 +194,6 @@ type EditRepoOption struct {
 	MirrorToken *string `json:"mirror_token,omitempty"`
 }
 
-// GenerateRepoOption options when creating a repository using a template
-// swagger:model
-type GenerateRepoOption struct {
-	// the organization's name or individual user's name who will own the new repository
-	//
-	// required: true
-	Owner string `json:"owner"`
-	// required: true
-	// unique: true
-	Name string `json:"name" binding:"Required;AlphaDashDot;MaxSize(100)"`
-	// Default branch of the new repository
-	DefaultBranch string `json:"default_branch"`
-	// Description of the repository to create
-	Description string `json:"description" binding:"MaxSize(2048)"`
-	// Whether the repository is private
-	Private bool `json:"private"`
-	// include git content of default branch in template repo
-	GitContent bool `json:"git_content"`
-	// include topics in template repo
-	Topics bool `json:"topics"`
-	// include git hooks in template repo
-	GitHooks bool `json:"git_hooks"`
-	// include webhooks in template repo
-	Webhooks bool `json:"webhooks"`
-	// include avatar of the template repo
-	Avatar bool `json:"avatar"`
-	// include labels in template repo
-	Labels bool `json:"labels"`
-	// include protected branches in template repo
-	ProtectedBranch bool `json:"protected_branch"`
-}
-
 // CreateBranchRepoOption options when creating a branch in a repository
 // swagger:model
 type CreateBranchRepoOption struct {
@@ -270,15 +238,6 @@ type UpdateBranchRepoOption struct {
 
 	// Force update even if the change is not a fast-forward
 	Force bool `json:"force"`
-}
-
-// TransferRepoOption options when transfer a repository's ownership
-// swagger:model
-type TransferRepoOption struct {
-	// required: true
-	NewOwner string `json:"new_owner"`
-	// ID of the team or teams to add to the repository. Teams can only be added to organization-owned repositories.
-	TeamIDs *[]int64 `json:"team_ids"`
 }
 
 // GitServiceType represents a git service
@@ -329,41 +288,6 @@ func (gt GitServiceType) Title() string {
 	return ""
 }
 
-// MigrateRepoOptions options for migrating repository's
-// this is used to interact with api v1
-type MigrateRepoOptions struct {
-	// required: true
-	CloneAddr string `json:"clone_addr" binding:"Required"`
-	// deprecated (only for backwards compatibility, use repo_owner instead)
-	RepoOwnerID int64 `json:"uid"`
-	// the organization's name or individual user's name who will own the migrated repository
-	RepoOwner string `json:"repo_owner"`
-	// required: true
-	RepoName string `json:"repo_name" binding:"Required;AlphaDashDot;MaxSize(100)"`
-
-	// enum: ["git","github","gitea","gitlab","gogs","onedev","gitbucket","codebase","codecommit"]
-	Service      string `json:"service"`
-	AuthUsername string `json:"auth_username"`
-	AuthPassword string `json:"auth_password"`
-	AuthToken    string `json:"auth_token"`
-
-	Mirror         bool   `json:"mirror"`
-	LFS            bool   `json:"lfs"`
-	LFSEndpoint    string `json:"lfs_endpoint"`
-	Private        bool   `json:"private"`
-	Description    string `json:"description" binding:"MaxSize(2048)"`
-	Wiki           bool   `json:"wiki"`
-	Milestones     bool   `json:"milestones"`
-	Labels         bool   `json:"labels"`
-	Issues         bool   `json:"issues"`
-	PullRequests   bool   `json:"pull_requests"`
-	Releases       bool   `json:"releases"`
-	MirrorInterval string `json:"mirror_interval"`
-
-	AWSAccessKeyID     string `json:"aws_access_key_id"`
-	AWSSecretAccessKey string `json:"aws_secret_access_key"`
-}
-
 // TokenAuth represents whether a service type supports token-based auth
 func (gt GitServiceType) TokenAuth() bool {
 	switch gt {
@@ -378,10 +302,4 @@ type RepoTransfer struct {
 	Doer      *User   `json:"doer"`
 	Recipient *User   `json:"recipient"`
 	Teams     []*Team `json:"teams"`
-}
-
-// UpdateRepoAvatarUserOption options when updating the repo avatar
-type UpdateRepoAvatarOption struct {
-	// image must be base64 encoded
-	Image string `json:"image" binding:"Required"`
 }
