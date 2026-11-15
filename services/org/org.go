@@ -7,14 +7,12 @@ import (
 	"context"
 	"fmt"
 
-	actions_model "gitea.dev/models/actions"
 	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	org_model "gitea.dev/models/organization"
 	packages_model "gitea.dev/models/packages"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
-	secret_model "gitea.dev/models/secret"
 	user_model "gitea.dev/models/user"
 	issue_indexer "gitea.dev/modules/indexer/issues"
 	"gitea.dev/modules/storage"
@@ -35,11 +33,7 @@ func deleteOrganization(ctx context.Context, org *org_model.Organization) error 
 		&org_model.TeamUser{OrgID: org.ID},
 		&org_model.TeamUnit{OrgID: org.ID},
 		&org_model.TeamInvite{OrgID: org.ID},
-		&secret_model.Secret{OwnerID: org.ID},
 		&user_model.Blocking{BlockerID: org.ID},
-		&actions_model.ActionRunner{OwnerID: org.ID},
-		&actions_model.ActionRunnerToken{OwnerID: org.ID},
-		&actions_model.ActionScopedWorkflowSource{OwnerID: org.ID},
 	); err != nil {
 		return fmt.Errorf("DeleteBeans: %w", err)
 	}

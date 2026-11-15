@@ -28,7 +28,6 @@ import (
 	"gitea.dev/modules/validation"
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/api/v1/utils"
-	actions_service "gitea.dev/services/actions"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
 	repo_service "gitea.dev/services/repository"
@@ -862,20 +861,12 @@ func updateRepoArchivedState(ctx *context.APIContext, opts api.EditRepoOption) e
 				ctx.APIErrorInternal(err)
 				return err
 			}
-			if err := actions_service.CleanRepoScheduleTasks(ctx, repo); err != nil {
-				log.Error("CleanRepoScheduleTasks for archived repo %s/%s: %v", ctx.Repo.Owner.Name, repo.Name, err)
-			}
 			log.Trace("Repository was archived: %s/%s", ctx.Repo.Owner.Name, repo.Name)
 		} else {
 			if err := repo_model.SetArchiveRepoState(ctx, repo, *opts.Archived); err != nil {
 				log.Error("Tried to un-archive a repo: %s", err)
 				ctx.APIErrorInternal(err)
 				return err
-			}
-			if ctx.Repo.Repository.UnitEnabled(ctx, unit_model.TypeActions) {
-				if err := actions_service.DetectAndHandleSchedules(ctx, repo); err != nil {
-					log.Error("DetectAndHandleSchedules for un-archived repo %s/%s: %v", ctx.Repo.Owner.Name, repo.Name, err)
-				}
 			}
 			log.Trace("Repository was un-archived: %s/%s", ctx.Repo.Owner.Name, repo.Name)
 		}

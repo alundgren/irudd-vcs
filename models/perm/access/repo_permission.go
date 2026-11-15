@@ -5,13 +5,10 @@ package access
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
-	actions_model "gitea.dev/models/actions"
 	"gitea.dev/models/db"
 	"gitea.dev/models/organization"
 	perm_model "gitea.dev/models/perm"
@@ -259,134 +256,8 @@ func finalProcessRepoUnitPermission(user *user_model.User, perm *Permission) {
 	}
 }
 
-func checkSameOwnerCrossRepoAccess(ctx context.Context, taskRepo, targetRepo *repo_model.Repository, isForkPR bool) bool {
-	if isForkPR {
-		// Fork PRs are never allowed cross-repo access to other private repositories of the owner.
-		return false
-	}
-	if taskRepo.OwnerID != targetRepo.OwnerID {
-		return false
-	}
-	ownerCfg, err := actions_model.GetOwnerActionsConfig(ctx, targetRepo.OwnerID)
-	if err != nil {
-		log.Error("GetOwnerActionsConfig: %v", err)
-		return false
-	}
-
-	return slices.Contains(ownerCfg.AllowedCrossRepoIDs, targetRepo.ID)
-}
-
-// GetActionsUserRepoPermission returns the actions user permissions to the repository
-func GetActionsUserRepoPermission(ctx context.Context, repo *repo_model.Repository, actionsUser *user_model.User, taskID int64) (perm Permission, err error) {
-	if actionsUser.ID != user_model.ActionsUserID {
-		return perm, errors.New("api GetActionsUserRepoPermission can only be called by the actions user")
-	}
-	task, err := actions_model.GetTaskByID(ctx, taskID)
-	if err != nil {
-		return perm, err
-	}
-
-	if err := task.LoadJob(ctx); err != nil {
-		return perm, err
-	}
-
-	var taskRepo *repo_model.Repository
-	if task.RepoID != repo.ID {
-		if err := task.Job.LoadRepo(ctx); err != nil {
-			return perm, err
-		}
-		taskRepo = task.Job.Repo
-	} else {
-		taskRepo = repo
-	}
-
-	// Compute effective permissions for this task against the target repo
-	effectivePerms, err := actions_model.ComputeTaskTokenPermissions(ctx, task, repo)
-	if err != nil {
-		return perm, err
-	}
-	if task.RepoID != repo.ID {
-		// Cross-repo access must also respect the target repo's permission ceiling.
-		targetRepoActionsCfg := repo.MustGetUnit(ctx, unit.TypeActions).ActionsConfig()
-		if targetRepoActionsCfg.OverrideOwnerConfig {
-			effectivePerms = targetRepoActionsCfg.ClampPermissions(effectivePerms)
-		} else {
-			targetRepoOwnerActionsCfg, err := actions_model.GetOwnerActionsConfig(ctx, repo.OwnerID)
-			if err != nil {
-				return perm, err
-			}
-			effectivePerms = targetRepoOwnerActionsCfg.ClampPermissions(effectivePerms)
-		}
-	}
-
-	if err := repo.LoadUnits(ctx); err != nil {
-		return perm, err
-	}
-
-	var maxPerm Permission
-
-	// Set up per-unit access modes based on configured permissions
-	maxPerm.units = repo.Units
-	maxPerm.unitsMode = maps.Clone(effectivePerms.UnitAccessModes)
-
-	// Check permission like simple user but limit to read-only (PR #36095)
-	// Enhanced to also grant read-only access if isSameRepo is true and target repository is public
-	botPerm, err := GetIndividualUserRepoPermission(ctx, repo, user_model.NewActionsUser())
-	if err != nil {
-		return perm, err
-	}
-	if botPerm.AccessMode >= perm_model.AccessModeRead {
-		// Public repo allows read access, increase permissions to at least read
-		// Otherwise you cannot access your own repository if your permissions are set to none but the repository is public
-		for _, u := range repo.Units {
-			if botPerm.CanRead(u.Type) {
-				maxPerm.unitsMode[u.Type] = max(maxPerm.unitsMode[u.Type], perm_model.AccessModeRead)
-			}
-		}
-	}
-
-	if task.RepoID == repo.ID {
-		return maxPerm, nil
-	}
-
-	if checkSameOwnerCrossRepoAccess(ctx, taskRepo, repo, task.IsForkPullRequest) {
-		// Access allowed by owner policy (grants access to private repos).
-		// Note: maxPerm has already been restricted to Read-Only in ComputeTaskTokenPermissions
-		// because isSameRepo is false.
-		return maxPerm, nil
-	}
-
-	// Fall through to allow public repository read access via botPerm check below
-
-	// Check if the repo is public or the Bot has explicit access
-	if botPerm.AccessMode >= perm_model.AccessModeRead {
-		return maxPerm, nil
-	}
-
-	// Check Collaborative Owner and explicit Bot permissions
-	// We allow access if:
-	// 1. It's a collaborative owner relationship
-	// 2. The Actions Bot user has been explicitly granted access and repository is private
-	// 3. The repository is public (handled by botPerm above)
-
-	// Fork PRs are never allowed cross-repo access to other private repositories,
-	// matching the discriminator enforced by checkSameOwnerCrossRepoAccess above.
-	if taskRepo.IsPrivate && !task.IsForkPullRequest {
-		actionsUnit := repo.MustGetUnit(ctx, unit.TypeActions)
-		if actionsUnit.ActionsConfig().IsCollaborativeOwner(taskRepo.OwnerID) {
-			return maxPerm, nil
-		}
-	}
-
-	return perm, nil
-}
-
-// GetDoerRepoPermission returns the repository permission for the current actor,
-// dispatching to GetActionsUserRepoPermission when the actor is an Actions token user.
+// GetDoerRepoPermission returns the repository permission for the current actor
 func GetDoerRepoPermission(ctx context.Context, repo *repo_model.Repository, user *user_model.User) (Permission, error) {
-	if taskID, ok := user_model.GetActionsUserTaskID(user); ok {
-		return GetActionsUserRepoPermission(ctx, repo, user, taskID)
-	}
 	return GetIndividualUserRepoPermission(ctx, repo, user)
 }
 
@@ -656,38 +527,4 @@ func CheckRepoUnitUser(ctx context.Context, repo *repo_model.Repository, user *u
 
 func PermissionNoAccess() Permission {
 	return Permission{AccessMode: perm_model.AccessModeNone}
-}
-
-// CanReadWorkflowCrossRepo checks whether the run can read workflow files from targetRepo.
-func CanReadWorkflowCrossRepo(ctx context.Context, targetRepo *repo_model.Repository, run *actions_model.ActionRun) (bool, error) {
-	if err := run.LoadRepo(ctx); err != nil {
-		return false, err
-	}
-
-	// (1) Same owner: always allowed (fork-PR scrubbing handled inside).
-	if checkSameOwnerCrossRepoAccess(ctx, run.Repo, targetRepo, run.IsForkPullRequest) {
-		return true, nil
-	}
-
-	// (2) Cross-owner: respect the target repo's collaborative-owner allowlist on its Actions unit.
-	// The caller (run.Repo) must itself be private. The collaborative-owner grant is owner-level, so without this
-	// guard a public caller owned by a grantee could pull a private reusable workflow and expose its definition and
-	// logs in a publicly visible run; requiring a private caller keeps private content flowing private -> private.
-	// This is intentionally stricter than GitHub, which gates on the target repo's access setting (introduced in #32562):
-	// https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#allowing-access-to-components-in-a-private-repository
-	if run.Repo.IsPrivate && !run.IsForkPullRequest {
-		if actionsUnit, err := targetRepo.GetUnit(ctx, unit.TypeActions); err == nil {
-			if actionsUnit.ActionsConfig().IsCollaborativeOwner(run.Repo.OwnerID) {
-				return true, nil
-			}
-		}
-	}
-
-	// (3) Public target: the Actions user's individual permission gives read on any public repo, so `uses:` to a public reusable-workflow library is permitted by default.
-	// Matches GitHub's behavior: public reusable workflows are universally readable.
-	botPerm, err := GetIndividualUserRepoPermission(ctx, targetRepo, user_model.NewActionsUser())
-	if err != nil {
-		return false, err
-	}
-	return botPerm.AccessMode >= perm_model.AccessModeRead, nil
 }

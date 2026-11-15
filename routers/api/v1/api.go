@@ -183,27 +183,10 @@ func repoAssignment() func(ctx *context.APIContext) {
 		repo.Owner = owner
 		ctx.Repo.Repository = repo
 
-		if taskID, ok := user_model.GetActionsUserTaskID(ctx.Doer); ok {
-			ctx.Repo.Permission, err = access_model.GetActionsUserRepoPermission(ctx, repo, ctx.Doer, taskID)
-			if err != nil {
-				ctx.APIErrorInternal(err)
-				return
-			}
-		} else {
-			needTwoFactor, err := doerNeedTwoFactorAuth(ctx, ctx.Doer)
-			if err != nil {
-				ctx.APIErrorInternal(err)
-				return
-			}
-			if needTwoFactor {
-				ctx.Repo.Permission = access_model.PermissionNoAccess()
-			} else {
-				ctx.Repo.Permission, err = access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
-				if err != nil {
-					ctx.APIErrorInternal(err)
-					return
-				}
-			}
+		ctx.Repo.Permission, err = access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
+		if err != nil {
+			ctx.APIErrorInternal(err)
+			return
 		}
 
 		if !ctx.Repo.Permission.HasAnyUnitAccessOrPublicAccess() {

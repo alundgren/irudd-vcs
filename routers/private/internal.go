@@ -90,7 +90,6 @@ func Routes() *web.Router {
 	r.Post("/manager/set-log-sql", SetLogSQL)
 	r.Get("/manager/processes", Processes)
 	r.Post("/restore_repo", RestoreRepo)
-	r.Post("/actions/generate_actions_runner_token", GenerateActionsRunnerToken)
 
 	r.Group("/repo", func() {
 		// FIXME: it is not right to use context.Contexter here because all routes here should use PrivateContext

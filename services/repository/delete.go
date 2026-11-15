@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	actions_model "gitea.dev/models/actions"
 	activities_model "gitea.dev/models/activities"
 	admin_model "gitea.dev/models/admin"
 	"gitea.dev/models/db"
@@ -18,17 +17,14 @@ import (
 	access_model "gitea.dev/models/perm/access"
 	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
-	secret_model "gitea.dev/models/secret"
 	system_model "gitea.dev/models/system"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/models/webhook"
-	actions_module "gitea.dev/modules/actions"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/lfs"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/storage"
-	actions_service "gitea.dev/services/actions"
 	asymkey_service "gitea.dev/services/asymkey"
 	issue_service "gitea.dev/services/issue"
 
@@ -68,18 +64,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 			OwnerName: "",
 			Name:      "",
 		}
-	}
-
-	// Query the action tasks of this repo, they will be needed after they have been deleted to remove the logs
-	tasks, err := db.Find[actions_model.ActionTask](ctx, actions_model.FindTaskOptions{RepoID: repoID})
-	if err != nil {
-		return fmt.Errorf("find actions tasks of repo %v: %w", repoID, err)
-	}
-
-	// Query the artifacts of this repo, they will be needed after they have been deleted to remove artifacts files in ObjectStorage
-	artifacts, err := db.Find[actions_model.ActionArtifact](ctx, actions_model.FindArtifactsOptions{RepoID: repoID})
-	if err != nil {
-		return fmt.Errorf("list actions artifacts of repo %v: %w", repoID, err)
 	}
 
 	// In case owner is a organization, we have to change repo specific teams
@@ -136,14 +120,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		return err
 	}
 
-	// CleanupEphemeralRunnersByPickedTaskOfRepo deletes ephemeral global/org/user that have started any task of this repo
-	// The cannot pick a second task hardening for ephemeral runners expect that task objects remain available until runner deletion
-	// This method will delete affected ephemeral global/org/user runners
-	// &actions_model.ActionRunner{RepoID: repoID} does only handle ephemeral repository runners
-	if err := actions_service.CleanupEphemeralRunnersByPickedTaskOfRepo(ctx, repoID); err != nil {
-		return fmt.Errorf("cleanupEphemeralRunners: %w", err)
-	}
-
 	if err := db.DeleteBeans(ctx,
 		&access_model.Access{RepoID: repo.ID},
 		&activities_model.Action{RepoID: repo.ID},
@@ -172,21 +148,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		&admin_model.Task{RepoID: repoID},
 		&repo_model.Watch{RepoID: repoID},
 		&webhook.Webhook{RepoID: repoID},
-		&secret_model.Secret{RepoID: repoID},
-		&actions_model.ActionVariable{RepoID: repoID},
-		&actions_model.ActionTaskStep{RepoID: repoID},
-		&actions_model.ActionTask{RepoID: repoID},
-		&actions_model.ActionRunJob{RepoID: repoID},
-		&actions_model.ActionRun{RepoID: repoID},
-		&actions_model.ActionRunAttempt{RepoID: repoID},
-		&actions_model.ActionRunner{RepoID: repoID},
-		&actions_model.ActionScheduleSpec{RepoID: repoID},
-		&actions_model.ActionSchedule{RepoID: repoID},
-		&actions_model.ActionArtifact{RepoID: repoID},
-		&actions_model.ActionRunJobSummary{RepoID: repoID},
-		&actions_model.ActionRunnerToken{RepoID: repoID},
-		&actions_model.ActionTasksVersion{RepoID: repoID},
-		&actions_model.ActionScopedWorkflowSource{SourceRepoID: repoID},
 		&issues_model.IssuePin{RepoID: repoID},
 	); err != nil {
 		return fmt.Errorf("deleteBeans: %w", err)
@@ -361,23 +322,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 	if len(repo.Avatar) > 0 {
 		if err := storage.RepoAvatars.Delete(repo.CustomAvatarRelativePath()); err != nil {
 			log.Error("remove avatar file %q: %v", repo.CustomAvatarRelativePath(), err)
-			// go on
-		}
-	}
-
-	// Finally, delete action logs after the actions have already been deleted to avoid new log files
-	for _, task := range tasks {
-		err := actions_module.RemoveLogs(ctx, task.LogInStorage, task.LogFilename)
-		if err != nil {
-			log.Error("remove log file %q: %v", task.LogFilename, err)
-			// go on
-		}
-	}
-
-	// delete actions artifacts in ObjectStorage after the repo have already been deleted
-	for _, art := range artifacts {
-		if err := storage.ActionsArtifacts.Delete(art.StoragePath); err != nil {
-			log.Error("remove artifact file %q: %v", art.StoragePath, err)
 			// go on
 		}
 	}

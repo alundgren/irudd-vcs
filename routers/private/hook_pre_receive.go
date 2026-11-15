@@ -482,25 +482,11 @@ func generateGitEnv(opts *private.HookOptions) (env []string) {
 // loadPusherAndPermission returns false if an error occurs, and it writes the error response
 func (ctx *preReceiveContext) loadPusherAndPermission() bool {
 	if ctx.opts.UserID == user_model.ActionsUserID {
-		taskID := ctx.opts.ActionsTaskID
-		ctx.user = user_model.NewActionsUserWithTaskID(taskID)
-		if taskID == 0 {
-			log.Error("HookPreReceive: ActionsUser with task ID 0")
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: "ActionsUser with task ID 0",
-			})
-			return false
-		}
-
-		userPerm, err := access_model.GetActionsUserRepoPermission(ctx, ctx.Repo.Repository, ctx.user, taskID)
-		if err != nil {
-			log.Error("Unable to get Actions user repo permission for task %d Error: %v", taskID, err)
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: fmt.Sprintf("Unable to get Actions user repo permission for task %d Error: %v", taskID, err),
-			})
-			return false
-		}
-		ctx.userPerm = userPerm
+		log.Error("HookPreReceive: pushes by the Actions user are not supported")
+		ctx.JSON(http.StatusForbidden, private.Response{
+			UserMsg: "Pushes by the Actions user are not supported",
+		})
+		return false
 	} else {
 		user, err := user_model.GetUserByID(ctx, ctx.opts.UserID)
 		if err != nil {

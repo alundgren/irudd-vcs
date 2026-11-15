@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	actions_model "gitea.dev/models/actions"
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
@@ -29,8 +28,6 @@ import (
 	"gitea.dev/modules/reqctx"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
-	webhook_module "gitea.dev/modules/webhook"
-	actions_service "gitea.dev/services/actions"
 	notify_service "gitea.dev/services/notify"
 	release_service "gitea.dev/services/release"
 
@@ -459,21 +456,6 @@ func RenameBranch(ctx context.Context, repo *repo_model.Repository, doer *user_m
 		}
 
 		if isDefault {
-			// if default branch changed, we need to delete all schedules and cron jobs
-			if err := actions_model.DeleteScheduleTaskByRepo(ctx, repo.ID); err != nil {
-				log.Error("DeleteCronTaskByRepo: %v", err)
-			}
-			// cancel running cron jobs of this repository and delete old schedules
-			if err := actions_service.CancelPreviousJobs(
-				ctx,
-				repo.ID,
-				from,
-				"",
-				webhook_module.HookEventSchedule,
-			); err != nil {
-				log.Error("CancelPreviousJobs: %v", err)
-			}
-
 			err2 = gitrepo.SetDefaultBranch(ctx, repo, to)
 			if err2 != nil {
 				return err2
@@ -708,25 +690,10 @@ func SetRepoDefaultBranch(ctx context.Context, repo *repo_model.Repository, newB
 		}
 	}
 
-	oldDefaultBranchName := repo.DefaultBranch
 	repo.DefaultBranch = newBranchName
 	if err := db.WithTx(ctx, func(ctx context.Context) error {
 		if err := repo_model.UpdateDefaultBranch(ctx, repo); err != nil {
 			return err
-		}
-
-		if err := actions_model.DeleteScheduleTaskByRepo(ctx, repo.ID); err != nil {
-			log.Error("DeleteCronTaskByRepo: %v", err)
-		}
-		// cancel running cron jobs of this repository and delete old schedules
-		if err := actions_service.CancelPreviousJobs(
-			ctx,
-			repo.ID,
-			oldDefaultBranchName,
-			"",
-			webhook_module.HookEventSchedule,
-		); err != nil {
-			log.Error("CancelPreviousJobs: %v", err)
 		}
 
 		return gitrepo.SetDefaultBranch(ctx, repo, newBranchName)

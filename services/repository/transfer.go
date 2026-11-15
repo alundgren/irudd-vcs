@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	actions_model "gitea.dev/models/actions"
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/organization"
@@ -243,19 +242,6 @@ func transferOwnership(ctx context.Context, doer *user_model.User, newOwnerName 
 	} else if err := access_model.RecalculateAccesses(ctx, repo); err != nil {
 		// Organization called this in addRepository method.
 		return fmt.Errorf("recalculateAccesses: %w", err)
-	}
-
-	// Remove repository from old owner's Actions AllowedCrossRepoIDs if present
-	if oldActionsCfg, err := actions_model.GetOwnerActionsConfig(ctx, oldOwner.ID); err == nil {
-		newAllowedCrossRepoIDs := util.SliceRemoveAll(oldActionsCfg.AllowedCrossRepoIDs, repo.ID)
-		if len(newAllowedCrossRepoIDs) != len(oldActionsCfg.AllowedCrossRepoIDs) {
-			oldActionsCfg.AllowedCrossRepoIDs = newAllowedCrossRepoIDs
-			if err := actions_model.SetOwnerActionsConfig(ctx, oldOwner.ID, oldActionsCfg); err != nil {
-				return fmt.Errorf("SetOwnerActionsConfig: %w", err)
-			}
-		}
-	} else {
-		return fmt.Errorf("GetOwnerActionsConfig: %w", err)
 	}
 
 	// Update repository count.

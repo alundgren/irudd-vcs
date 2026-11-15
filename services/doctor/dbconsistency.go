@@ -6,13 +6,11 @@ package doctor
 import (
 	"context"
 
-	actions_model "gitea.dev/models/actions"
 	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/migrations"
 	repo_model "gitea.dev/models/repo"
-	secret_model "gitea.dev/models/secret"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	issue_service "gitea.dev/services/issue"
@@ -149,40 +147,10 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 			FixedMessage: "Set to zero",
 		},
 		{
-			Name:         "Action Runners without existing owner",
-			Counter:      actions_model.CountRunnersWithoutBelongingOwner,
-			Fixer:        actions_model.FixRunnersWithoutBelongingOwner,
-			FixedMessage: "Removed",
-		},
-		{
-			Name:         "Action Runners without existing repository",
-			Counter:      actions_model.CountRunnersWithoutBelongingRepo,
-			Fixer:        actions_model.FixRunnersWithoutBelongingRepo,
-			FixedMessage: "Removed",
-		},
-		{
 			Name:         "Topics with empty repository count",
 			Counter:      repo_model.CountOrphanedTopics,
 			Fixer:        repo_model.DeleteOrphanedTopics,
 			FixedMessage: "Removed",
-		},
-		{
-			Name:         "Repository level Runners with non-zero owner_id",
-			Counter:      actions_model.CountWrongRepoLevelRunners,
-			Fixer:        actions_model.UpdateWrongRepoLevelRunners,
-			FixedMessage: "Corrected",
-		},
-		{
-			Name:         "Repository level Variables with non-zero owner_id",
-			Counter:      actions_model.CountWrongRepoLevelVariables,
-			Fixer:        actions_model.UpdateWrongRepoLevelVariables,
-			FixedMessage: "Corrected",
-		},
-		{
-			Name:         "Repository level Secrets with non-zero owner_id",
-			Counter:      secret_model.CountWrongRepoLevelSecrets,
-			Fixer:        secret_model.UpdateWrongRepoLevelSecrets,
-			FixedMessage: "Corrected",
 		},
 	}
 

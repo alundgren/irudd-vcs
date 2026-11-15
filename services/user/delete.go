@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	actions_model "gitea.dev/models/actions"
 	activities_model "gitea.dev/models/activities"
 	asymkey_model "gitea.dev/models/asymkey"
 	auth_model "gitea.dev/models/auth"
@@ -91,11 +90,8 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 		&pull_model.AutoMerge{DoerID: u.ID},
 		&pull_model.ReviewState{UserID: u.ID},
 		&user_model.Redirect{RedirectUserID: u.ID},
-		&actions_model.ActionRunner{OwnerID: u.ID},
 		&user_model.Blocking{BlockerID: u.ID},
 		&user_model.Blocking{BlockeeID: u.ID},
-		&actions_model.ActionRunnerToken{OwnerID: u.ID},
-		&actions_model.ActionScopedWorkflowSource{OwnerID: u.ID},
 		&auth_model.TwoFactor{UID: u.ID},
 		&auth_model.WebAuthnCredential{UserID: u.ID},
 		&activities_model.Notification{UserID: u.ID},
