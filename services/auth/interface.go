@@ -9,13 +9,9 @@ import (
 
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/reqctx"
-	"gitea.dev/modules/session"
 )
 
 type DataStore = reqctx.ContextDataProvider
-
-// SessionStore represents a session store
-type SessionStore session.Store
 
 // Method represents an authentication method (plugin) for HTTP requests.
 type Method interface {
@@ -25,7 +21,7 @@ type Method interface {
 	// in the authentication data (username or email).
 	// Second argument returns err if verification fails, otherwise
 	// First return argument returns nil if no matched verification condition
-	Verify(http *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore) (*user_model.User, error)
+	Verify(http *http.Request, w http.ResponseWriter, store DataStore) (*user_model.User, error)
 
 	Name() string
 }
@@ -33,9 +29,4 @@ type Method interface {
 // PasswordAuthenticator represents a source of authentication
 type PasswordAuthenticator interface {
 	Authenticate(ctx context.Context, user *user_model.User, login, password string) (*user_model.User, error)
-}
-
-// SynchronizableSource represents a source that can synchronize users
-type SynchronizableSource interface {
-	Sync(ctx context.Context, updateExisting bool) error
 }

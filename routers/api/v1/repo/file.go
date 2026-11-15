@@ -577,13 +577,13 @@ func changeFilesCommitMessage(ctx *context.APIContext, files []*files_service.Ch
 	}
 	message := ""
 	if len(createFiles) != 0 {
-		message += ctx.Locale.TrString("repo.editor.add", strings.Join(createFiles, ", ")+"\n")
+		message += fmt.Sprintf("Add %s", strings.Join(createFiles, ", ")+"\n")
 	}
 	if len(updateFiles) != 0 {
-		message += ctx.Locale.TrString("repo.editor.update", strings.Join(updateFiles, ", ")+"\n")
+		message += fmt.Sprintf("Update %s", strings.Join(updateFiles, ", ")+"\n")
 	}
 	if len(deleteFiles) != 0 {
-		message += ctx.Locale.TrString("repo.editor.delete", strings.Join(deleteFiles, ", "))
+		message += fmt.Sprintf("Delete %s", strings.Join(deleteFiles, ", "))
 	}
 	return strings.Trim(message, "\n")
 }

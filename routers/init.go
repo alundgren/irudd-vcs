@@ -17,7 +17,6 @@ import (
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/system"
-	"gitea.dev/modules/translation"
 	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
 	"gitea.dev/modules/web/routing"
@@ -86,7 +85,6 @@ func InitWebInstalled(ctx context.Context) {
 	}
 
 	// Setup i18n
-	translation.InitLocales(ctx)
 
 	setting.LoadSettings()
 	mustInit(storage.Init)

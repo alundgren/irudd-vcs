@@ -21,15 +21,12 @@ import (
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
-	"gitea.dev/modules/htmlutil"
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/references"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/structs"
 	"gitea.dev/modules/timeutil"
-	"gitea.dev/modules/translation"
 	"gitea.dev/modules/util"
 
 	"xorm.io/builder"
@@ -226,16 +223,6 @@ const (
 	RoleRepoFirstTimeContributor RoleInRepo = "first_time_contributor"
 	RoleRepoContributor          RoleInRepo = "contributor"
 )
-
-// LocaleString returns the locale string name of the role
-func (r RoleInRepo) LocaleString(lang translation.Locale) string {
-	return lang.TrString("repo.issues.role." + string(r))
-}
-
-// LocaleHelper returns the locale tooltip of the role
-func (r RoleInRepo) LocaleHelper(lang translation.Locale) string {
-	return lang.TrString("repo.issues.role." + string(r) + "_helper")
-}
 
 type SpecialDoerNameType string
 
@@ -768,42 +755,6 @@ func (c *Comment) CodeCommentLink(ctx context.Context) string {
 		return ""
 	}
 	return fmt.Sprintf("%s/files#%s", c.Issue.Link(), c.HashTag())
-}
-
-func (c *Comment) MetaSpecialDoerTr(locale translation.Locale) template.HTML {
-	if c.CommentMetaData == nil {
-		return ""
-	}
-	if c.CommentMetaData.SpecialDoerName == SpecialDoerNameCodeOwners {
-		return locale.Tr("repo.issues.review.codeowners_rules")
-	}
-	return htmlutil.HTMLFormat("%s", c.CommentMetaData.SpecialDoerName)
-}
-
-func (c *Comment) TimelineRequestedReviewTr(locale translation.Locale, createdStr template.HTML) template.HTML {
-	if c.Assignee != nil {
-		if c.RemovedAssignee {
-			if c.PosterID == c.AssigneeID {
-				return locale.Tr("repo.issues.review.remove_review_request_self", createdStr)
-			}
-			return locale.Tr("repo.issues.review.remove_review_request", c.Assignee.GetDisplayName(), createdStr)
-		}
-		return locale.Tr("repo.issues.review.add_review_request", c.Assignee.GetDisplayName(), createdStr)
-	}
-	if c.AssigneeTeam != nil {
-		if c.RemovedAssignee {
-			return locale.Tr("repo.issues.review.remove_review_request", c.AssigneeTeam.Name, createdStr)
-		}
-		return locale.Tr("repo.issues.review.add_review_request", c.AssigneeTeam.Name, createdStr)
-	}
-
-	// impossible fallback
-	assigneePrompt := fmt.Sprintf("(AssigneeID=%d, AssigneeTeamID=%d)", c.AssigneeID, c.AssigneeTeam.ID)
-	setting.PanicInDevOrTesting("unknown timeline pull request review event comment: id=%d, %s", c.ID, assigneePrompt)
-	if c.RemovedAssignee {
-		return locale.Tr("repo.issues.review.remove_review_request", assigneePrompt, createdStr)
-	}
-	return locale.Tr("repo.issues.review.add_review_request", assigneePrompt, createdStr)
 }
 
 // CreateComment creates comment with context

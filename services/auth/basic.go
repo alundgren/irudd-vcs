@@ -67,7 +67,7 @@ func (b *Basic) parseAuthBasic(req *http.Request) (ret struct{ authToken, uname,
 }
 
 // VerifyAuthToken only the access token provided as parameter, used by other auth methods that want to reuse access token verification logic
-func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore, authToken string) (*user_model.User, error) {
+func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store DataStore, authToken string) (*user_model.User, error) {
 	// check personal access token
 	token, err := auth_model.GetAccessTokenBySHA(req.Context(), authToken)
 	if err == nil {
@@ -98,13 +98,13 @@ func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store 
 // "Authorization" header of the request and returns the corresponding user object for that
 // name/token on successful validation.
 // Returns nil if header is empty or validation fails.
-func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore) (*user_model.User, error) {
+func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore) (*user_model.User, error) {
 	parseBasicRet := b.parseAuthBasic(req)
 	authToken, uname, passwd := parseBasicRet.authToken, parseBasicRet.uname, parseBasicRet.passwd
 	if authToken == "" && uname == "" {
 		return nil, nil //nolint:nilnil // the auth method is not applicable
 	}
-	u, err := b.VerifyAuthToken(req, w, store, sess, authToken)
+	u, err := b.VerifyAuthToken(req, w, store, authToken)
 	if u != nil || err != nil {
 		return u, err
 	}

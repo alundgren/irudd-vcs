@@ -6,10 +6,7 @@ package charset
 import (
 	"bytes"
 	"io"
-	"regexp"
 	"strings"
-	"sync"
-	"unicode"
 	"unicode/utf8"
 
 	"gitea.dev/modules/setting"
@@ -20,19 +17,7 @@ import (
 	"golang.org/x/text/transform"
 )
 
-var globalVars = sync.OnceValue(func() (ret struct {
-	utf8Bom []byte
-
-	defaultWordRegexp   *regexp.Regexp
-	ambiguousTableMap   map[string]*AmbiguousTable
-	invisibleRangeTable *unicode.RangeTable
-},
-) {
-	ret.utf8Bom = []byte{'\xef', '\xbb', '\xbf'}
-	ret.ambiguousTableMap = newAmbiguousTableMap()
-	ret.invisibleRangeTable = newInvisibleRangeTable()
-	return ret
-})
+var utf8Bom = []byte{'\xef', '\xbb', '\xbf'}
 
 type ConvertOpts struct {
 	KeepBOM           bool
@@ -122,7 +107,7 @@ func maybeRemoveBOM(content []byte, opts ConvertOpts) []byte {
 	if opts.KeepBOM {
 		return content
 	}
-	return bytes.TrimPrefix(content, globalVars().utf8Bom)
+	return bytes.TrimPrefix(content, utf8Bom)
 }
 
 // DetectEncoding detect the encoding of content

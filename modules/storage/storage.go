@@ -15,7 +15,6 @@ import (
 
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/public"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 )
@@ -64,7 +63,7 @@ func prepareServeDirectOptions(optsOptional *ServeDirectOptions, name string) (r
 	name = path.Base(name)
 	if ret.ContentType == "" {
 		ext := path.Ext(name)
-		ret.ContentType = public.DetectWellKnownMimeType(ext)
+		ret.ContentType = DetectWellKnownMimeType(ext)
 	}
 	// When using ServeDirect, the URL is from the object storage's web server,
 	// it is not the same origin as Gitea server, so it should be safe enough to use "inline" to render the content directly.

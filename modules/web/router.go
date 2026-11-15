@@ -26,7 +26,6 @@ func Bind[T any](_ T) http.HandlerFunc {
 		data := middleware.GetContextData(req.Context())
 		binding.Bind(req, theObj)
 		SetForm(data, theObj)
-		middleware.AssignForm(theObj, data)
 	}
 }
 

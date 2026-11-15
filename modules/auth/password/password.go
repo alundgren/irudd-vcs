@@ -4,17 +4,14 @@
 package password
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
-	"html/template"
 	"math/big"
 	"strings"
 	"sync"
 
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/translation"
 )
 
 var (
@@ -119,18 +116,4 @@ func Generate(n int) (string, error) {
 			return string(buffer), nil
 		}
 	}
-}
-
-// BuildComplexityError builds the error message when password complexity checks fail
-func BuildComplexityError(locale translation.Locale) template.HTML {
-	var buffer bytes.Buffer
-	buffer.WriteString(locale.TrString("form.password_complexity"))
-	buffer.WriteString("<ul>")
-	for _, c := range requiredList {
-		buffer.WriteString("<li>")
-		buffer.WriteString(locale.TrString(c.TrNameOne))
-		buffer.WriteString("</li>")
-	}
-	buffer.WriteString("</ul>")
-	return template.HTML(buffer.String())
 }

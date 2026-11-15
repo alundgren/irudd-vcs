@@ -6,7 +6,6 @@ package context
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
 	"strconv"
@@ -17,9 +16,7 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/reqctx"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/translation"
 	"gitea.dev/modules/util"
-	"gitea.dev/modules/web/middleware"
 )
 
 type BaseContextKeyType struct{}
@@ -39,9 +36,6 @@ type Base struct {
 	// Data is prepared by ContextDataStore middleware, this field only refers to the pre-created/prepared ContextData.
 	// Although it's mainly used for MVC templates, sometimes it's also used to pass data between middlewares/handler
 	Data reqctx.ContextData
-
-	// Locale is mainly for Web context, although the API context also uses it in some cases: message response, form validation
-	Locale translation.Locale
 }
 
 var ParseMultipartFormMaxMemory = int64(32 << 20)
@@ -164,27 +158,17 @@ func (b *Base) ServeContent(r io.ReadSeeker, opts ServeHeaderOptions) {
 	http.ServeContent(b.Resp, b.Req, opts.Filename, opts.LastModified, r)
 }
 
-func (b *Base) Tr(msg string, args ...any) template.HTML {
-	return b.Locale.Tr(msg, args...)
-}
-
-func (b *Base) TrN(cnt any, key1, keyN string, args ...any) template.HTML {
-	return b.Locale.TrN(cnt, key1, keyN, args...)
-}
-
 func NewBaseContext(resp http.ResponseWriter, req *http.Request) *Base {
 	reqCtx := reqctx.FromContext(req.Context())
 	b := &Base{
 		RequestContext: reqCtx,
 
-		Req:    req,
-		Resp:   WrapResponseWriter(resp),
-		Locale: middleware.Locale(resp, req),
-		Data:   reqCtx.GetData(),
+		Req:  req,
+		Resp: WrapResponseWriter(resp),
+		Data: reqCtx.GetData(),
 	}
 	b.Req = b.Req.WithContext(b)
 	reqCtx.SetContextValue(BaseContextKey, b)
-	reqCtx.SetContextValue(translation.ContextKey, b.Locale)
 	reqCtx.SetContextValue(httplib.RequestContextKey, b.Req)
 	return b
 }

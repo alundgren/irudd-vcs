@@ -58,7 +58,7 @@ func newWebAuthMiddleware() *AuthMiddleware {
 			group.Add(&auth_service.Basic{})
 		}
 
-		ar, err := common.AuthShared(ctx.Base, nil, group)
+		ar, err := common.AuthShared(ctx.Base, group)
 		if err != nil {
 			log.Error("Failed to verify user: %v", err)
 			ctx.HTTPError(http.StatusUnauthorized, "Failed to authenticate user")

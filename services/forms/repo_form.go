@@ -9,8 +9,6 @@ import (
 
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/util"
-	"gitea.dev/modules/web/middleware"
-	"gitea.dev/services/context"
 
 	"gitea.com/go-chi/binding"
 )
@@ -65,6 +63,5 @@ func (f *MergePullRequestForm) UnmarshalJSON(b []byte) error {
 
 // Validate validates the fields
 func (f *MergePullRequestForm) Validate(req *http.Request, errs binding.Errors) binding.Errors {
-	ctx := context.GetValidateContext(req)
-	return middleware.Validate(errs, ctx.Data, f, ctx.Locale)
+	return errs
 }

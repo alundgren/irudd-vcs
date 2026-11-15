@@ -15,15 +15,12 @@ type AuthResult struct {
 	IsBasicAuth bool
 }
 
-func AuthShared(ctx *context.Base, sessionStore auth_service.SessionStore, authMethod auth_service.Method) (ar AuthResult, err error) {
-	ar.Doer, err = authMethod.Verify(ctx.Req, ctx.Resp, ctx, sessionStore)
+func AuthShared(ctx *context.Base, authMethod auth_service.Method) (ar AuthResult, err error) {
+	ar.Doer, err = authMethod.Verify(ctx.Req, ctx.Resp, ctx)
 	if err != nil {
 		return ar, err
 	}
 	if ar.Doer != nil {
-		if ctx.Locale.Language() != ar.Doer.Language {
-			ctx.Locale = middleware.Locale(ctx.Resp, ctx.Req)
-		}
 		ar.IsBasicAuth = ctx.Data["AuthedMethod"].(string) == auth_service.BasicMethodName
 
 		ctx.Data["IsSigned"] = true

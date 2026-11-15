@@ -22,7 +22,6 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
-	"gitea.dev/modules/translation"
 	"gitea.dev/modules/util"
 
 	"xorm.io/builder"
@@ -206,11 +205,6 @@ func (status *CommitStatus) loadAttributes(ctx context.Context) (err error) {
 func (status *CommitStatus) APIURL(ctx context.Context) string {
 	_ = status.loadAttributes(ctx)
 	return status.Repo.APIURL() + "/statuses/" + url.PathEscape(status.SHA)
-}
-
-// LocaleString returns the locale string name of the Status
-func (status *CommitStatus) LocaleString(lang translation.Locale) string {
-	return lang.TrString("repo.commitstatus." + status.State.String())
 }
 
 // HideActionsURL set `TargetURL` to an empty string if the status comes from Gitea Actions

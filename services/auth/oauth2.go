@@ -79,7 +79,7 @@ func (o *OAuth2) userFromToken(ctx context.Context, tokenSHA string, store DataS
 // or the "Authorization" header and returns the corresponding user object for that ID.
 // If verification is successful returns an existing user object.
 // Returns nil if verification fails.
-func (o *OAuth2) Verify(req *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore) (*user_model.User, error) {
+func (o *OAuth2) Verify(req *http.Request, w http.ResponseWriter, store DataStore) (*user_model.User, error) {
 	token, ok := parseToken(req)
 	if !ok {
 		return nil, nil //nolint:nilnil // the auth method is not applicable

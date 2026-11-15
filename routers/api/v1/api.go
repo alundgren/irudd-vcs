@@ -788,7 +788,7 @@ func buildAuthGroup() *auth.Group {
 
 func apiAuth(authMethod auth.Method) func(*context.APIContext) {
 	return func(ctx *context.APIContext) {
-		ar, err := common.AuthShared(ctx.Base, nil, authMethod)
+		ar, err := common.AuthShared(ctx.Base, authMethod)
 		if err != nil {
 			msg, ok := auth.ErrAsUserAuthMessage(err)
 			msg = util.Iif(ok, msg, "invalid username, password or token")
@@ -807,7 +807,6 @@ func verifyAuthWithOptions(options *common.VerifyOptions) func(ctx *context.APIC
 		// Check prohibit login users.
 		if ctx.IsSigned {
 			if !ctx.Doer.IsActive && setting.Service.RegisterEmailConfirm {
-				ctx.Data["Title"] = ctx.Tr("auth.active_your_account")
 				ctx.JSON(http.StatusForbidden, map[string]string{
 					"message": "This account is not activated.",
 				})
@@ -815,7 +814,6 @@ func verifyAuthWithOptions(options *common.VerifyOptions) func(ctx *context.APIC
 			}
 			if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {
 				log.Info("Failed authentication attempt for %s from %s", ctx.Doer.Name, ctx.RemoteAddr())
-				ctx.Data["Title"] = ctx.Tr("auth.prohibit_login")
 				ctx.JSON(http.StatusForbidden, map[string]string{
 					"message": "This account is prohibited from signing in, please contact your site administrator.",
 				})
@@ -844,7 +842,6 @@ func verifyAuthWithOptions(options *common.VerifyOptions) func(ctx *context.APIC
 				})
 				return
 			} else if !ctx.Doer.IsActive && setting.Service.RegisterEmailConfirm {
-				ctx.Data["Title"] = ctx.Tr("auth.active_your_account")
 				ctx.JSON(http.StatusForbidden, map[string]string{
 					"message": "This account is not activated.",
 				})

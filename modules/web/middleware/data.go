@@ -5,11 +5,8 @@ package middleware
 
 import (
 	"context"
-	"time"
 
-	"gitea.dev/modules/public"
 	"gitea.dev/modules/reqctx"
-	"gitea.dev/modules/setting"
 )
 
 const ContextDataKeySignedUser = "SignedUser"
@@ -19,23 +16,4 @@ func GetContextData(c context.Context) reqctx.ContextData {
 		return rc.GetData()
 	}
 	return nil
-}
-
-func CommonTemplateContextData() reqctx.ContextData {
-	return reqctx.ContextData{
-		"PageTitleCommon": setting.AppName,
-
-		"IsLandingPageOrganizations": setting.LandingPageURL == setting.LandingPageOrganizations,
-
-		"ShowRegistrationButton":        setting.Service.ShowRegistrationButton,
-		"ShowMilestonesDashboardPage":   setting.Service.ShowMilestonesDashboardPage,
-		"ShowFooterVersion":             setting.Other.ShowFooterVersion,
-		"DisableDownloadSourceArchives": setting.Repository.DisableDownloadSourceArchives,
-
-		"EnableSwagger": setting.API.EnableSwagger,
-		"PageStartTime": time.Now(),
-
-		"RunModeIsProd": setting.IsProd,
-		"ViteModeIsDev": public.IsViteDevMode(),
-	}
 }
