@@ -22,7 +22,6 @@ export default defineConfig([
   {
     files: [
       'tsconfig.json',
-      '.devcontainer/*.json',
       '.vscode/*.json',
       'contrib/development/vscode/*.json',
     ],
