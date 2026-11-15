@@ -495,7 +495,6 @@ func Edit(ctx *context.APIContext) {
 		}
 	}
 
-
 	repo, err := repo_model.GetRepositoryByID(ctx, ctx.Repo.Repository.ID)
 	if err != nil {
 		ctx.APIErrorInternal(err)

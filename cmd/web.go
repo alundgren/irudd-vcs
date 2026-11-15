@@ -64,28 +64,6 @@ and it takes care of all the other things for you`,
 	}
 }
 
-func runHTTPRedirector() {
-	_, _, finished := process.GetManager().AddTypedContext(graceful.GetManager().HammerContext(), "Web: HTTP Redirector", process.SystemProcessType, true)
-	defer finished()
-
-	source := fmt.Sprintf("%s:%s", setting.HTTPAddr, setting.PortToRedirect)
-	dest := strings.TrimSuffix(setting.AppURL, "/")
-	log.Info("Redirecting: %s to %s", source, dest)
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		target := dest + r.URL.Path
-		if len(r.URL.RawQuery) > 0 {
-			target += "?" + r.URL.RawQuery
-		}
-		http.Redirect(w, r, target, http.StatusTemporaryRedirect)
-	})
-
-	err := runHTTP("tcp", source, "HTTP Redirector", handler, setting.RedirectorUseProxyProtocol)
-	if err != nil {
-		log.Fatal("Failed to start port redirection: %v", err)
-	}
-}
-
 func createPIDFile(pidPath string) {
 	currentPid := os.Getpid()
 	if err := os.MkdirAll(filepath.Dir(pidPath), os.ModePerm); err != nil {
@@ -281,19 +259,6 @@ func listen(m http.Handler, handleRedirector bool) error {
 			NoHTTPRedirector()
 		}
 		err = runHTTP("tcp", listenAddr, "Web", m, setting.UseProxyProtocol)
-	case setting.HTTPS:
-		if setting.EnableAcme {
-			err = runACME(listenAddr, m)
-			break
-		}
-		if handleRedirector {
-			if setting.RedirectOtherPort {
-				go runHTTPRedirector()
-			} else {
-				NoHTTPRedirector()
-			}
-		}
-		err = runHTTPS("tcp", listenAddr, "Web", setting.CertFile, setting.KeyFile, m, setting.UseProxyProtocol, setting.ProxyProtocolTLSBridging)
 	case setting.FCGI:
 		if handleRedirector {
 			NoHTTPRedirector()

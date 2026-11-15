@@ -25,7 +25,6 @@ import (
 	"gitea.dev/routers/api/v1/utils"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
-	"gitea.dev/services/mailer"
 	user_service "gitea.dev/services/user"
 )
 
@@ -151,10 +150,6 @@ func CreateUser(ctx *context.APIContext) {
 
 	log.Trace("Account created by admin (%s): %s", ctx.Doer.Name, u.Name)
 
-	// Send email notification.
-	if form.SendNotify {
-		mailer.SendRegisterNotifyMail(u)
-	}
 	ctx.JSON(http.StatusCreated, convert.ToUser(ctx, u, ctx.Doer))
 }
 

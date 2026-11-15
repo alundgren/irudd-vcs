@@ -16,9 +16,7 @@ import (
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/markup"
-	"gitea.dev/modules/markup/external"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/ssh"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/system"
 	"gitea.dev/modules/translation"
@@ -29,27 +27,12 @@ import (
 	"gitea.dev/routers/common"
 	"gitea.dev/routers/private"
 	web_routers "gitea.dev/routers/web"
-	actions_service "gitea.dev/services/actions"
-	asymkey_service "gitea.dev/services/asymkey"
-	"gitea.dev/services/auth"
-	"gitea.dev/services/auth/source/oauth2"
-	"gitea.dev/services/automerge"
-	"gitea.dev/services/cron"
-	feed_service "gitea.dev/services/feed"
 	indexer_service "gitea.dev/services/indexer"
-	"gitea.dev/services/mailer"
-	mailer_incoming "gitea.dev/services/mailer/incoming"
 	markup_service "gitea.dev/services/markup"
-	repo_migrations "gitea.dev/services/migrations"
-	mirror_service "gitea.dev/services/mirror"
 	"gitea.dev/services/oauth2_provider"
-	packages_spec "gitea.dev/services/packages/pkgspec"
 	pull_service "gitea.dev/services/pull"
 	release_service "gitea.dev/services/release"
 	repo_service "gitea.dev/services/repository"
-	"gitea.dev/services/repository/archiver"
-	"gitea.dev/services/task"
-	"gitea.dev/services/uinotification"
 	"gitea.dev/services/webhook"
 )
 
@@ -93,9 +76,6 @@ func syncAppConfForGit(ctx context.Context) error {
 		log.Info("re-sync repository hooks ...")
 		mustInitCtx(ctx, repo_service.SyncRepositoryHooks)
 
-		log.Info("re-write ssh public keys ...")
-		mustInitCtx(ctx, asymkey_service.RewriteAllPublicKeys)
-
 		return system.AppState.Set(ctx, runtimeState)
 	}
 	return nil
@@ -115,58 +95,33 @@ func InitWebInstalled(ctx context.Context) {
 	setting.LoadSettings()
 	mustInit(storage.Init)
 
-	mailer.NewContext(ctx)
 	mustInit(cache.Init)
-	mustInit(feed_service.Init)
-	mustInit(uinotification.Init)
-	mustInitCtx(ctx, archiver.Init)
 
-	external.RegisterRenderers()
 	markup.Init(markup_service.FormalRenderHelperFuncs())
 
 	mustInitCtx(ctx, common.InitDBEngine)
 	log.Info("ORM engine initialization successful!")
 	mustInit(system.Init)
-	mustInitCtx(ctx, oauth2.Init)
 	mustInitCtx(ctx, oauth2_provider.Init)
 	mustInit(release_service.Init)
 
 	mustInitCtx(ctx, models.Init)
 	mustInitCtx(ctx, authmodel.Init)
 	mustInitCtx(ctx, repo_service.Init)
-	mustInit(packages_spec.InitManager)
 
 	// Booting long running goroutines.
 	mustInit(indexer_service.Init)
 
-	mirror_service.InitSyncMirrors()
 	mustInit(webhook.Init)
 	mustInit(pull_service.Init)
-	mustInit(automerge.Init)
-	mustInit(task.Init)
-	mustInit(repo_migrations.Init)
-	mustInitCtx(ctx, mailer_incoming.Init)
 
 	mustInitCtx(ctx, syncAppConfForGit)
-
-	mustInit(ssh.Init)
-
-	auth.Init()
-
-	mustInitCtx(ctx, actions_service.Init)
-
-	mustInit(repo_service.InitLicenseClassifier)
-
-	// Finally start up the cron
-	cron.Init(ctx)
 }
 
 // NormalRoutes represents non install routes
 func NormalRoutes() *web.Router {
 	r := web.NewRouter()
 	r.BeforeRouting(common.ProtocolMiddlewares()...)
-
-	r.AfterRouting(common.MaintenanceModeHandler())
 
 	r.Mount("/", web_routers.Routes())
 	r.Mount("/api/v1", apiv1.Routes())
