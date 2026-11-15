@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -150,10 +151,15 @@ func TestAPIT3codeFlow(t *testing.T) {
 		assert.Empty(t, pulls)
 		pulls = DecodeJSON(t, call(t, token, "GET", repoAPI+"/pulls?state=open&base_branch=missing", nil, http.StatusOK), []*api.PullRequest{})
 		assert.Empty(t, pulls)
-		// Gitea ignores the head query t3code sends; t3code then scans and matches head.ref itself
+		// t3code looks PRs up by head branch and falls back to a full scan if the filter is ignored
 		pulls = DecodeJSON(t, call(t, token, "GET", repoAPI+"/pulls?state=open&head="+url.QueryEscape(headBranch)+"&sort=recentupdate&limit=50&page=1", nil, http.StatusOK), []*api.PullRequest{})
 		require.Len(t, pulls, 1)
 		assert.Equal(t, headBranch, pulls[0].Head.Ref)
+		pulls = DecodeJSON(t, call(t, token, "GET", repoAPI+"/pulls?state=open&head="+url.QueryEscape(owner+":"+headBranch), nil, http.StatusOK), []*api.PullRequest{})
+		require.Len(t, pulls, 1)
+		assert.Equal(t, pr.Index, pulls[0].Index)
+		assert.Empty(t, DecodeJSON(t, call(t, token, "GET", repoAPI+"/pulls?state=open&head="+baseBranch, nil, http.StatusOK), []*api.PullRequest{}))
+		assert.Empty(t, DecodeJSON(t, call(t, token, "GET", repoAPI+"/pulls?state=open&head="+url.QueryEscape("no-such-user:"+headBranch), nil, http.StatusOK), []*api.PullRequest{}))
 		byHead := DecodeJSON(t, call(t, token, "GET", repoAPI+"/pulls/"+baseBranch+"/"+headBranch, nil, http.StatusOK), &api.PullRequest{})
 		assert.Equal(t, pr.Index, byHead.Index)
 
@@ -189,9 +195,9 @@ func TestAPIT3codeFlow(t *testing.T) {
 		postStatus(t, headSHA, commitstatus.CommitStatusSuccess)
 		statuses := DecodeJSON(t, call(t, token, "GET", repoAPI+"/statuses/"+headSHA+"?sort=recentupdate&limit=50&page=1", nil, http.StatusOK), []*api.CommitStatus{})
 		require.Len(t, statuses, 2)
-		// recentupdate has no tie-break, so statuses posted in the same second come back in any order
-		assert.ElementsMatch(t, []commitstatus.CommitStatusState{commitstatus.CommitStatusPending, commitstatus.CommitStatusSuccess},
-			[]commitstatus.CommitStatusState{statuses[0].State, statuses[1].State})
+		// newest first even when both were posted within the same second
+		assert.Equal(t, commitstatus.CommitStatusSuccess, statuses[0].State)
+		assert.Equal(t, commitstatus.CommitStatusPending, statuses[1].State)
 		assert.Equal(t, statusName, statuses[0].Context)
 		combined := DecodeJSON(t, call(t, token, "GET", repoAPI+"/commits/"+headSHA+"/status", nil, http.StatusOK), &api.CombinedStatus{})
 		assert.Equal(t, commitstatus.CommitStatusSuccess, combined.State)
@@ -261,6 +267,11 @@ func TestAPIT3codeFlow(t *testing.T) {
 			}
 		}
 		assert.True(t, foundReview)
+		// t3code takes the issue comment ID from the review's html_url to react to the review
+		reviewCommentID := regexp.MustCompile(`#issuecomment-([1-9][0-9]*)$`).FindStringSubmatch(review.HTMLURL)
+		require.Len(t, reviewCommentID, 2, review.HTMLURL)
+		assert.True(t, strings.HasPrefix(review.HTMLURL, pr.HTMLURL+"#"), review.HTMLURL)
+		call(t, token, "POST", fmt.Sprintf("%s/issues/comments/%s/reactions", repoAPI, reviewCommentID[1]), &api.EditReactionOption{Reaction: "eyes"}, http.StatusCreated)
 		reviewComments := DecodeJSON(t, call(t, token, "GET", fmt.Sprintf("%s/reviews/%d/comments", pullAPI, review.ID), nil, http.StatusOK), []*api.PullReviewComment{})
 		require.Len(t, reviewComments, 1)
 		assert.Equal(t, "feature.txt", reviewComments[0].Path)
