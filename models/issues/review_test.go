@@ -4,6 +4,7 @@
 package issues_test
 
 import (
+	"fmt"
 	"testing"
 
 	"gitea.dev/models/db"
@@ -32,7 +33,11 @@ func TestGetReviewByID(t *testing.T) {
 func TestReview_HTMLURL(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 	review := unittest.AssertExistsAndLoadBean(t, &issues_model.Review{ID: 1})
-	assert.Equal(t, setting.AppURL+"user2/repo1/pulls/2#pullrequestreview-1", review.HTMLURL(t.Context()))
+	assert.Empty(t, review.HTMLURL(t.Context()), "no timeline comment yet")
+
+	comment := &issues_model.Comment{Type: issues_model.CommentTypeReview, PosterID: review.ReviewerID, IssueID: review.IssueID, ReviewID: review.ID}
+	assert.NoError(t, db.Insert(t.Context(), comment))
+	assert.Equal(t, fmt.Sprintf("%suser2/repo1/pulls/2#issuecomment-%d", setting.AppURL, comment.ID), review.HTMLURL(t.Context()))
 
 	pendingReview := unittest.AssertExistsAndLoadBean(t, &issues_model.Review{ID: 4})
 	assert.Empty(t, pendingReview.HTMLURL(t.Context()))

@@ -1015,23 +1015,20 @@ func (r *Review) GetCodeCommentsCount(ctx context.Context) int {
 	return int(count)
 }
 
-// HashTag returns unique hash tag for review.
-func (r *Review) HashTag() string {
-	return fmt.Sprintf("pullrequestreview-%d", r.ID)
-}
-
-// HTMLURL formats a URL-string to the review on the pull request page
+// HTMLURL links to the review's timeline comment, so clients can take its issue comment ID
+// from the `#issuecomment-ID` anchor and use it with the reactions API
 func (r *Review) HTMLURL(ctx context.Context) string {
-	if r.Type != ReviewTypeApprove && r.Type != ReviewTypeComment && r.Type != ReviewTypeReject {
-		return "" // only submitted reviews get a timeline block carrying the anchor
+	opts := FindCommentsOptions{
+		Type:     CommentTypeReview,
+		IssueID:  r.IssueID,
+		ReviewID: r.ID,
 	}
-	if err := r.LoadIssue(ctx); err != nil {
+	comment := new(Comment)
+	has, err := db.GetEngine(ctx).Where(opts.ToConds()).Get(comment)
+	if err != nil || !has {
 		return ""
 	}
-	if err := r.Issue.LoadRepo(ctx); err != nil {
-		return ""
-	}
-	return r.Issue.HTMLURL(ctx) + "#" + r.HashTag()
+	return comment.HTMLURL(ctx)
 }
 
 // RemapExternalUser ExternalUserRemappable interface
