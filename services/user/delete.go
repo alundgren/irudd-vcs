@@ -81,7 +81,6 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 		&activities_model.Action{UserID: u.ID},
 		&issues_model.IssueUser{UID: u.ID},
 		&user_model.EmailAddress{UID: u.ID},
-		&user_model.UserOpenID{UID: u.ID},
 		&issues_model.Reaction{UserID: u.ID},
 		&organization.TeamUser{UID: u.ID},
 		&issues_model.Stopwatch{UserID: u.ID},
@@ -92,16 +91,10 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 		&user_model.Redirect{RedirectUserID: u.ID},
 		&user_model.Blocking{BlockerID: u.ID},
 		&user_model.Blocking{BlockeeID: u.ID},
-		&auth_model.TwoFactor{UID: u.ID},
-		&auth_model.WebAuthnCredential{UserID: u.ID},
 		&activities_model.Notification{UserID: u.ID},
 		&issues_model.IssueWatch{UserID: u.ID},
 	); err != nil {
 		return fmt.Errorf("deleteBeans: %w", err)
-	}
-
-	if err := auth_model.DeleteOAuth2RelictsByUserID(ctx, u.ID); err != nil {
-		return err
 	}
 
 	if purge || (setting.Service.UserDeleteWithCommentsMaxTime != 0 &&

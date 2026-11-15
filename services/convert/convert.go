@@ -12,7 +12,6 @@ import (
 	"time"
 
 	asymkey_model "gitea.dev/models/asymkey"
-	"gitea.dev/models/auth"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/organization"
@@ -479,20 +478,6 @@ func ToTopicResponse(topic *repo_model.Topic) *api.TopicResponse {
 		RepoCount: topic.RepoCount,
 		Created:   topic.CreatedUnix.AsTime(),
 		Updated:   topic.UpdatedUnix.AsTime(),
-	}
-}
-
-// ToOAuth2Application convert from auth.OAuth2Application to api.OAuth2Application
-func ToOAuth2Application(app *auth.OAuth2Application) *api.OAuth2Application {
-	return &api.OAuth2Application{
-		ID:                         app.ID,
-		Name:                       app.Name,
-		ClientID:                   app.ClientID,
-		ClientSecret:               app.ClientSecret,
-		ConfidentialClient:         app.ConfidentialClient,
-		SkipSecondaryAuthorization: app.SkipSecondaryAuthorization,
-		RedirectURIs:               app.RedirectURIs,
-		Created:                    app.CreatedUnix.AsTime(),
 	}
 }
 

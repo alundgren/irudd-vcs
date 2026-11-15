@@ -62,7 +62,6 @@
 package v1
 
 import (
-	gocontext "context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -198,20 +197,6 @@ func repoAssignment() func(ctx *context.APIContext) {
 			return
 		}
 	}
-}
-
-func doerNeedTwoFactorAuth(ctx gocontext.Context, doer *user_model.User) (bool, error) {
-	if !setting.TwoFactorAuthEnforced {
-		return false, nil
-	}
-	if doer == nil {
-		return false, nil
-	}
-	has, err := auth_model.HasTwoFactorOrWebAuthn(ctx, doer.ID)
-	if err != nil {
-		return false, err
-	}
-	return !has, nil
 }
 
 func checkTokenPublicOnly() func(ctx *context.APIContext) {
@@ -355,11 +340,8 @@ func reqUsersExploreEnabled() func(ctx *context.APIContext) {
 	}
 }
 
-func reqBasicOrRevProxyAuth() func(ctx *context.APIContext) {
+func reqBasicAuth() func(ctx *context.APIContext) {
 	return func(ctx *context.APIContext) {
-		if ctx.IsSigned && setting.Service.EnableReverseProxyAuthAPI && ctx.Data["AuthedMethod"].(string) == auth.ReverseProxyMethodName {
-			return
-		}
 		if !ctx.IsBasicAuth {
 			ctx.APIError(http.StatusUnauthorized, "auth required")
 			return
@@ -798,14 +780,9 @@ func bind[T any](_ T) any {
 
 func buildAuthGroup() *auth.Group {
 	group := auth.NewGroup(
-		&auth.OAuth2{},
-		&auth.HTTPSign{},
-		&auth.Basic{}, // FIXME: this should be removed once we don't allow basic auth in API
+		&auth.OAuth2{}, // token auth (PATs)
+		&auth.Basic{},
 	)
-	if setting.Service.EnableReverseProxyAuthAPI {
-		group.Add(&auth.ReverseProxy{}) // TODO: does it still make sense to support reverse proxy auth in API?
-	}
-	// others: API doesn't support SSPI auth because the caller should use token
 	return group
 }
 
@@ -954,7 +931,7 @@ func Routes() *web.Router {
 					m.Combo("").Get(user.ListAccessTokens).
 						Post(bind(api.CreateAccessTokenOption{}), reqToken(), user.CreateAccessToken)
 					m.Combo("/{id}").Delete(reqToken(), user.DeleteAccessToken)
-				}, reqSelfOrAdmin(), reqBasicOrRevProxyAuth())
+				}, reqSelfOrAdmin(), reqBasicAuth())
 			}, context.UserAssignmentAPI(), checkTokenPublicOnly(), individualPermsChecker)
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser))
 

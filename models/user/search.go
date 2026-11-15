@@ -50,12 +50,11 @@ type SearchUserOptions struct {
 
 	SupportedSortOrders container.Set[string] // if not nil, only allow to use the sort orders in this set
 
-	IsActive           optional.Option[bool]
-	IsAdmin            optional.Option[bool]
-	IsRestricted       optional.Option[bool]
-	IsTwoFactorEnabled optional.Option[bool]
-	IsProhibitLogin    optional.Option[bool]
-	IncludeReserved    bool
+	IsActive        optional.Option[bool]
+	IsAdmin         optional.Option[bool]
+	IsRestricted    optional.Option[bool]
+	IsProhibitLogin optional.Option[bool]
+	IncludeReserved bool
 }
 
 func (opts *SearchUserOptions) ApplyPublicOnly(publicOnly bool) {
@@ -139,23 +138,7 @@ func (opts *SearchUserOptions) toSearchQueryBase(ctx context.Context) db.Session
 		cond = cond.And(builder.Eq{"prohibit_login": opts.IsProhibitLogin.Value()})
 	}
 
-	e := db.GetEngine(ctx)
-	if !opts.IsTwoFactorEnabled.Has() {
-		return e.Where(cond)
-	}
-
-	// 2fa filter uses LEFT JOIN to check whether a user has a 2fa record
-	// While using LEFT JOIN, sometimes the performance might not be good, but it won't be a problem now, such SQL is seldom executed.
-	// There are some possible methods to refactor this SQL in future when we really need to optimize the performance (but not now):
-	// (1) add a column in user table (2) add a setting value in user_setting table (3) use search engines (bleve/elasticsearch)
-	if opts.IsTwoFactorEnabled.Value() {
-		cond = cond.And(builder.Expr("two_factor.uid IS NOT NULL"))
-	} else {
-		cond = cond.And(builder.Expr("two_factor.uid IS NULL"))
-	}
-
-	return e.Join("LEFT OUTER", "two_factor", "two_factor.uid = `user`.id").
-		Where(cond)
+	return db.GetEngine(ctx).Where(cond)
 }
 
 // SearchUsers takes options i.e. keyword and part of user name to search,

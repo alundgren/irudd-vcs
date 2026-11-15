@@ -147,13 +147,8 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 	if !canAnonymousPull { // not public pull, then either the pull needs auth, or the push needs "write" permission, so ask auth
 		if !ctx.IsSigned {
 			// TODO: support digit auth - which would be Authorization header with digit
-			if setting.OAuth2.Enabled {
-				// `Basic realm="Gitea"` tells the GCM to use builtin OAuth2 application: https://github.com/git-ecosystem/git-credential-manager/pull/1442
-				ctx.Resp.Header().Set("WWW-Authenticate", `Basic realm="Gitea"`)
-			} else {
-				// If OAuth2 is disabled, then use another realm to avoid GCM OAuth2 attempt
-				ctx.Resp.Header().Set("WWW-Authenticate", `Basic realm="Gitea (Basic Auth)"`)
-			}
+			// No OAuth2 provider, so use a realm that keeps GCM from attempting its builtin Gitea OAuth2 flow
+			ctx.Resp.Header().Set("WWW-Authenticate", `Basic realm="Gitea (Basic Auth)"`)
 			ctx.HTTPError(http.StatusUnauthorized)
 			return nil
 		}
@@ -161,18 +156,6 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 		context.CheckRepoScopedToken(ctx, repo, auth_model.GetScopeLevelFromAccessMode(accessMode))
 		if ctx.Written() {
 			return nil
-		}
-
-		if ctx.IsBasicAuth && ctx.Data["IsApiToken"] != true && !ctx.Doer.IsGiteaActions() {
-			_, err = auth_model.GetTwoFactorByUID(ctx, ctx.Doer.ID)
-			if err == nil {
-				// TODO: This response should be changed to "invalid credentials" for security reasons once the expectation behind it (creating an app token to authenticate) is properly documented
-				ctx.PlainText(http.StatusUnauthorized, "Users with two-factor authentication enabled cannot perform HTTP/HTTPS operations via plain username and password. Please create and use a personal access token on the user settings page")
-				return nil
-			} else if !auth_model.IsErrTwoFactorNotEnrolled(err) {
-				ctx.ServerError("IsErrTwoFactorNotEnrolled", err)
-				return nil
-			}
 		}
 
 		if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {

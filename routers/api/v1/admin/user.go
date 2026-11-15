@@ -413,9 +413,6 @@ func SearchUsers(ctx *context.APIContext) {
 	if ctx.FormString("is_restricted") != "" {
 		searchOpts.IsRestricted = optional.Some(ctx.FormBool("is_restricted"))
 	}
-	if ctx.FormString("is_2fa_enabled") != "" {
-		searchOpts.IsTwoFactorEnabled = optional.Some(ctx.FormBool("is_2fa_enabled"))
-	}
 	if ctx.FormString("is_prohibit_login") != "" {
 		searchOpts.IsProhibitLogin = optional.Some(ctx.FormBool("is_prohibit_login"))
 	}

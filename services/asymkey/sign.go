@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	asymkey_model "gitea.dev/models/asymkey"
-	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
@@ -155,14 +154,8 @@ Loop:
 			if !hasKeys {
 				return false, nil, nil, &ErrWontSign{pubkey}
 			}
-		case twofa:
-			twofaModel, err := auth.GetTwoFactorByUID(ctx, u.ID)
-			if err != nil && !auth.IsErrTwoFactorNotEnrolled(err) {
-				return false, nil, nil, err
-			}
-			if twofaModel == nil {
-				return false, nil, nil, &ErrWontSign{twofa}
-			}
+		case twofa: // 2FA is not supported, so this rule never passes
+			return false, nil, nil, &ErrWontSign{twofa}
 		}
 	}
 	return true, signingKey, sig, nil
@@ -191,14 +184,8 @@ Loop:
 			if !hasKeys {
 				return false, nil, nil, &ErrWontSign{pubkey}
 			}
-		case twofa:
-			twofaModel, err := auth.GetTwoFactorByUID(ctx, u.ID)
-			if err != nil && !auth.IsErrTwoFactorNotEnrolled(err) {
-				return false, nil, nil, err
-			}
-			if twofaModel == nil {
-				return false, nil, nil, &ErrWontSign{twofa}
-			}
+		case twofa: // 2FA is not supported, so this rule never passes
+			return false, nil, nil, &ErrWontSign{twofa}
 		case parentSigned:
 			commit, err := gitRepo.GetCommit("HEAD")
 			if err != nil {
@@ -239,14 +226,8 @@ Loop:
 			if !hasKeys {
 				return false, nil, nil, &ErrWontSign{pubkey}
 			}
-		case twofa:
-			twofaModel, err := auth.GetTwoFactorByUID(ctx, u.ID)
-			if err != nil && !auth.IsErrTwoFactorNotEnrolled(err) {
-				return false, nil, nil, err
-			}
-			if twofaModel == nil {
-				return false, nil, nil, &ErrWontSign{twofa}
-			}
+		case twofa: // 2FA is not supported, so this rule never passes
+			return false, nil, nil, &ErrWontSign{twofa}
 		case parentSigned:
 			isEmpty, err := gitRepo.IsEmpty()
 			if err != nil {
@@ -310,14 +291,8 @@ Loop:
 			if !hasKeys {
 				return false, nil, nil, &ErrWontSign{pubkey}
 			}
-		case twofa:
-			twofaModel, err := auth.GetTwoFactorByUID(ctx, u.ID)
-			if err != nil && !auth.IsErrTwoFactorNotEnrolled(err) {
-				return false, nil, nil, err
-			}
-			if twofaModel == nil {
-				return false, nil, nil, &ErrWontSign{twofa}
-			}
+		case twofa: // 2FA is not supported, so this rule never passes
+			return false, nil, nil, &ErrWontSign{twofa}
 		case approved:
 			protectedBranch, err := git_model.GetFirstMatchProtectedBranchRule(ctx, repo.ID, pr.BaseBranch)
 			if err != nil {

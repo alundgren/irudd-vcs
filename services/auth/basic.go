@@ -114,7 +114,7 @@ func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore
 	}
 
 	log.Trace("Basic Authorization: Attempting SignIn for %s", uname)
-	u, source, err := UserSignIn(req.Context(), uname, passwd)
+	u, _, err = UserSignIn(req.Context(), uname, passwd)
 	if err != nil {
 		if !user_model.IsErrUserNotExist(err) {
 			log.Error("UserSignIn: %v", err)
@@ -122,43 +122,10 @@ func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore
 		return nil, err
 	}
 
-	if !source.TwoFactorShouldSkip() {
-		// Check if the user has WebAuthn registration
-		hasWebAuthn, err := auth_model.HasWebAuthnRegistrationsByUID(req.Context(), u.ID)
-		if err != nil {
-			return nil, err
-		}
-		if hasWebAuthn {
-			return nil, ErrUserAuthMessage("basic authorization is not allowed while WebAuthn enrolled")
-		}
-
-		if err := validateTOTP(req, u); err != nil {
-			return nil, err
-		}
-	}
-
 	store.GetData()["LoginMethod"] = BasicMethodName
 	log.Trace("Basic Authorization: Logged in user %-v", u)
 
 	return u, nil
-}
-
-func validateTOTP(req *http.Request, u *user_model.User) error {
-	twofa, err := auth_model.GetTwoFactorByUID(req.Context(), u.ID)
-	if err != nil {
-		if auth_model.IsErrTwoFactorNotEnrolled(err) {
-			// No 2FA enrollment for this user
-			return nil
-		}
-		return err
-	}
-	// Consume the passcode atomically so a captured OTP cannot be replayed within its validity window.
-	if ok, err := twofa.ValidateAndConsumeTOTP(req.Context(), req.Header.Get("X-Gitea-OTP")); err != nil {
-		return err
-	} else if !ok {
-		return util.NewInvalidArgumentErrorf("invalid provided OTP")
-	}
-	return nil
 }
 
 func GetAccessScope(store DataStore) auth_model.AccessTokenScope {

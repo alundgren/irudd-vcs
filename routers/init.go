@@ -10,7 +10,6 @@ import (
 	"runtime"
 
 	"gitea.dev/models"
-	authmodel "gitea.dev/models/auth"
 	"gitea.dev/modules/cache"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
@@ -29,7 +28,6 @@ import (
 	web_routers "gitea.dev/routers/web"
 	indexer_service "gitea.dev/services/indexer"
 	markup_service "gitea.dev/services/markup"
-	"gitea.dev/services/oauth2_provider"
 	pull_service "gitea.dev/services/pull"
 	release_service "gitea.dev/services/release"
 	repo_service "gitea.dev/services/repository"
@@ -102,11 +100,9 @@ func InitWebInstalled(ctx context.Context) {
 	mustInitCtx(ctx, common.InitDBEngine)
 	log.Info("ORM engine initialization successful!")
 	mustInit(system.Init)
-	mustInitCtx(ctx, oauth2_provider.Init)
 	mustInit(release_service.Init)
 
 	mustInitCtx(ctx, models.Init)
-	mustInitCtx(ctx, authmodel.Init)
 	mustInitCtx(ctx, repo_service.Init)
 
 	// Booting long running goroutines.

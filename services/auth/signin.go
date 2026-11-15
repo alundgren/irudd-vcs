@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"gitea.dev/models/auth"
@@ -12,15 +13,17 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/optional"
-	"gitea.dev/services/auth/source/oauth2"
-	"gitea.dev/services/auth/source/smtp"
 
-	_ "gitea.dev/services/auth/source/db"   // register the sources (and below)
-	_ "gitea.dev/services/auth/source/ldap" // register the ldap source
-	_ "gitea.dev/services/auth/source/pam"  // register the pam source
-	_ "gitea.dev/services/auth/source/sspi" // register the sspi source
+	_ "gitea.dev/services/auth/source/db" // register the local db source, the only one kept
 
 	"xorm.io/builder"
+)
+
+var (
+	// ErrAuthSourceNotActivated auth source is not activated error
+	ErrAuthSourceNotActivated = errors.New("auth source is not activated")
+	// ErrUnsupportedLoginType login source is unknown error
+	ErrUnsupportedLoginType = errors.New("Login source is unknown")
 )
 
 // UserSignIn validates user name and password.
@@ -78,12 +81,12 @@ func UserSignIn(ctx context.Context, username, password string) (*user_model.Use
 			}
 
 			if !source.IsActive {
-				return nil, nil, oauth2.ErrAuthSourceNotActivated
+				return nil, nil, ErrAuthSourceNotActivated
 			}
 
 			authenticator, ok := source.Cfg.(PasswordAuthenticator)
 			if !ok {
-				return nil, nil, smtp.ErrUnsupportedLoginType
+				return nil, nil, ErrUnsupportedLoginType
 			}
 
 			user, err := authenticator.Authenticate(ctx, user, user.LoginName, password)

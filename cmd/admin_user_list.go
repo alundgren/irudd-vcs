@@ -48,10 +48,9 @@ func runListUsers(ctx context.Context, c *cli.Command) error {
 			}
 		}
 	} else {
-		twofa := user_model.UserList(users).GetTwoFaStatus(ctx)
-		fmt.Fprintf(w, "ID\tUsername\tEmail\tIsActive\tIsAdmin\t2FA\n")
+		fmt.Fprintf(w, "ID\tUsername\tEmail\tIsActive\tIsAdmin\n")
 		for _, u := range users {
-			fmt.Fprintf(w, "%d\t%s\t%s\t%t\t%t\t%t\n", u.ID, u.Name, u.Email, u.IsActive, u.IsAdmin, twofa[u.ID])
+			fmt.Fprintf(w, "%d\t%s\t%s\t%t\t%t\n", u.ID, u.Name, u.Email, u.IsActive, u.IsAdmin)
 		}
 	}
 

@@ -6,6 +6,7 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"gitea.dev/modules/util"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	"golang.org/x/crypto/pbkdf2"
 	"xorm.io/builder"
 )
 
@@ -179,4 +181,10 @@ func DeleteAccessTokenByID(ctx context.Context, id, userID int64) error {
 		return util.NewNotExistErrorf("access token not found")
 	}
 	return nil
+}
+
+// HashToken return the hashable salt
+func HashToken(token, salt string) string {
+	tempHash := pbkdf2.Key([]byte(token), []byte(salt), 10000, 50, sha256.New)
+	return hex.EncodeToString(tempHash)
 }

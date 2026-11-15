@@ -443,14 +443,10 @@ func repoAssignmentLegacy(ctx *Context, data *repoAssignmentPrepareDataStruct) {
 		return
 	}
 
-	if ctx.DoerNeedTwoFactorAuth() {
-		ctx.Repo.Permission = access_model.PermissionNoAccess()
-	} else {
-		ctx.Repo.Permission, err = access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
-		if err != nil {
-			ctx.ServerError("GetDoerRepoPermission", err)
-			return
-		}
+	ctx.Repo.Permission, err = access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
+	if err != nil {
+		ctx.ServerError("GetDoerRepoPermission", err)
+		return
 	}
 
 	if !ctx.Repo.Permission.HasAnyUnitAccessOrPublicAccess() && !canWriteAsMaintainer(ctx) {

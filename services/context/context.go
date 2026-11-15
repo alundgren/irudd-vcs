@@ -198,8 +198,6 @@ func Contexter() func(next http.Handler) http.Handler {
 
 			ctx.Data["SystemConfig"] = setting.Config()
 
-			ctx.Data["ShowTwoFactorRequiredMessage"] = ctx.DoerNeedTwoFactorAuth()
-
 			// FIXME: do we really always need these setting? There should be someway to have to avoid having to always set these
 			ctx.Data["DisableMigrations"] = setting.Repository.DisableMigrations
 			ctx.Data["DisableStars"] = setting.Repository.DisableStars
@@ -210,13 +208,6 @@ func Contexter() func(next http.Handler) http.Handler {
 			next.ServeHTTP(ctx.Resp, ctx.Req)
 		})
 	}
-}
-
-func (ctx *Context) DoerNeedTwoFactorAuth() bool {
-	if !setting.TwoFactorAuthEnforced {
-		return false
-	}
-	return ctx.Session.Get(session.KeyUserHasTwoFactorAuth) == false
 }
 
 // HasError returns true if error occurs in form validation.

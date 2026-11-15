@@ -50,7 +50,6 @@ var (
 	SuccessfulTokensCacheSize          int
 	DisableQueryAuthToken              bool
 	RecordUserSignupMetadata           = false
-	TwoFactorAuthEnforced              = false
 )
 
 // loadSecret load the secret from ini by uriKey or verbatimKey, only one of them could be set
@@ -159,15 +158,6 @@ func loadSecurityFrom(rootCfg ConfigProvider) {
 	}
 	if err := sec.MapTo(&Security); err != nil {
 		log.Fatal("Failed to map security settings: %v", err)
-	}
-
-	twoFactorAuth := sec.Key("TWO_FACTOR_AUTH").String()
-	switch twoFactorAuth {
-	case "":
-	case "enforced":
-		TwoFactorAuthEnforced = true
-	default:
-		log.Fatal("Invalid two-factor auth option: %s", twoFactorAuth)
 	}
 
 	InternalToken = loadSecret(sec, "INTERNAL_TOKEN_URI", "INTERNAL_TOKEN")
