@@ -27,6 +27,9 @@ type PullRequestsOptions struct {
 	Labels     []int64
 	PosterID   int64
 	BaseBranch string
+	HeadBranch string
+	// HeadOwnerID restricts HeadBranch to head repositories of this owner, 0 means any
+	HeadOwnerID int64
 }
 
 func listPullRequestStatement(ctx context.Context, baseRepoID int64, opts *PullRequestsOptions) db.Session {
@@ -34,6 +37,14 @@ func listPullRequestStatement(ctx context.Context, baseRepoID int64, opts *PullR
 
 	if opts.BaseBranch != "" {
 		sess.And("pull_request.base_branch=?", opts.BaseBranch)
+	}
+
+	if opts.HeadBranch != "" {
+		sess.And("pull_request.head_branch=?", opts.HeadBranch)
+	}
+
+	if opts.HeadOwnerID > 0 {
+		sess.In("pull_request.head_repo_id", builder.Select("id").From("repository").Where(builder.Eq{"owner_id": opts.HeadOwnerID}))
 	}
 
 	sess.Join("INNER", "issue", "pull_request.issue_id = issue.id")

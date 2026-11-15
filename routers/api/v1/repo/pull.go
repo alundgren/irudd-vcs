@@ -64,6 +64,10 @@ func ListPullRequests(ctx *context.APIContext) {
 	//   in: query
 	//   description: Filter by target base branch of the pull request
 	//   type: string
+	// - name: head
+	//   in: query
+	//   description: Filter by head branch of the pull request, as `branch` or `owner:branch`
+	//   type: string
 	// - name: state
 	//   in: query
 	//   description: State of pull request
@@ -124,6 +128,21 @@ func ListPullRequests(ctx *context.APIContext) {
 		}
 		posterID = poster.ID
 	}
+	headBranch := ctx.FormTrim("head")
+	var headOwnerID int64
+	if owner, branch, ok := strings.Cut(headBranch, ":"); ok {
+		headOwner, err := user_model.GetUserByName(ctx, owner)
+		if err != nil {
+			if user_model.IsErrUserNotExist(err) {
+				ctx.SetTotalCountHeader(0)
+				ctx.JSON(http.StatusOK, []*api.PullRequest{}) // no such head owner, so nothing matches
+			} else {
+				ctx.APIErrorInternal(err)
+			}
+			return
+		}
+		headBranch, headOwnerID = branch, headOwner.ID
+	}
 	listOptions := utils.GetListOptions(ctx)
 	prs, maxResults, err := issues_model.PullRequests(ctx, ctx.Repo.Repository.ID, &issues_model.PullRequestsOptions{
 		ListOptions: listOptions,
@@ -132,6 +151,8 @@ func ListPullRequests(ctx *context.APIContext) {
 		Labels:      labelIDs,
 		PosterID:    posterID,
 		BaseBranch:  ctx.FormTrim("base_branch"),
+		HeadBranch:  headBranch,
+		HeadOwnerID: headOwnerID,
 	})
 	if err != nil {
 		ctx.APIErrorInternal(err)

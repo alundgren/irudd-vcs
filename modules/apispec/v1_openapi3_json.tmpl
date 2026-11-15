@@ -5456,26 +5456,6 @@
         "type": "object",
         "x-go-package": "gitea.dev/modules/structs"
       },
-      "RepoTransfer": {
-        "description": "RepoTransfer represents a pending repo transfer",
-        "properties": {
-          "doer": {
-            "$ref": "#/components/schemas/User"
-          },
-          "recipient": {
-            "$ref": "#/components/schemas/User"
-          },
-          "teams": {
-            "items": {
-              "$ref": "#/components/schemas/Team"
-            },
-            "type": "array",
-            "x-go-name": "Teams"
-          }
-        },
-        "type": "object",
-        "x-go-package": "gitea.dev/modules/structs"
-      },
       "RepoWritePermission": {
         "enum": [
           "read",
@@ -5697,9 +5677,6 @@
             "format": "int64",
             "type": "integer",
             "x-go-name": "Releases"
-          },
-          "repo_transfer": {
-            "$ref": "#/components/schemas/RepoTransfer"
           },
           "size": {
             "format": "int64",
@@ -14071,6 +14048,14 @@
             "description": "Filter by target base branch of the pull request",
             "in": "query",
             "name": "base_branch",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by head branch of the pull request, as `branch` or `owner:branch`",
+            "in": "query",
+            "name": "head",
             "schema": {
               "type": "string"
             }
