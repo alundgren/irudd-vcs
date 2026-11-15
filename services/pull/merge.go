@@ -31,12 +31,10 @@ import (
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/references"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
-	issue_service "gitea.dev/services/issue"
 	notify_service "gitea.dev/services/notify"
 )
 
@@ -99,27 +97,7 @@ func getMergeMessage(ctx context.Context, baseGitRepo *git.Repository, pr *issue
 				vars["HeadRepoName"] = pr.HeadRepo.Name
 			}
 			maps.Copy(vars, extraVars)
-			refs, err := pr.ResolveCrossReferences(ctx)
-			if err == nil {
-				closeIssueIndexes := make([]string, 0, len(refs))
-				closeWord := "close"
-				if len(setting.Repository.PullRequest.CloseKeywords) > 0 {
-					closeWord = setting.Repository.PullRequest.CloseKeywords[0]
-				}
-				for _, ref := range refs {
-					if ref.RefAction == references.XRefActionCloses {
-						if err := ref.LoadIssue(ctx); err != nil {
-							return "", "", err
-						}
-						closeIssueIndexes = append(closeIssueIndexes, fmt.Sprintf("%s %s%d", closeWord, issueReference, ref.Issue.Index))
-					}
-				}
-				if len(closeIssueIndexes) > 0 {
-					vars["ClosingIssues"] = strings.Join(closeIssueIndexes, ", ")
-				} else {
-					vars["ClosingIssues"] = ""
-				}
-			}
+			vars["ClosingIssues"] = "" // cross-references are not tracked
 			message, body = expandDefaultMergeMessage(templateContent, vars)
 			return message, body, nil
 		}
@@ -306,37 +284,6 @@ func handleMergePostProcess(ctx context.Context, prID int64, doer *user_model.Us
 	// Reset cached commit count
 	cache.Remove(pr.Issue.Repo.GetCommitsCountCacheKey(pr.BaseBranch, true))
 
-	return handleCloseCrossReferences(ctx, pr, doer)
-}
-
-func handleCloseCrossReferences(ctx context.Context, pr *issues_model.PullRequest, doer *user_model.User) error {
-	// Resolve cross references
-	refs, err := pr.ResolveCrossReferences(ctx)
-	if err != nil {
-		log.Error("ResolveCrossReferences: %v", err)
-		return nil
-	}
-
-	for _, ref := range refs {
-		if err = ref.LoadIssue(ctx); err != nil {
-			return err
-		}
-		if err = ref.Issue.LoadRepo(ctx); err != nil {
-			return err
-		}
-		if ref.RefAction == references.XRefActionCloses && !ref.Issue.IsClosed {
-			if err = issue_service.CloseIssue(ctx, ref.Issue, doer, pr.MergedCommitID); err != nil {
-				// Allow ErrDependenciesLeft
-				if !issues_model.IsErrDependenciesLeft(err) {
-					return err
-				}
-			}
-		} else if ref.RefAction == references.XRefActionReopens && ref.Issue.IsClosed {
-			if err = issue_service.ReopenIssue(ctx, ref.Issue, doer, pr.MergedCommitID); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 
@@ -685,7 +632,7 @@ func MergedManually(ctx context.Context, pr *issues_model.PullRequest, doer *use
 	notify_service.MergePullRequest(ctx, doer, pr)
 	log.Info("manuallyMerged[%d]: Marked as manually merged into %s/%s by commit id: %s", pr.ID, pr.BaseRepo.Name, pr.BaseBranch, commitID)
 
-	return handleCloseCrossReferences(ctx, pr, doer)
+	return nil
 }
 
 // SetMerged sets a pull request to merged and closes the corresponding issue

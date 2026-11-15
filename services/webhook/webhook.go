@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
@@ -25,21 +24,9 @@ import (
 	webhook_module "gitea.dev/modules/webhook"
 )
 
-type Requester func(context.Context, *webhook_model.Webhook, *webhook_model.HookTask) (req *http.Request, body []byte, err error)
-
-var webhookRequesters = map[webhook_module.HookType]Requester{}
-
-func RegisterWebhookRequester(hookType webhook_module.HookType, requester Requester) {
-	webhookRequesters[hookType] = requester
-}
-
-// IsValidHookTaskType returns true if a webhook registered
+// IsValidHookTaskType returns true for the supported webhook types, only the Gitea (and Gogs compatible) JSON format is kept
 func IsValidHookTaskType(name string) bool {
-	if name == webhook_module.GITEA || name == webhook_module.GOGS {
-		return true
-	}
-	_, ok := webhookRequesters[name]
-	return ok
+	return name == webhook_module.GITEA || name == webhook_module.GOGS
 }
 
 // hookQueue is a global queue of web hooks

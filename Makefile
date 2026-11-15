@@ -148,10 +148,10 @@ GO_SOURCES += $(GENERATED_GO_DEST)
 
 ESLINT_CONCURRENCY ?= 2
 
-SWAGGER_SPEC := templates/swagger/v1_json.tmpl
-SWAGGER_SPEC_INPUT := templates/swagger/v1_input.json
+SWAGGER_SPEC := modules/apispec/v1_json.tmpl
+SWAGGER_SPEC_INPUT := modules/apispec/v1_input.json
 SWAGGER_EXCLUDE := gitea.dev/sdk
-OPENAPI3_SPEC := templates/swagger/v1_openapi3_json.tmpl
+OPENAPI3_SPEC := modules/apispec/v1_openapi3_json.tmpl
 
 TEST_MYSQL_HOST ?= mysql:3306
 TEST_MYSQL_DBNAME ?= testgitea

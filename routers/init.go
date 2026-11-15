@@ -14,7 +14,6 @@ import (
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/markup"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/system"
@@ -27,7 +26,6 @@ import (
 	"gitea.dev/routers/private"
 	web_routers "gitea.dev/routers/web"
 	indexer_service "gitea.dev/services/indexer"
-	markup_service "gitea.dev/services/markup"
 	pull_service "gitea.dev/services/pull"
 	release_service "gitea.dev/services/release"
 	repo_service "gitea.dev/services/repository"
@@ -94,8 +92,6 @@ func InitWebInstalled(ctx context.Context) {
 	mustInit(storage.Init)
 
 	mustInit(cache.Init)
-
-	markup.Init(markup_service.FormalRenderHelperFuncs())
 
 	mustInitCtx(ctx, common.InitDBEngine)
 	log.Info("ORM engine initialization successful!")

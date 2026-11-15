@@ -11,7 +11,6 @@ import (
 	"gitea.dev/models/db"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/models/webhook"
-	"gitea.dev/modules/json"
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
@@ -234,32 +233,6 @@ func addHook(ctx *context.APIContext, form *api.CreateHookOption, ownerID, repoI
 		ctx.APIErrorInternal(err)
 		return nil, false
 	}
-	if w.Type == webhook_module.SLACK {
-		channel, ok := form.Config["channel"]
-		if !ok {
-			ctx.APIError(http.StatusUnprocessableEntity, "Missing config option: channel")
-			return nil, false
-		}
-		channel = strings.TrimSpace(channel)
-
-		if !webhook_service.IsValidSlackChannel(channel) {
-			ctx.APIError(http.StatusBadRequest, "Invalid slack channel name")
-			return nil, false
-		}
-
-		meta, err := json.Marshal(&webhook_service.SlackMeta{
-			Channel:  channel,
-			Username: form.Config["username"],
-			IconURL:  form.Config["icon_url"],
-			Color:    form.Config["color"],
-		})
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return nil, false
-		}
-		w.Meta = string(meta)
-	}
-
 	if err := w.UpdateEvent(); err != nil {
 		ctx.APIErrorInternal(err)
 		return nil, false
@@ -352,22 +325,6 @@ func editHook(ctx *context.APIContext, form *api.EditHookOption, w *webhook.Webh
 				return false
 			}
 			w.ContentType = webhook.ToHookContentType(ct)
-		}
-
-		if w.Type == webhook_module.SLACK {
-			if channel, ok := form.Config["channel"]; ok {
-				meta, err := json.Marshal(&webhook_service.SlackMeta{
-					Channel:  channel,
-					Username: form.Config["username"],
-					IconURL:  form.Config["icon_url"],
-					Color:    form.Config["color"],
-				})
-				if err != nil {
-					ctx.APIErrorInternal(err)
-					return false
-				}
-				w.Meta = string(meta)
-			}
 		}
 	}
 

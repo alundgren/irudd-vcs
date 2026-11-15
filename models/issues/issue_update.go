@@ -214,7 +214,7 @@ func ChangeIssueTitle(ctx context.Context, issue *Issue, doer *user_model.User, 
 		if _, err = CreateComment(ctx, opts); err != nil {
 			return fmt.Errorf("createComment: %w", err)
 		}
-		return issue.AddCrossReferences(ctx, doer, true)
+		return nil
 	})
 }
 
@@ -341,10 +341,6 @@ func ChangeIssueContent(ctx context.Context, issue *Issue, doer *user_model.User
 			timeutil.TimeStampNow(), issue.Content, false); err != nil {
 			return fmt.Errorf("SaveIssueContentHistory: %w", err)
 		}
-
-		if err = issue.AddCrossReferences(ctx, doer, true); err != nil {
-			return fmt.Errorf("addCrossReferences: %w", err)
-		}
 		return nil
 	})
 }
@@ -442,11 +438,7 @@ func NewIssueWithIndex(ctx context.Context, doer *user_model.User, opts NewIssue
 		return err
 	}
 
-	if err = opts.Issue.LoadAttributes(ctx); err != nil {
-		return err
-	}
-
-	return opts.Issue.AddCrossReferences(ctx, doer, false)
+	return opts.Issue.LoadAttributes(ctx)
 }
 
 // NewIssue creates new issue with labels for repository.

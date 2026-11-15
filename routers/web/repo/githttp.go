@@ -58,11 +58,6 @@ func CorsHandler() func(next http.Handler) http.Handler {
 // httpBase does the common work for git http services,
 // including early response, authentication, repository lookup and permission check.
 func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
-	if ctx.FormString("go-get") == "1" {
-		context.EarlyResponseForGoGetMeta(ctx)
-		return nil
-	}
-
 	var serviceType string
 	var isPull, receivePack bool
 	switch util.OptionalArg(optGitService) {
@@ -89,14 +84,8 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 		accessMode = perm.AccessModeWrite
 	}
 
-	isWiki := false
 	unitType := unit.TypeCode
 	repoName := strings.TrimSuffix(ctx.PathParam("reponame"), ".git")
-	if strings.HasSuffix(repoName, ".wiki") {
-		isWiki = true
-		unitType = unit.TypeWiki
-		repoName = repoName[:len(repoName)-5]
-	}
 
 	owner := ctx.ContextUser
 	if !owner.IsOrganization() && !owner.IsActive {
@@ -164,11 +153,6 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 		}
 
 		if repoExist {
-			// Only the main code repo accepts refs/for pushes, so wiki pushes must keep write checks.
-			if git.DefaultFeatures().SupportProcReceive && !isWiki {
-				accessMode = perm.AccessModeRead
-			}
-
 			p, err := access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
 			if err != nil {
 				ctx.ServerError("GetDoerRepoPermission", err)
@@ -189,11 +173,6 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 
 	if !repoExist {
 		if !receivePack {
-			ctx.PlainText(http.StatusNotFound, "Repository not found")
-			return nil
-		}
-
-		if isWiki { // you cannot send wiki operation before create the repository
 			ctx.PlainText(http.StatusNotFound, "Repository not found")
 			return nil
 		}
@@ -221,25 +200,13 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 		}
 	}
 
-	if isWiki {
-		// Ensure the wiki is enabled before we allow access to it
-		if _, err := repo.GetUnit(ctx, unit.TypeWiki); err != nil {
-			if repo_model.IsErrUnitTypeNotExist(err) {
-				ctx.PlainText(http.StatusForbidden, "repository wiki is disabled")
-				return nil
-			}
-			ctx.ServerError("GetUnit(UnitTypeWiki) for "+repo.FullName(), err)
-			return nil
-		}
-	}
-
 	var environ []string
 	if !isPull {
 		// if not "pull", then must be "push", and doer must exist
-		environ = repo_module.DoerPushingEnvironment(ctx.Doer, repo, isWiki)
+		environ = repo_module.DoerPushingEnvironment(ctx.Doer, repo, false)
 	}
 
-	return &serviceHandler{serviceType, repo, isWiki, environ}
+	return &serviceHandler{serviceType, repo, environ}
 }
 
 var (
@@ -285,14 +252,10 @@ type serviceHandler struct {
 	serviceType string
 
 	repo    *repo_model.Repository
-	isWiki  bool
 	environ []string
 }
 
 func (h *serviceHandler) getStorageRepo() gitrepo.Repository {
-	if h.isWiki {
-		return h.repo.WikiStorageRepo()
-	}
 	return h.repo
 }
 

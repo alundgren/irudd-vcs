@@ -4,22 +4,22 @@
 package web
 
 import (
-	"html/template"
+	"net/http"
 
-	"gitea.dev/modules/setting"
+	"gitea.dev/modules/apispec"
 	"gitea.dev/services/context"
 )
 
 // SwaggerV1Json render swagger v1 json
 func SwaggerV1Json(ctx *context.Context) {
-	ctx.Data["SwaggerAppVer"] = template.HTML(template.JSEscapeString(setting.AppVer))
-	ctx.Data["SwaggerAppSubUrl"] = setting.AppSubURL // it is JS-safe
-	ctx.JSONTemplate("swagger/v1_json")
+	ctx.Resp.Header().Set("Content-Type", "application/json")
+	ctx.Resp.WriteHeader(http.StatusOK)
+	_, _ = ctx.Resp.Write(apispec.SwaggerV1())
 }
 
 // OpenAPI3Json render OpenAPI 3.0 json (auto-converted from Swagger 2.0)
 func OpenAPI3Json(ctx *context.Context) {
-	ctx.Data["SwaggerAppVer"] = template.HTML(template.JSEscapeString(setting.AppVer))
-	ctx.Data["SwaggerAppSubUrl"] = setting.AppSubURL // it is JS-safe
-	ctx.JSONTemplate("swagger/v1_openapi3_json")
+	ctx.Resp.Header().Set("Content-Type", "application/json")
+	ctx.Resp.WriteHeader(http.StatusOK)
+	_, _ = ctx.Resp.Write(apispec.OpenAPI3V1())
 }

@@ -149,22 +149,6 @@ func (b *Base) PlainText(status int, text string) {
 // Redirect redirects the request
 func (b *Base) Redirect(location string, status ...int) {
 	code := util.OptionalArg(status, http.StatusSeeOther)
-
-	if !httplib.IsRelativeURL(location) {
-		// Some browsers (Safari) have buggy behavior for Cookie + Cache + External Redirection, eg: /my-path => https://other/path
-		// 1. the first request to "/my-path" contains cookie
-		// 2. some time later, the request to "/my-path" doesn't contain cookie (caused by Prevent web tracking)
-		// 3. Gitea's Sessioner doesn't see the session cookie, so it generates a new session id, and returns it to browser
-		// 4. then the browser accepts the empty session, then the user is logged out
-		// So in this case, we should remove the session cookie from the response header
-		removeSessionCookieHeader(b.Resp)
-	}
-	// In case the request is made by "fetch-action" module, make JS redirect to the new location
-	// Otherwise, the JS fetch will follow the redirection and read a "login" page, embed it to the current page, which is not expected.
-	if b.Req.Header.Get("X-Gitea-Fetch-Action") != "" {
-		b.JSON(http.StatusOK, map[string]any{"redirect": location})
-		return
-	}
 	http.Redirect(b.Resp, b.Req, location, code)
 }
 
@@ -186,26 +170,6 @@ func (b *Base) Tr(msg string, args ...any) template.HTML {
 
 func (b *Base) TrN(cnt any, key1, keyN string, args ...any) template.HTML {
 	return b.Locale.TrN(cnt, key1, keyN, args...)
-}
-
-func CspScriptNonce(ctx reqctx.RequestContext) (ret string) {
-	// Generate a random nonce for each request and cache it in the context to make it usable during the whole rendering process.
-	//
-	// Some "<script>" tags are not in the CSP context, so they don't need nonce,
-	// these tags are written as "<script nonce>" to help developers to know that "no script nonce attribute is missing"
-	// (e.g.: when they grep the codebase for "script" tags)
-	ret, _ = ctx.Value("_cspScriptNonce").(string)
-	if ret == "" {
-		ret = util.FastCryptoRandomHex(32) // 16 bytes / 128 bits entropy
-		ctx.SetContextValue("_cspScriptNonce", ret)
-	}
-	return ret
-}
-
-func (b *Base) SetHeaderContentSecurityPolicyGeneral() {
-	if csp := WebContentSecurityPolicy(CspScriptNonce(b)); csp != "" {
-		b.Resp.Header().Set("Content-Security-Policy", csp)
-	}
 }
 
 func NewBaseContext(resp http.ResponseWriter, req *http.Request) *Base {

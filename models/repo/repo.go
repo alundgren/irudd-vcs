@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
-	"maps"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -23,10 +21,8 @@ import (
 	"gitea.dev/modules/base"
 	"gitea.dev/modules/git"
 	giturl "gitea.dev/modules/git/url"
-	"gitea.dev/modules/htmlutil"
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/markup"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
@@ -191,8 +187,6 @@ type Repository struct {
 	IsMirror   bool `xorm:"INDEX"`
 
 	Status RepositoryStatus `xorm:"NOT NULL DEFAULT 0"`
-
-	commonRenderingMetas map[string]string `xorm:"-"`
 
 	Units           []*RepoUnit   `xorm:"-"`
 	PrimaryLanguage *LanguageStat `xorm:"-"`
@@ -495,71 +489,6 @@ func (repo *Repository) MustOwner(ctx context.Context) *user_model.User {
 	return repo.Owner
 }
 
-func (repo *Repository) composeCommonMetas(ctx context.Context) map[string]string {
-	if len(repo.commonRenderingMetas) == 0 {
-		metas := map[string]string{
-			"user": repo.OwnerName,
-			"repo": repo.Name,
-		}
-
-		unitExternalTracker, err := repo.GetUnit(ctx, unit.TypeExternalTracker)
-		if err == nil {
-			metas["format"] = unitExternalTracker.ExternalTrackerConfig().ExternalTrackerFormat
-			switch unitExternalTracker.ExternalTrackerConfig().ExternalTrackerStyle {
-			case markup.IssueNameStyleAlphanumeric:
-				metas["style"] = markup.IssueNameStyleAlphanumeric
-			case markup.IssueNameStyleRegexp:
-				metas["style"] = markup.IssueNameStyleRegexp
-				metas["regexp"] = unitExternalTracker.ExternalTrackerConfig().ExternalTrackerRegexpPattern
-			default:
-				metas["style"] = markup.IssueNameStyleNumeric
-			}
-		}
-
-		repo.MustOwner(ctx)
-		if repo.Owner.IsOrganization() {
-			teams := make([]string, 0, 5)
-			_ = db.GetEngine(ctx).Table("team_repo").
-				Join("INNER", "team", "team.id = team_repo.team_id").
-				Where("team_repo.repo_id = ?", repo.ID).
-				Select("team.lower_name").
-				OrderBy("team.lower_name").
-				Find(&teams)
-			metas["teams"] = "," + strings.Join(teams, ",") + ","
-			metas["org"] = strings.ToLower(repo.OwnerName)
-		}
-
-		repo.commonRenderingMetas = metas
-	}
-	return repo.commonRenderingMetas
-}
-
-// ComposeCommentMetas composes a map of metas for properly rendering comments or comment-like contents (commit message)
-func (repo *Repository) ComposeCommentMetas(ctx context.Context) map[string]string {
-	metas := maps.Clone(repo.composeCommonMetas(ctx))
-	metas["markdownNewLineHardBreak"] = strconv.FormatBool(setting.Markdown.RenderOptionsComment.NewLineHardBreak)
-	metas["markupAllowShortIssuePattern"] = strconv.FormatBool(setting.Markdown.RenderOptionsComment.ShortIssuePattern)
-	return metas
-}
-
-// ComposeWikiMetas composes a map of metas for properly rendering wikis
-func (repo *Repository) ComposeWikiMetas(ctx context.Context) map[string]string {
-	// does wiki need the "teams" and "org" from common metas?
-	metas := maps.Clone(repo.composeCommonMetas(ctx))
-	metas["markdownNewLineHardBreak"] = strconv.FormatBool(setting.Markdown.RenderOptionsWiki.NewLineHardBreak)
-	metas["markupAllowShortIssuePattern"] = strconv.FormatBool(setting.Markdown.RenderOptionsWiki.ShortIssuePattern)
-	return metas
-}
-
-// ComposeRepoFileMetas composes a map of metas for properly rendering documents (repo files)
-func (repo *Repository) ComposeRepoFileMetas(ctx context.Context) map[string]string {
-	// does document(file) need the "teams" and "org" from common metas?
-	metas := maps.Clone(repo.composeCommonMetas(ctx))
-	metas["markdownNewLineHardBreak"] = strconv.FormatBool(setting.Markdown.RenderOptionsRepoFile.NewLineHardBreak)
-	metas["markupAllowShortIssuePattern"] = strconv.FormatBool(setting.Markdown.RenderOptionsRepoFile.ShortIssuePattern)
-	return metas
-}
-
 // GetBaseRepo populates repo.BaseRepo for a fork repository and
 // returns an error on failure (NOTE: no error is returned for
 // non-fork repositories, and BaseRepo will be left untouched)
@@ -638,11 +567,6 @@ func (repo *Repository) CanEnableEditor() bool {
 
 func (repo *Repository) CanContentChange() bool {
 	return !repo.IsMirror && !repo.IsArchived
-}
-
-// DescriptionHTML does special handles to description and return HTML string.
-func (repo *Repository) DescriptionHTML(ctx context.Context) template.HTML {
-	return markup.PostProcessDescriptionHTML(markup.NewRenderContext(ctx), htmlutil.EscapeString(repo.Description))
 }
 
 // CloneLink represents different types of clone URLs of repository.

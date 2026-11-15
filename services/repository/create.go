@@ -30,8 +30,8 @@ import (
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
-	"gitea.dev/modules/templates/vars"
 	"gitea.dev/modules/util"
+	"gitea.dev/modules/vars"
 )
 
 // CreateRepoOptions contains the create repository options

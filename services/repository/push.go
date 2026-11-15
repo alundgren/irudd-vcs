@@ -24,7 +24,6 @@ import (
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
-	issue_service "gitea.dev/services/issue"
 	notify_service "gitea.dev/services/notify"
 	pull_service "gitea.dev/services/pull"
 )
@@ -192,10 +191,6 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 
 				commits := repo_module.GitToPushCommits(l)
 				commits.HeadCommit = repo_module.CommitToPushCommit(newCommit)
-
-				if err := issue_service.UpdateIssuesCommit(ctx, pusher, repo, commits.Commits, opts.RefName()); err != nil {
-					log.Error("updateIssuesCommit: %v", err)
-				}
 
 				commits.CompareURL = getCompareURL(repo, gitRepo, objectFormat, commits.Commits, opts)
 

@@ -15,9 +15,7 @@ import (
 	"gitea.dev/modules/glob"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/options"
-	"gitea.dev/modules/public"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/templates"
 	"gitea.dev/modules/util"
 
 	"github.com/urfave/cli/v3"
@@ -115,8 +113,6 @@ func initEmbeddedExtractor(c *cli.Command) error {
 	}
 
 	collectAssetFilesByPattern(c, patterns, "options", options.BuiltinAssets())
-	collectAssetFilesByPattern(c, patterns, "public", public.BuiltinAssets())
-	collectAssetFilesByPattern(c, patterns, "templates", templates.BuiltinAssets())
 
 	return nil
 }

@@ -5,7 +5,6 @@ package release
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -13,18 +12,15 @@ import (
 	git_model "gitea.dev/models/git"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/container"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/repository"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
-	"gitea.dev/services/context/upload"
 	notify_service "gitea.dev/services/notify"
 )
 
@@ -167,38 +163,6 @@ func createTag(ctx context.Context, gitRepo *git.Repository, rel *repo_model.Rel
 	return created, nil
 }
 
-// CreateRelease creates a new release of repository.
-func CreateRelease(gitRepo *git.Repository, rel *repo_model.Release, attachmentUUIDs []string, msg string) error {
-	has, err := repo_model.IsReleaseExist(gitRepo.Ctx, rel.RepoID, rel.TagName)
-	if err != nil {
-		return err
-	} else if has {
-		return repo_model.ErrReleaseAlreadyExist{
-			TagName: rel.TagName,
-		}
-	}
-
-	if _, err = createTag(gitRepo.Ctx, gitRepo, rel, msg); err != nil {
-		return err
-	}
-
-	rel.Title = util.EllipsisDisplayString(rel.Title, 255)
-	rel.LowerTagName = strings.ToLower(rel.TagName)
-	if err = db.Insert(gitRepo.Ctx, rel); err != nil {
-		return err
-	}
-
-	if err = repo_model.AddReleaseAttachments(gitRepo.Ctx, rel.ID, attachmentUUIDs); err != nil {
-		return err
-	}
-
-	if !rel.IsDraft {
-		notify_service.NewRelease(gitRepo.Ctx, rel)
-	}
-
-	return nil
-}
-
 // ErrTagAlreadyExists represents an error that tag with such name already exists.
 type ErrTagAlreadyExists struct {
 	TagName string
@@ -252,112 +216,6 @@ func CreateNewTag(ctx context.Context, doer *user_model.User, repo *repo_model.R
 	}
 
 	return db.Insert(ctx, rel)
-}
-
-// UpdateRelease updates information, attachments of a release and will create tag if it's not a draft and tag not exist.
-// addAttachmentUUIDs accept a slice of new created attachments' uuids which will be reassigned release_id as the created release
-// delAttachmentUUIDs accept a slice of attachments' uuids which will be deleted from the release
-// editAttachments accept a map of attachment uuid to new attachment name which will be updated with attachments.
-func UpdateRelease(ctx context.Context, doer *user_model.User, gitRepo *git.Repository, rel *repo_model.Release,
-	addAttachmentUUIDs, delAttachmentUUIDs []string, editAttachments map[string]string,
-) error {
-	if rel.ID == 0 {
-		return errors.New("UpdateRelease only accepts an exist release")
-	}
-	isTagCreated, err := createTag(ctx, gitRepo, rel, "")
-	if err != nil {
-		return err
-	}
-	rel.LowerTagName = strings.ToLower(rel.TagName)
-
-	oldRelease, err := repo_model.GetReleaseByID(ctx, rel.ID)
-	if err != nil {
-		return err
-	}
-	isConvertedFromTag := oldRelease.IsTag && !rel.IsTag
-
-	if err := db.WithTx(ctx, func(ctx context.Context) error {
-		if err = repo_model.UpdateRelease(ctx, rel); err != nil {
-			return err
-		}
-
-		if err = repo_model.AddReleaseAttachments(ctx, rel.ID, addAttachmentUUIDs); err != nil {
-			return fmt.Errorf("AddReleaseAttachments: %w", err)
-		}
-
-		deletedUUIDs := make(container.Set[string])
-		if len(delAttachmentUUIDs) > 0 {
-			// Check attachments
-			attachments, err := repo_model.GetAttachmentsByUUIDs(ctx, delAttachmentUUIDs)
-			if err != nil {
-				return fmt.Errorf("GetAttachmentsByUUIDs [uuids: %v]: %w", delAttachmentUUIDs, err)
-			}
-			for _, attach := range attachments {
-				if attach.ReleaseID != rel.ID {
-					return util.NewPermissionDeniedErrorf("delete attachment of release permission denied")
-				}
-				deletedUUIDs.Add(attach.UUID)
-			}
-
-			if _, err := repo_model.DeleteAttachments(ctx, attachments, true); err != nil {
-				return fmt.Errorf("DeleteAttachments [uuids: %v]: %w", delAttachmentUUIDs, err)
-			}
-		}
-
-		if len(editAttachments) > 0 {
-			updateAttachmentsList := make([]string, 0, len(editAttachments))
-			for k := range editAttachments {
-				updateAttachmentsList = append(updateAttachmentsList, k)
-			}
-			// Check attachments
-			attachments, err := repo_model.GetAttachmentsByUUIDs(ctx, updateAttachmentsList)
-			if err != nil {
-				return fmt.Errorf("GetAttachmentsByUUIDs [uuids: %v]: %w", updateAttachmentsList, err)
-			}
-			for _, attach := range attachments {
-				if attach.ReleaseID != rel.ID {
-					return util.NewPermissionDeniedErrorf("update attachment of release permission denied")
-				}
-			}
-
-			for uuid, newName := range editAttachments {
-				if deletedUUIDs.Contains(uuid) {
-					continue
-				}
-				if err = upload.Verify(nil, newName, setting.Repository.Release.AllowedTypes); err != nil {
-					return err
-				}
-				if err = repo_model.UpdateAttachmentByUUID(ctx, &repo_model.Attachment{
-					UUID: uuid,
-					Name: newName,
-				}, "name"); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	for _, uuid := range delAttachmentUUIDs {
-		if err := storage.Attachments.Delete(repo_model.AttachmentRelativePath(uuid)); err != nil {
-			// Even delete files failed, but the attachments has been removed from database, so we
-			// should not return error but only record the error on logs.
-			// users have to delete this attachments manually or we should have a
-			// synchronize between database attachment table and attachment storage
-			log.Error("delete attachment[uuid: %s] failed: %v", uuid, err)
-		}
-	}
-
-	if !rel.IsDraft {
-		if !isTagCreated && !isConvertedFromTag {
-			notify_service.UpdateRelease(gitRepo.Ctx, doer, rel)
-			return nil
-		}
-		notify_service.NewRelease(gitRepo.Ctx, rel)
-	}
-	return nil
 }
 
 // DeleteReleaseByID deletes a release and corresponding Git tag by given ID.

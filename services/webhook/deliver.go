@@ -71,21 +71,6 @@ func newDefaultRequest(ctx context.Context, w *webhook_model.Webhook, t *webhook
 		if err != nil {
 			return nil, nil, err
 		}
-	case http.MethodPut:
-		switch w.Type {
-		case webhook_module.MATRIX: // used when t.Version == 1
-			txnID, err := getMatrixTxnID([]byte(t.PayloadContent))
-			if err != nil {
-				return nil, nil, err
-			}
-			url := fmt.Sprintf("%s/%s", w.URL, url.PathEscape(txnID))
-			req, err = http.NewRequest(http.MethodPut, url, strings.NewReader(t.PayloadContent))
-			if err != nil {
-				return nil, nil, err
-			}
-		default:
-			return nil, nil, fmt.Errorf("invalid http method: %v", w.HTTPMethod)
-		}
 	default:
 		return nil, nil, fmt.Errorf("invalid http method: %v", w.HTTPMethod)
 	}
@@ -164,12 +149,7 @@ func Deliver(ctx context.Context, t *webhook_model.HookTask) error {
 
 	t.IsDelivered = true
 
-	newRequest := webhookRequesters[w.Type]
-	if t.PayloadVersion == 1 || newRequest == nil {
-		newRequest = newDefaultRequest
-	}
-
-	req, body, err := newRequest(ctx, w, t)
+	req, body, err := newDefaultRequest(ctx, w, t)
 	if err != nil {
 		return fmt.Errorf("cannot create http request for webhook %s[%d %s]: %w", w.Type, w.ID, w.URL, err)
 	}

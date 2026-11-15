@@ -24,7 +24,6 @@ import (
 	"gitea.dev/modules/htmlutil"
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/markup"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/references"
 	"gitea.dev/modules/setting"
@@ -536,12 +535,6 @@ func (c *Comment) EventTag() string {
 	return fmt.Sprintf("event-%d", c.ID)
 }
 
-func (c *Comment) GetSanitizedContentHTML() template.HTML {
-	// mainly for type=4 CommentTypeCommitRef
-	// the content is a link like <a href="{RepoLink}/commit/{CommitID}">message title</a> (from CreateRefComment)
-	return markup.Sanitize(c.Content)
-}
-
 // LoadLabel if comment.Type is CommentTypeLabel, then load Label
 func (c *Comment) LoadLabel(ctx context.Context) error {
 	if c.LabelID == 0 {
@@ -882,9 +875,6 @@ func CreateComment(ctx context.Context, opts *CreateCommentOptions) (_ *Comment,
 			return nil, err
 		}
 
-		if err = comment.AddCrossReferences(ctx, opts.Doer, false); err != nil {
-			return nil, err
-		}
 		return comment, nil
 	})
 }
@@ -1160,10 +1150,7 @@ func UpdateComment(ctx context.Context, c *Comment, contentVersion int, doer *us
 		if affected == 0 {
 			return ErrCommentAlreadyChanged
 		}
-		if err := c.LoadIssue(ctx); err != nil {
-			return err
-		}
-		return c.AddCrossReferences(ctx, doer, true)
+		return c.LoadIssue(ctx)
 	})
 }
 
@@ -1190,10 +1177,6 @@ func DeleteComment(ctx context.Context, comment *Comment) error {
 		Update(map[string]any{
 			"is_deleted": true,
 		}); err != nil {
-		return err
-	}
-
-	if err := comment.neuterCrossReferences(ctx); err != nil {
 		return err
 	}
 
