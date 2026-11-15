@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"gitea.dev/models"
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
@@ -51,19 +50,6 @@ func checkHooks(ctx context.Context, logger log.Logger, autofix bool) error {
 	}); err != nil {
 		logger.Critical("Errors noted whilst checking delegate hooks.")
 		return err
-	}
-	return nil
-}
-
-func checkUserStarNum(ctx context.Context, logger log.Logger, autofix bool) error {
-	if autofix {
-		if err := models.DoctorUserStarNum(ctx); err != nil {
-			logger.Critical("Unable update User Stars numbers")
-			return err
-		}
-		logger.Info("Updated User Stars numbers.")
-	} else {
-		logger.Info("No check available for User Stars numbers (skipped)")
 	}
 	return nil
 }
@@ -199,13 +185,6 @@ func init() {
 		Name:      "hooks",
 		IsDefault: false,
 		Run:       checkHooks,
-		Priority:  6,
-	})
-	Register(&Check{
-		Title:     "Recalculate Stars number for all user",
-		Name:      "recalculate-stars-number",
-		IsDefault: false,
-		Run:       checkUserStarNum,
 		Priority:  6,
 	})
 	Register(&Check{

@@ -12,7 +12,6 @@ import (
 	issues_model "gitea.dev/models/issues"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
-	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/log"
 
 	_ "image/jpeg" // Needed for jpeg support
@@ -57,14 +56,6 @@ func StatsCorrectSQL(ctx context.Context, sql any, ids ...any) error {
 	args = append(args, ids...)
 	_, err := db.GetEngine(ctx).Exec(args...)
 	return err
-}
-
-func repoStatsCorrectNumWatches(ctx context.Context, id int64) error {
-	return StatsCorrectSQL(ctx, "UPDATE `repository` SET num_watches=(SELECT COUNT(*) FROM `watch` WHERE repo_id=? AND mode<>2) WHERE id=?", id, id)
-}
-
-func repoStatsCorrectNumStars(ctx context.Context, id int64) error {
-	return StatsCorrectSQL(ctx, "UPDATE `repository` SET num_stars=(SELECT COUNT(*) FROM `star` WHERE repo_id=?) WHERE id=?", id, id)
 }
 
 func labelStatsCorrectNumIssues(ctx context.Context, id int64) error {
@@ -114,18 +105,6 @@ func CheckRepoStats(ctx context.Context) error {
 	log.Trace("Doing: CheckRepoStats")
 
 	checkers := []*repoChecker{
-		// Repository.NumWatches
-		{
-			statsQuery("SELECT repo.id FROM `repository` repo WHERE repo.num_watches!=(SELECT COUNT(*) FROM `watch` WHERE repo_id=repo.id AND mode<>2)"),
-			repoStatsCorrectNumWatches,
-			"repository count 'num_watches'",
-		},
-		// Repository.NumStars
-		{
-			statsQuery("SELECT repo.id FROM `repository` repo WHERE repo.num_stars!=(SELECT COUNT(*) FROM `star` WHERE repo_id=repo.id)"),
-			repoStatsCorrectNumStars,
-			"repository count 'num_stars'",
-		},
 		// Repository.NumIssues
 		{
 			statsQuery("SELECT repo.id FROM `repository` repo WHERE repo.num_issues!=(SELECT COUNT(*) FROM `issue` WHERE repo_id=repo.id AND is_pull=?)", false),
@@ -231,38 +210,4 @@ func CheckRepoStats(ctx context.Context) error {
 	}
 	// ***** END: Repository.NumForks *****
 	return nil
-}
-
-func updateUserStarNumbers(ctx context.Context, users []user_model.User) error {
-	return db.WithTx(ctx, func(ctx context.Context) error {
-		for _, user := range users {
-			if _, err := db.Exec(ctx, "UPDATE `user` SET num_stars=(SELECT COUNT(*) FROM `star` WHERE uid=?) WHERE id=?", user.ID, user.ID); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-// DoctorUserStarNum recalculate Stars number for all user
-func DoctorUserStarNum(ctx context.Context) (err error) {
-	const batchSize = 100
-
-	for start := 0; ; start += batchSize {
-		users := make([]user_model.User, 0, batchSize)
-		if err = db.GetEngine(ctx).Limit(batchSize, start).Where("type = ?", 0).Cols("id").Find(&users); err != nil {
-			return err
-		}
-		if len(users) == 0 {
-			break
-		}
-
-		if err = updateUserStarNumbers(ctx, users); err != nil {
-			return err
-		}
-	}
-
-	log.Debug("recalculate Stars number for all user finished")
-
-	return err
 }

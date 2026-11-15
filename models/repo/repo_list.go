@@ -125,11 +125,10 @@ type SearchRepoOptions struct {
 	PriorityOwnerID int64
 	TeamID          int64
 	OrderBy         db.SearchOrderBy
-	Private         bool // Include private repositories in results
-	StarredByID     int64
-	WatchedByID     int64
-	AllPublic       bool // Include also all public repositories of users and public organisations
-	AllLimited      bool // Include also all public repositories of limited organisations
+	Private         bool  // Include private repositories in results
+	StarredByID     int64 // stars were removed, so a set value matches no repository
+	AllPublic       bool  // Include also all public repositories of users and public organisations
+	AllLimited      bool  // Include also all public repositories of limited organisations
 	// None -> include public and private
 	// True -> include just private
 	// False -> include just public
@@ -160,7 +159,7 @@ type SearchRepoOptions struct {
 	// True -> include just archived
 	// False -> include just non-archived
 	Archived optional.Option[bool]
-	// only search topic name
+	// only search topic name; topics were removed, so it matches no repository
 	TopicOnly bool
 	// include description in keyword search
 	IncludeDescription bool
@@ -361,12 +360,7 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 
 	// Restrict to starred repositories
 	if opts.StarredByID > 0 {
-		cond = cond.And(builder.In("id", builder.Select("repo_id").From("star").Where(builder.Eq{"uid": opts.StarredByID})))
-	}
-
-	// Restrict to watched repositories
-	if opts.WatchedByID > 0 {
-		cond = cond.And(builder.In("id", builder.Select("repo_id").From("watch").Where(builder.Eq{"user_id": opts.WatchedByID})))
+		cond = cond.And(builder.Expr("1 = 0"))
 	}
 
 	// Restrict repositories to those the OwnerID owns or contributes to as per opts.Collaborate
@@ -420,22 +414,9 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 	}
 
 	if opts.Keyword != "" {
-		// separate keyword
-		subQueryCond := builder.NewCond()
-		for v := range strings.SplitSeq(opts.Keyword, ",") {
-			if opts.TopicOnly {
-				subQueryCond = subQueryCond.Or(builder.Eq{"topic.name": strings.ToLower(v)})
-			} else {
-				subQueryCond = subQueryCond.Or(builder.Like{"topic.name", strings.ToLower(v)})
-			}
-		}
-		subQuery := builder.Select("repo_topic.repo_id").From("repo_topic").
-			Join("INNER", "topic", "topic.id = repo_topic.topic_id").
-			Where(subQueryCond).
-			GroupBy("repo_topic.repo_id")
-
-		keywordCond := builder.In("id", subQuery)
+		keywordCond := builder.Expr("1 = 0")
 		if !opts.TopicOnly {
+			// separate keyword
 			likes := builder.NewCond()
 			for v := range strings.SplitSeq(opts.Keyword, ",") {
 				likes = likes.Or(builder.Like{"lower_name", strings.ToLower(v)})
@@ -452,7 +433,7 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 					likes = likes.Or(builder.Like{"LOWER(description)", strings.ToLower(v)})
 				}
 			}
-			keywordCond = keywordCond.Or(likes)
+			keywordCond = likes
 		}
 		cond = cond.And(keywordCond)
 	}
