@@ -68,10 +68,6 @@ func newDumpCommand() *cli.Command {
 				Usage: "Skip LFS data",
 			},
 			&cli.BoolFlag{
-				Name:  "skip-index",
-				Usage: "Skip bleve index data",
-			},
-			&cli.BoolFlag{
 				Name:  "skip-db",
 				Usage: "Skip database",
 			},
@@ -228,11 +224,6 @@ func runDump(ctx context.Context, cmd *cli.Command) error {
 		log.Info("Packing data directory...%s", setting.AppDataPath)
 
 		var excludes []string
-		if cmd.IsSet("skip-index") && cmd.Bool("skip-index") {
-			excludes = append(excludes, setting.Indexer.RepoPath)
-			excludes = append(excludes, setting.Indexer.IssuePath)
-		}
-
 		excludes = append(excludes, setting.RepoRootPath)
 		excludes = append(excludes, setting.LFS.Storage.Path)
 		excludes = append(excludes, setting.Log.RootPath)

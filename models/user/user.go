@@ -24,7 +24,6 @@ import (
 	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	"gitea.dev/modules/auth/password/hash"
-	"gitea.dev/modules/base"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/htmlutil"
@@ -201,13 +200,6 @@ func (u *User) BeforeUpdate() {
 	u.Description = util.TruncateRunes(u.Description, 255)
 }
 
-// AfterLoad is invoked from XORM after filling all the fields of this object.
-func (u *User) AfterLoad() {
-	if u.Theme == "" {
-		u.Theme = setting.UI.DefaultTheme
-	}
-}
-
 // SetLastLogin set time to last login
 func (u *User) SetLastLogin() {
 	u.LastLoginUnix = timeutil.TimeStampNow()
@@ -289,14 +281,6 @@ func (u *User) CanForkRepoIn(owner *User) bool {
 		return true
 	}
 	return u.CanCreateRepoIn(owner)
-}
-
-// CanImportLocal returns true if user can migrate repository by local path.
-func (u *User) CanImportLocal() bool {
-	if !setting.ImportLocalPaths || u == nil {
-		return false
-	}
-	return u.IsAdmin || u.AllowImportLocal
 }
 
 // DashboardLink returns the user dashboard page link.
@@ -675,11 +659,10 @@ func createUser(ctx context.Context, u *User, meta *Meta, createdByAdmin bool, o
 	u.KeepEmailPrivate = setting.Service.DefaultKeepEmailPrivate
 	u.Visibility = setting.Service.DefaultUserVisibilityMode
 	u.AllowCreateOrganization = setting.Service.DefaultAllowCreateOrganization && !setting.Admin.DisableRegularOrgCreation
-	u.EmailNotificationsPreference = setting.Admin.DefaultEmailNotification
+	u.EmailNotificationsPreference = EmailNotificationsEnabled
 	u.MaxRepoCreation = -1
-	u.Theme = setting.UI.DefaultTheme
 	u.IsRestricted = setting.Service.DefaultUserIsRestricted
-	u.IsActive = !(setting.Service.RegisterEmailConfirm || setting.Service.RegisterManualConfirm)
+	u.IsActive = true // no mail service, so there is no email confirmation
 
 	// Ensure consistency of the dates.
 	if u.UpdatedUnix < u.CreatedUnix {
@@ -882,63 +865,6 @@ func countUsers(ctx context.Context, opts *CountUserFilter) int64 {
 	}
 
 	return count
-}
-
-// GetVerifyUser get user by verify code
-func GetVerifyUser(ctx context.Context, code string) (user *User) {
-	if len(code) <= base.TimeLimitCodeLength {
-		return nil
-	}
-
-	// use tail hex username query user
-	hexStr := code[base.TimeLimitCodeLength:]
-	if b, err := hex.DecodeString(hexStr); err == nil {
-		if user, err = GetUserByName(ctx, string(b)); user != nil {
-			return user
-		}
-		log.Error("user.getVerifyUser: %v", err)
-	}
-
-	return nil
-}
-
-type TimeLimitCodePurpose string
-
-const (
-	TimeLimitCodeActivateAccount TimeLimitCodePurpose = "activate_account"
-	TimeLimitCodeActivateEmail   TimeLimitCodePurpose = "activate_email"
-	TimeLimitCodeResetPassword   TimeLimitCodePurpose = "reset_password"
-)
-
-type TimeLimitCodeOptions struct {
-	Purpose  TimeLimitCodePurpose
-	NewEmail string
-}
-
-func makeTimeLimitCodeHashData(opts *TimeLimitCodeOptions, u *User) string {
-	return fmt.Sprintf("%s|%d|%s|%s|%s|%s", opts.Purpose, u.ID, strings.ToLower(util.IfZero(opts.NewEmail, u.Email)), u.LowerName, u.Passwd, u.Rands)
-}
-
-// GenerateUserTimeLimitCode generates a time-limit code based on user information and given e-mail.
-// TODO: need to use cache or db to store it to make sure a code can only be consumed once
-func GenerateUserTimeLimitCode(opts *TimeLimitCodeOptions, u *User) string {
-	data := makeTimeLimitCodeHashData(opts, u)
-	code := base.CreateTimeLimitCode(data, setting.Service.ActiveCodeLives, time.Now(), nil)
-	code += hex.EncodeToString([]byte(u.LowerName)) // Add tail hex username
-	return code
-}
-
-// VerifyUserTimeLimitCode verifies the time-limit code
-func VerifyUserTimeLimitCode(ctx context.Context, opts *TimeLimitCodeOptions, code string) (user *User) {
-	if user = GetVerifyUser(ctx, code); user != nil {
-		// time limit code
-		prefix := code[:base.TimeLimitCodeLength]
-		data := makeTimeLimitCodeHashData(opts, user)
-		if base.VerifyTimeLimitCode(time.Now(), data, setting.Service.ActiveCodeLives, prefix) {
-			return user
-		}
-	}
-	return nil
 }
 
 // ValidateUser check if user is valid to insert / update into database

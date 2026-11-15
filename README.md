@@ -114,10 +114,8 @@ Gitea is pronounced [/ɡɪ’ti:/](https://youtu.be/EM71-2uDAoY) as in "gi-tea" 
 
 **How do I configure Gitea?**
 
-For dynamic config options, you can change it on your admin panel's configuration section.
-
-For static config options, you can edit your `app.ini` file and resart the instance.
-See [app.example.ini](https://github.com/go-gitea/gitea/blob/main/custom/conf/app.example.ini) or [configuration documentation](https://docs.gitea.com/administration/config-cheat-sheet) for more details.
+Edit your `app.ini` file and restart the instance.
+See [app.example.ini](custom/conf/app.example.ini) for the options that are still supported.
 
 **Where can I find the security patches?**
 

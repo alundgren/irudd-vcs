@@ -18,9 +18,7 @@ var Security = struct {
 	// TODO: move more settings to this struct in future
 	XFrameOptions       string
 	XContentTypeOptions string
-
-	ContentSecurityPolicyGeneral string // it only supports empty (default policy) or "unset", maybe it can support more in the future
-	AllowedHostList              string
+	AllowedHostList     string // default for [webhook] ALLOWED_HOST_LIST
 }{
 	XFrameOptions:       "SAMEORIGIN",
 	XContentTypeOptions: "nosniff",
@@ -31,16 +29,9 @@ var (
 	InstallLock                        bool
 	SecretKey                          string
 	InternalToken                      string // internal access token
-	LogInRememberDays                  int
-	CookieRememberName                 string
-	ReverseProxyAuthUser               string
-	ReverseProxyAuthEmail              string
-	ReverseProxyAuthFullName           string
 	ReverseProxyLimit                  int
-	ReverseProxyLogoutRedirect         string
 	ReverseProxyTrustedProxies         []string
 	MinPasswordLength                  int
-	ImportLocalPaths                   bool
 	DisableGitHooks                    = true
 	DisableWebhooks                    bool
 	OnlyAllowPushIfGiteaEnvironmentSet bool
@@ -115,7 +106,6 @@ func generateSaveInternalToken(rootCfg ConfigProvider) {
 
 func loadSecurityFrom(rootCfg ConfigProvider) {
 	sec := rootCfg.Section("security")
-	LogInRememberDays = sec.Key("LOGIN_REMEMBER_DAYS").MustInt(31)
 	SecretKey = loadSecret(sec, "SECRET_KEY_URI", "SECRET_KEY")
 	if SecretKey == "" {
 		// FIXME: https://github.com/go-gitea/gitea/issues/16832
@@ -123,21 +113,13 @@ func loadSecurityFrom(rootCfg ConfigProvider) {
 		SecretKey = "!#@FDEWREWR&*("
 	}
 
-	CookieRememberName = sec.Key("COOKIE_REMEMBER_NAME").MustString("gitea_incredible")
-
-	ReverseProxyAuthUser = sec.Key("REVERSE_PROXY_AUTHENTICATION_USER").MustString("X-WEBAUTH-USER")
-	ReverseProxyAuthEmail = sec.Key("REVERSE_PROXY_AUTHENTICATION_EMAIL").MustString("X-WEBAUTH-EMAIL")
-	ReverseProxyAuthFullName = sec.Key("REVERSE_PROXY_AUTHENTICATION_FULL_NAME").MustString("X-WEBAUTH-FULLNAME")
-
 	ReverseProxyLimit = sec.Key("REVERSE_PROXY_LIMIT").MustInt(1)
-	ReverseProxyLogoutRedirect = sec.Key("REVERSE_PROXY_LOGOUT_REDIRECT").String()
 	ReverseProxyTrustedProxies = sec.Key("REVERSE_PROXY_TRUSTED_PROXIES").Strings(",")
 	if len(ReverseProxyTrustedProxies) == 0 {
 		ReverseProxyTrustedProxies = []string{"127.0.0.0/8", "::1/128"}
 	}
 
 	MinPasswordLength = sec.Key("MIN_PASSWORD_LENGTH").MustInt(8)
-	ImportLocalPaths = sec.Key("IMPORT_LOCAL_PATHS").MustBool(false)
 	DisableGitHooks = sec.Key("DISABLE_GIT_HOOKS").MustBool(true)
 	DisableWebhooks = sec.Key("DISABLE_WEBHOOKS").MustBool(false)
 	OnlyAllowPushIfGiteaEnvironmentSet = sec.Key("ONLY_ALLOW_PUSH_IF_GITEA_ENVIRONMENT_SET").MustBool(true)

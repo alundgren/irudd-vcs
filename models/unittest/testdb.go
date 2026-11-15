@@ -13,11 +13,9 @@ import (
 	"testing"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/system"
 	"gitea.dev/modules/cache"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/setting/config"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/tempdir"
 	"gitea.dev/modules/testlogger"
@@ -62,15 +60,8 @@ func mainTest(m *testing.M, testOptsArg ...*TestOptions) int {
 	setting.AppURL = "https://try.gitea.io/"
 	setting.Domain = "try.gitea.io"
 	setting.RunUser = "runuser"
-	setting.SSH.User = "sshuser"
-	setting.SSH.BuiltinServerUser = "builtinuser"
-	setting.SSH.Port = 3000
-	setting.SSH.Domain = "try.gitea.io"
 	setting.Database.Type = "sqlite3"
 	setting.Repository.DefaultBranch = "master" // many test code still assume that default branch is called "master"
-	setting.IncomingEmail.ReplyToAddress = "incoming+%{token}@localhost"
-
-	config.SetDynGetter(system.NewDatabaseDynKeyGetter())
 
 	if err = cache.Init(); err != nil {
 		return testlogger.MainErrorf("cache.Init: %v", err)

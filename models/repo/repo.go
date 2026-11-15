@@ -564,18 +564,6 @@ func (repo *Repository) GetOriginalURLHostname() string {
 	return u.Host
 }
 
-// GetTrustModel will get the TrustModel for the repo or the default trust model
-func (repo *Repository) GetTrustModel() TrustModelType {
-	trustModel := repo.TrustModel
-	if trustModel == DefaultTrustModel {
-		trustModel = ToTrustModel(setting.Repository.Signing.DefaultTrustModel)
-		if trustModel == DefaultTrustModel {
-			return CollaboratorTrustModel
-		}
-	}
-	return trustModel
-}
-
 // MustNotBeArchived returns ErrRepoIsArchived if the repo is archived
 func (repo *Repository) MustNotBeArchived() error {
 	if repo.IsArchived {

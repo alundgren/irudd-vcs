@@ -10,10 +10,8 @@ import (
 
 	"gitea.dev/models/db"
 	"gitea.dev/models/migrations"
-	system_model "gitea.dev/models/system"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/setting/config"
 	"gitea.dev/services/versioned_migration"
 )
 
@@ -36,7 +34,6 @@ func InitDBEngine(ctx context.Context) (err error) {
 		log.Info("Backing off for %d seconds", int64(setting.Database.DBConnectBackoff/time.Second))
 		time.Sleep(setting.Database.DBConnectBackoff)
 	}
-	config.SetDynGetter(system_model.NewDatabaseDynKeyGetter())
 	return nil
 }
 

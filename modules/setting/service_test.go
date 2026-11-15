@@ -135,7 +135,6 @@ func TestLoadServiceRequireSignInView(t *testing.T) {
 	assert.NoError(t, err)
 	loadServiceFrom(cfg)
 	assert.False(t, Service.RequireSignInViewStrict)
-	assert.False(t, Service.BlockAnonymousAccessExpensive)
 
 	cfg, err = NewConfigProviderFromData(`
 [service]
@@ -144,7 +143,6 @@ REQUIRE_SIGNIN_VIEW = true
 	assert.NoError(t, err)
 	loadServiceFrom(cfg)
 	assert.True(t, Service.RequireSignInViewStrict)
-	assert.False(t, Service.BlockAnonymousAccessExpensive)
 
 	cfg, err = NewConfigProviderFromData(`
 [service]
@@ -153,5 +151,4 @@ REQUIRE_SIGNIN_VIEW = expensive
 	assert.NoError(t, err)
 	loadServiceFrom(cfg)
 	assert.False(t, Service.RequireSignInViewStrict)
-	assert.True(t, Service.BlockAnonymousAccessExpensive)
 }

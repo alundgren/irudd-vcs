@@ -341,13 +341,6 @@ func deprecatedSetting(rootCfg ConfigProvider, oldSection, oldKey, newSection, n
 	}
 }
 
-// deprecatedSettingDB add a hint that the configuration has been moved to database but still kept in app.ini
-func deprecatedSettingDB(rootCfg ConfigProvider, oldSection, oldKey string) {
-	if rootCfg.Section(oldSection).HasKey(oldKey) {
-		LogStartupProblem(1, log.ERROR, "Deprecation: config option `[%s].%s` present but it won't take effect because it has been moved to admin panel -> config setting", oldSection, oldKey)
-	}
-}
-
 func init() {
 	ini.PrettyFormat = false
 }

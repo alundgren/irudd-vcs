@@ -100,20 +100,6 @@ func LoadRepoConfig() error {
 		labelTemplateFileMap[displayName] = file
 		LabelTemplateFiles = append(LabelTemplateFiles, OptionFile{DisplayName: displayName, Description: description})
 	}
-
-	// Filter out invalid names and promote preferred licenses.
-	sortedLicenses := make([]string, 0, len(Licenses))
-	for _, name := range setting.Repository.PreferredLicenses {
-		if util.SliceContainsString(Licenses, name, true) {
-			sortedLicenses = append(sortedLicenses, name)
-		}
-	}
-	for _, name := range Licenses {
-		if !util.SliceContainsString(setting.Repository.PreferredLicenses, name, true) {
-			sortedLicenses = append(sortedLicenses, name)
-		}
-	}
-	Licenses = sortedLicenses
 	return nil
 }
 

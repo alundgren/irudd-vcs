@@ -11,22 +11,6 @@ import (
 	"gitea.dev/modules/log"
 )
 
-// enumerates all the policy repository creating
-const (
-	RepoCreatingLastUserVisibility = "last"
-	RepoCreatingPrivate            = "private"
-	RepoCreatingPublic             = "public"
-)
-
-// enumerates the values for [repository.pull-request] DEFAULT_TITLE_SOURCE
-const (
-	RepoPRTitleSourceFirstCommit = "first-commit"
-	RepoPRTitleSourceAuto        = "auto"
-)
-
-// ItemsPerPage maximum items per page in forks, watchers and stars of a repo
-const ItemsPerPage = 40
-
 // Repository settings
 var (
 	Repository = struct {
@@ -34,16 +18,12 @@ var (
 		DetectedCharsetScore                    map[string]int `ini:"-"`
 		AnsiCharset                             string
 		ForcePrivate                            bool
-		DefaultPrivate                          string
 		DefaultPushCreatePrivate                bool
 		MaxCreationLimit                        int
 		UserMaxCreationLimit                    int
 		OrgMaxCreationLimit                     int
-		PreferredLicenses                       []string
 		DisableHTTPGit                          bool
 		AccessControlAllowOrigin                string
-		UseCompatSSHURI                         bool
-		GoGetCloneURLProtocol                   string
 		DefaultCloseIssuesViaCommitsInAnyBranch bool
 		EnablePushCreateUser                    bool
 		EnablePushCreateOrg                     bool
@@ -51,24 +31,13 @@ var (
 		DefaultRepoUnits                        []string
 		DefaultForkRepoUnits                    []string
 		DefaultTemplateRepoUnits                []string
-		DisableMigrations                       bool
-		DisableStars                            bool `ini:"DISABLE_STARS"`
 		DefaultBranch                           string
-		AllowAdoptionOfUnadoptedRepositories    bool
-		AllowDeleteOfUnadoptedRepositories      bool
 		AllowForkWithoutMaximumLimit            bool
 		AllowForkIntoSameOwner                  bool
-
-		// Repository editor settings
-		Editor struct {
-			LineWrapExtensions []string
-		} `ini:"-"`
 
 		// Pull request settings
 		PullRequest struct {
 			WorkInProgressPrefixes                   []string
-			CloseKeywords                            []string
-			ReopenKeywords                           []string
 			DefaultMergeStyle                        string
 			DefaultMergeMessageCommitsLimit          int
 			DefaultMergeMessageSize                  int
@@ -80,25 +49,7 @@ var (
 			RetargetChildrenOnMerge                  bool
 			DelayCheckForInactiveDays                int
 			DefaultDeleteBranchAfterMerge            bool
-			DefaultTitleSource                       string
 		} `ini:"repository.pull-request"`
-
-		// Issue Setting
-		Issue struct {
-			LockReasons []string
-		} `ini:"repository.issue"`
-
-		Signing struct {
-			SigningKey        string
-			SigningName       string
-			SigningEmail      string
-			SigningFormat     string
-			InitialCommit     []string
-			CRUDActions       []string `ini:"CRUD_ACTIONS"`
-			Merges            []string
-			DefaultTrustModel string
-			TrustedSSHKeys    []string `ini:"TRUSTED_SSH_KEYS"`
-		} `ini:"repository.signing"`
 	}{
 		DetectedCharsetsOrder: []string{
 			"UTF-8",
@@ -138,15 +89,12 @@ var (
 		DetectedCharsetScore:                    map[string]int{},
 		AnsiCharset:                             "",
 		ForcePrivate:                            false,
-		DefaultPrivate:                          RepoCreatingLastUserVisibility,
 		DefaultPushCreatePrivate:                true,
 		MaxCreationLimit:                        -1,
 		UserMaxCreationLimit:                    -1,
 		OrgMaxCreationLimit:                     -1,
-		PreferredLicenses:                       []string{"Apache License 2.0", "MIT License"},
 		DisableHTTPGit:                          false,
 		AccessControlAllowOrigin:                "",
-		UseCompatSSHURI:                         false,
 		DefaultCloseIssuesViaCommitsInAnyBranch: false,
 		EnablePushCreateUser:                    false,
 		EnablePushCreateOrg:                     false,
@@ -154,23 +102,12 @@ var (
 		DefaultRepoUnits:                        []string{},
 		DefaultForkRepoUnits:                    []string{},
 		DefaultTemplateRepoUnits:                []string{},
-		DisableMigrations:                       false,
-		DisableStars:                            false,
 		DefaultBranch:                           "main",
 		AllowForkWithoutMaximumLimit:            true,
-
-		// Repository editor settings
-		Editor: struct {
-			LineWrapExtensions []string
-		}{
-			LineWrapExtensions: strings.Split(".txt,.md,.markdown,.mdown,.mkd,.livemd,", ","),
-		},
 
 		// Pull request settings
 		PullRequest: struct {
 			WorkInProgressPrefixes                   []string
-			CloseKeywords                            []string
-			ReopenKeywords                           []string
 			DefaultMergeStyle                        string
 			DefaultMergeMessageCommitsLimit          int
 			DefaultMergeMessageSize                  int
@@ -182,13 +119,8 @@ var (
 			RetargetChildrenOnMerge                  bool
 			DelayCheckForInactiveDays                int
 			DefaultDeleteBranchAfterMerge            bool
-			DefaultTitleSource                       string
 		}{
-			WorkInProgressPrefixes: []string{"WIP:", "[WIP]"},
-			// Same as GitHub. See
-			// https://help.github.com/articles/closing-issues-via-commit-messages
-			CloseKeywords:                            strings.Split("close,closes,closed,fix,fixes,fixed,resolve,resolves,resolved", ","),
-			ReopenKeywords:                           strings.Split("reopen,reopens,reopened", ","),
+			WorkInProgressPrefixes:                   []string{"WIP:", "[WIP]"},
 			DefaultMergeStyle:                        "merge",
 			DefaultMergeMessageCommitsLimit:          50,
 			DefaultMergeMessageSize:                  5 * 1024,
@@ -199,37 +131,6 @@ var (
 			AddCoCommitterTrailers:                   true,
 			RetargetChildrenOnMerge:                  true,
 			DelayCheckForInactiveDays:                7,
-			DefaultTitleSource:                       RepoPRTitleSourceAuto,
-		},
-
-		// Issue settings
-		Issue: struct {
-			LockReasons []string
-		}{
-			LockReasons: strings.Split("Too heated,Off-topic,Spam,Resolved", ","),
-		},
-
-		// Signing settings
-		Signing: struct {
-			SigningKey        string
-			SigningName       string
-			SigningEmail      string
-			SigningFormat     string
-			InitialCommit     []string
-			CRUDActions       []string `ini:"CRUD_ACTIONS"`
-			Merges            []string
-			DefaultTrustModel string
-			TrustedSSHKeys    []string `ini:"TRUSTED_SSH_KEYS"`
-		}{
-			SigningKey:        "default",
-			SigningName:       "",
-			SigningEmail:      "",
-			SigningFormat:     "openpgp", // git.SigningKeyFormatOpenPGP
-			InitialCommit:     []string{"always"},
-			CRUDActions:       []string{"pubkey", "twofa", "parentsigned"},
-			Merges:            []string{"pubkey", "twofa", "basesigned", "commitssigned"},
-			DefaultTrustModel: "collaborator",
-			TrustedSSHKeys:    []string{},
 		},
 	}
 	RepoRootPath string
@@ -241,8 +142,6 @@ func loadRepositoryFrom(rootCfg ConfigProvider) {
 	// Determine and create root git repository path.
 	sec := rootCfg.Section("repository")
 	Repository.DisableHTTPGit = sec.Key("DISABLE_HTTP_GIT").MustBool()
-	Repository.UseCompatSSHURI = sec.Key("USE_COMPAT_SSH_URI").MustBool()
-	Repository.GoGetCloneURLProtocol = sec.Key("GO_GET_CLONE_URL_PROTOCOL").MustString("https")
 	// MAX_CREATION_LIMIT is a shortcut that sets the default for the two per-type limits below.
 	// USER_/ORG_MAX_CREATION_LIMIT take precedence when explicitly set.
 	Repository.MaxCreationLimit = sec.Key("MAX_CREATION_LIMIT").MustInt(-1)
@@ -270,16 +169,8 @@ func loadRepositoryFrom(rootCfg ConfigProvider) {
 
 	if err = sec.MapTo(&Repository); err != nil {
 		log.Fatal("Failed to map Repository settings: %v", err)
-	} else if err = rootCfg.Section("repository.editor").MapTo(&Repository.Editor); err != nil {
-		log.Fatal("Failed to map Repository.Editor settings: %v", err)
 	} else if err = rootCfg.Section("repository.pull-request").MapTo(&Repository.PullRequest); err != nil {
 		log.Fatal("Failed to map Repository.PullRequest settings: %v", err)
-	}
-
-	// Handle default trustmodel settings
-	Repository.Signing.DefaultTrustModel = strings.ToLower(strings.TrimSpace(Repository.Signing.DefaultTrustModel))
-	if Repository.Signing.DefaultTrustModel == "default" {
-		Repository.Signing.DefaultTrustModel = "collaborator"
 	}
 
 	// Handle preferred charset orders

@@ -9,10 +9,8 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
-	"time"
 
 	"gitea.dev/models/db"
-	"gitea.dev/modules/base"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/setting"
@@ -224,10 +222,6 @@ func IsEmailActive(ctx context.Context, email string, excludeEmailID int64) (boo
 	// Can't filter by boolean field unless it's explicit
 	cond := builder.NewCond()
 	cond = cond.And(builder.Eq{"lower_email": strings.ToLower(email)}, builder.Neq{"id": excludeEmailID})
-	if setting.Service.RegisterEmailConfirm {
-		// Inactive (unvalidated) addresses don't count as active if email validation is required
-		cond = cond.And(builder.Eq{"is_activated": true})
-	}
 
 	var em EmailAddress
 	if has, err := db.GetEngine(ctx).Where(cond).Get(&em); has || err != nil {
@@ -338,23 +332,6 @@ func ChangeInactivePrimaryEmail(ctx context.Context, uid int64, oldEmailAddr, ne
 		}
 		return MakeInactiveEmailPrimary(ctx, uid, newEmail.ID)
 	})
-}
-
-// VerifyActiveEmailCode verifies active email code when active account
-func VerifyActiveEmailCode(ctx context.Context, code, email string) *EmailAddress {
-	if user := GetVerifyUser(ctx, code); user != nil {
-		// time limit code
-		prefix := code[:base.TimeLimitCodeLength]
-		opts := &TimeLimitCodeOptions{Purpose: TimeLimitCodeActivateEmail, NewEmail: email}
-		data := makeTimeLimitCodeHashData(opts, user)
-		if base.VerifyTimeLimitCode(time.Now(), data, setting.Service.ActiveCodeLives, prefix) {
-			emailAddress, has, _ := db.Get[EmailAddress](ctx, builder.Eq{"uid": user.ID, "email": email})
-			if has {
-				return emailAddress
-			}
-		}
-	}
-	return nil
 }
 
 // SearchEmailOrderBy is used to sort the results from SearchEmails()

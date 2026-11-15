@@ -22,9 +22,7 @@ func GetGeneralUISettings(ctx *context.APIContext) {
 	//   "200":
 	//     "$ref": "#/responses/GeneralUISettings"
 	ctx.JSON(http.StatusOK, api.GeneralUISettings{
-		DefaultTheme:     setting.UI.DefaultTheme,
 		AllowedReactions: setting.UI.Reactions,
-		CustomEmojis:     setting.UI.CustomEmojis,
 	})
 }
 
@@ -60,8 +58,8 @@ func GetGeneralRepoSettings(ctx *context.APIContext) {
 	ctx.JSON(http.StatusOK, api.GeneralRepoSettings{
 		MirrorsDisabled:    true,
 		HTTPGitDisabled:    setting.Repository.DisableHTTPGit,
-		MigrationsDisabled: setting.Repository.DisableMigrations,
-		StarsDisabled:      setting.Repository.DisableStars,
+		MigrationsDisabled: true,
+		StarsDisabled:      true,
 		LFSDisabled:        !setting.LFS.StartServer,
 	})
 }

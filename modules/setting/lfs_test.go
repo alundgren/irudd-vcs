@@ -100,31 +100,14 @@ STORAGE_TYPE = minio
 	assert.Equal(t, "lfs/", LFS.Storage.MinioConfig.BasePath)
 }
 
-func Test_LFSClientServerConfigs(t *testing.T) {
+func Test_LFSServerConfigs(t *testing.T) {
 	iniStr := `
 [server]
 LFS_MAX_BATCH_SIZE = 100
-[lfs_client]
-# will default to 20
-BATCH_SIZE = 0
 `
 	cfg, err := NewConfigProviderFromData(iniStr)
 	assert.NoError(t, err)
 
 	assert.NoError(t, loadLFSFrom(cfg))
 	assert.Equal(t, 100, LFS.MaxBatchSize)
-	assert.Equal(t, 20, LFSClient.BatchSize)
-	assert.Equal(t, 8, LFSClient.BatchOperationConcurrency)
-
-	iniStr = `
-[lfs_client]
-BATCH_SIZE = 50
-BATCH_OPERATION_CONCURRENCY = 10
-`
-	cfg, err = NewConfigProviderFromData(iniStr)
-	assert.NoError(t, err)
-
-	assert.NoError(t, loadLFSFrom(cfg))
-	assert.Equal(t, 50, LFSClient.BatchSize)
-	assert.Equal(t, 10, LFSClient.BatchOperationConcurrency)
 }

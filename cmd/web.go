@@ -95,9 +95,6 @@ func showWebStartupMessage(msg string) {
 	if setting.DefaultUILocation != time.Local {
 		log.Info("Default UI Location is %v", setting.DefaultUILocation.String())
 	}
-	if setting.MailService != nil {
-		log.Info("Mail Service Enabled: RegisterEmailConfirm=%v, Service.EnableNotifyMail=%v", setting.Service.RegisterEmailConfirm, setting.Service.EnableNotifyMail)
-	}
 }
 
 func serveInstalled(c *cli.Command) error {

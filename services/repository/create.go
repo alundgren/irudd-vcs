@@ -398,9 +398,6 @@ func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *r
 		return fmt.Errorf("RecalculateAccesses: %w", err)
 	}
 
-	if setting.Service.AutoWatchNewRepos {
-	}
-
 	if err = webhook.CopyDefaultWebhooksToRepo(ctx, repo.ID); err != nil {
 		return fmt.Errorf("CopyDefaultWebhooksToRepo: %w", err)
 	}

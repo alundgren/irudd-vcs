@@ -594,16 +594,6 @@ func reqWebhooksEnabled() func(ctx *context.APIContext) {
 	}
 }
 
-// reqStarsEnabled requires Starring to be enabled in the config.
-func reqStarsEnabled() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if setting.Repository.DisableStars {
-			ctx.APIError(http.StatusForbidden, "stars disabled by administrator")
-			return
-		}
-	}
-}
-
 func orgAssignment(args ...bool) func(ctx *context.APIContext) {
 	var (
 		assignOrg  bool
@@ -792,12 +782,6 @@ func verifyAuthWithOptions(options *common.VerifyOptions) func(ctx *context.APIC
 	return func(ctx *context.APIContext) {
 		// Check prohibit login users.
 		if ctx.IsSigned {
-			if !ctx.Doer.IsActive && setting.Service.RegisterEmailConfirm {
-				ctx.JSON(http.StatusForbidden, map[string]string{
-					"message": "This account is not activated.",
-				})
-				return
-			}
 			if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {
 				log.Info("Failed authentication attempt for %s from %s", ctx.Doer.Name, ctx.RemoteAddr())
 				ctx.JSON(http.StatusForbidden, map[string]string{
@@ -825,11 +809,6 @@ func verifyAuthWithOptions(options *common.VerifyOptions) func(ctx *context.APIC
 				// Restrict API calls with error message.
 				ctx.JSON(http.StatusForbidden, map[string]string{
 					"message": "Only signed in user is allowed to call APIs.",
-				})
-				return
-			} else if !ctx.Doer.IsActive && setting.Service.RegisterEmailConfirm {
-				ctx.JSON(http.StatusForbidden, map[string]string{
-					"message": "This account is not activated.",
 				})
 				return
 			}

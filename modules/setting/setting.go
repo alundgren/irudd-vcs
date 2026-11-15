@@ -49,10 +49,9 @@ func init() {
 
 // IsRunUserMatchCurrentUser returns false if configured run user does not match
 // actual user that runs the app. The first return value is the actual user name.
-// This check is ignored under Windows since SSH remote login is not the main
-// method to login on Windows.
+// This check is ignored under Windows.
 func IsRunUserMatchCurrentUser(runUser string) (string, bool) {
-	if IsWindows || SSH.StartBuiltinServer {
+	if IsWindows {
 		return "", true
 	}
 
@@ -122,11 +121,9 @@ func loadCommonSettingsFrom(cfg ConfigProvider) error {
 	loadRunModeFrom(cfg)
 	loadLogGlobalFrom(cfg)
 	loadServerFrom(cfg)
-	loadSSHFrom(cfg)
 
-	mustCurrentRunUserMatch(cfg) // it depends on the SSH config, only non-builtin SSH server requires this check
+	mustCurrentRunUserMatch(cfg)
 
-	loadOAuth2From(cfg)
 	loadSecurityFrom(cfg)
 	if err := loadLFSFrom(cfg); err != nil {
 		return err
@@ -136,12 +133,8 @@ func loadCommonSettingsFrom(cfg ConfigProvider) error {
 	loadUIFrom(cfg)
 	loadAdminFrom(cfg)
 	loadAPIFrom(cfg)
-	loadMetricsFrom(cfg)
-	loadCamoFrom(cfg)
 	loadGitFrom(cfg)
-	loadMarkupFrom(cfg)
 	loadGlobalLockFrom(cfg)
-	loadOtherFrom(cfg)
 	return nil
 }
 
@@ -202,25 +195,12 @@ func LoadSettings() {
 
 	loadDBSetting(CfgProvider)
 	loadServiceFrom(CfgProvider)
-	loadOAuth2ClientFrom(CfgProvider)
 	loadCacheFrom(CfgProvider)
 	loadCorsFrom(CfgProvider)
-	loadMailsFrom(CfgProvider)
 	loadProxyFrom(CfgProvider)
 	loadWebhookFrom(CfgProvider)
-	loadMigrationsFrom(CfgProvider)
-	loadIndexerFrom(CfgProvider)
-	loadTaskFrom(CfgProvider)
 	LoadQueueSettings()
 	loadMimeTypeMapFrom(CfgProvider)
-	loadFederationFrom(CfgProvider)
-}
-
-// LoadSettingsForInstall initializes the settings for install
-func LoadSettingsForInstall() {
-	loadDBSetting(CfgProvider)
-	loadServiceFrom(CfgProvider)
-	loadMailsFrom(CfgProvider)
 }
 
 var configuredPaths = make(map[string]string)
