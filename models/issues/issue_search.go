@@ -34,7 +34,6 @@ type IssuesOptions struct { //nolint:revive // export stutter
 	MentionedID        int64
 	ReviewRequestedID  int64
 	ReviewedID         int64
-	SubscriberID       int64
 	MilestoneIDs       []int64
 	ProjectIDs         []int64
 	IsClosed           optional.Option[bool]
@@ -253,10 +252,6 @@ func applyConditions(sess db.Session, opts *IssuesOptions) {
 		applyReviewedCondition(sess, opts.ReviewedID)
 	}
 
-	if opts.SubscriberID > 0 {
-		applySubscribedCondition(sess, opts.SubscriberID)
-	}
-
 	applyMilestoneCondition(sess, opts)
 
 	if opts.UpdatedAfterUnix != 0 {
@@ -442,37 +437,6 @@ func applyReviewedCondition(sess db.Session, reviewedID int64) {
 		)),
 	)
 	sess.And(notPoster, builder.Or(reviewed, commented))
-}
-
-func applySubscribedCondition(sess db.Session, subscriberID int64) {
-	sess.And(
-		builder.
-			NotIn("issue.id",
-				builder.Select("issue_id").
-					From("issue_watch").
-					Where(builder.Eq{"is_watching": false, "user_id": subscriberID}),
-			),
-	).And(
-		builder.Or(
-			builder.In("issue.id", builder.
-				Select("issue_id").
-				From("issue_watch").
-				Where(builder.Eq{"is_watching": true, "user_id": subscriberID}),
-			),
-			builder.In("issue.id", builder.
-				Select("issue_id").
-				From("comment").
-				Where(builder.Eq{"poster_id": subscriberID}),
-			),
-			builder.Eq{"issue.poster_id": subscriberID},
-			builder.In("issue.repo_id", builder.
-				Select("repo_id").
-				From("watch").
-				Where(builder.And(builder.Eq{"user_id": subscriberID},
-					builder.In("mode", repo_model.WatchModeNormal, repo_model.WatchModeAuto))),
-			),
-		),
-	)
 }
 
 // Issues returns a list of issues by given conditions.

@@ -69,7 +69,6 @@ func ToSearchOptions(keyword string, opts *issues_model.IssuesOptions) *SearchOp
 	searchOpt.MentionID = convertID(opts.MentionedID)
 	searchOpt.ReviewedID = convertID(opts.ReviewedID)
 	searchOpt.ReviewRequestedID = convertID(opts.ReviewRequestedID)
-	searchOpt.SubscriberID = convertID(opts.SubscriberID)
 
 	if opts.UpdatedAfterUnix > 0 {
 		searchOpt.UpdatedAfterUnix = optional.Some(opts.UpdatedAfterUnix)

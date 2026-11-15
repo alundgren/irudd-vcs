@@ -1392,12 +1392,6 @@ func IsUserVisibleToViewer(ctx context.Context, u, viewer *User) bool {
 			return false
 		}
 
-		// If they follow - they see each other
-		follower := IsFollowing(ctx, u.ID, viewer.ID)
-		if follower {
-			return true
-		}
-
 		// Now we need to check if they in some organization together
 		count, err := db.GetEngine(ctx).Table("team_user").
 			Where(

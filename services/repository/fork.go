@@ -60,10 +60,6 @@ func ForkRepository(ctx context.Context, doer, owner *user_model.User, opts Fork
 		return nil, err
 	}
 
-	if user_model.IsUserBlockedBy(ctx, doer, opts.BaseRepo.Owner.ID) {
-		return nil, user_model.ErrBlockedUser
-	}
-
 	// Fork is prohibited, if user has reached maximum limit of repositories
 	if !doer.CanForkRepoIn(owner) {
 		return nil, repo_model.ErrReachLimitOfRepo{

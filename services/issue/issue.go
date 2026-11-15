@@ -9,7 +9,6 @@ import (
 
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
-	access_model "gitea.dev/models/perm/access"
 	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
@@ -25,10 +24,6 @@ import (
 func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs []int64, uuids []string, assigneeIDs, projectIDs []int64) error {
 	if err := issue.LoadPoster(ctx); err != nil {
 		return err
-	}
-
-	if user_model.IsUserBlockedBy(ctx, issue.Poster, repo.OwnerID) || user_model.IsUserBlockedBy(ctx, issue.Poster, assigneeIDs...) {
-		return user_model.ErrBlockedUser
 	}
 
 	assigneeCommentMap := make(map[int64]*issues_model.Comment)
@@ -94,12 +89,6 @@ func ChangeTitle(ctx context.Context, issue *issues_model.Issue, doer *user_mode
 
 	if err := issue.LoadRepo(ctx); err != nil {
 		return err
-	}
-
-	if user_model.IsUserBlockedBy(ctx, doer, issue.PosterID, issue.Repo.OwnerID) {
-		if isAdmin, _ := access_model.IsUserRepoAdmin(ctx, issue.Repo, doer); !isAdmin {
-			return user_model.ErrBlockedUser
-		}
 	}
 
 	if err := issues_model.ChangeIssueTitle(ctx, issue, doer, oldTitle); err != nil {
@@ -230,7 +219,6 @@ func deleteIssue(ctx context.Context, issue *issues_model.Issue) ([]string, erro
 			&issues_model.IssueAssignees{IssueID: issue.ID},
 			&issues_model.IssueUser{IssueID: issue.ID},
 			&issues_model.Reaction{IssueID: issue.ID},
-			&issues_model.IssueWatch{IssueID: issue.ID},
 			&issues_model.Stopwatch{IssueID: issue.ID},
 			&issues_model.TrackedTime{IssueID: issue.ID},
 			&project_model.ProjectIssue{IssueID: issue.ID},

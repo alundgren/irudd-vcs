@@ -16,9 +16,6 @@ import (
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/graceful"
-	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 	repo_service "gitea.dev/services/repository"
 
@@ -211,9 +208,6 @@ func DeleteTeam(ctx context.Context, t *organization.Team) error {
 // AddTeamMember adds new membership of given team to given organization,
 // the user will have membership to given organization automatically when needed.
 func AddTeamMember(ctx context.Context, team *organization.Team, user *user_model.User) error {
-	if user_model.IsUserBlockedBy(ctx, user, team.OrgID) {
-		return user_model.ErrBlockedUser
-	}
 
 	isAlreadyMember, err := organization.IsTeamMember(ctx, team.OrgID, team.ID, user.ID)
 	if err != nil || isAlreadyMember {
@@ -246,31 +240,7 @@ func AddTeamMember(ctx context.Context, team *organization.Team, user *user_mode
 		team.NumMembers++
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-
-	// this behaviour may spend much time so run it in a goroutine
-	// FIXME: Update watch repos batchly
-	if setting.Service.AutoWatchNewRepos {
-		// Get team and its repositories.
-		repos, err := repo_model.GetTeamRepositories(ctx, &repo_model.SearchTeamRepoOptions{
-			TeamID: team.ID,
-		})
-		if err != nil {
-			log.Error("GetTeamRepositories failed: %v", err)
-		}
-
-		go func(repos []*repo_model.Repository) {
-			for _, repo := range repos {
-				if err = repo_model.WatchRepo(graceful.GetManager().ShutdownContext(), user, repo, true); err != nil {
-					log.Error("watch repo failed: %v", err)
-				}
-			}
-		}(repos)
-	}
-
-	return nil
+	return err
 }
 
 func removeTeamMember(ctx context.Context, team *organization.Team, user *user_model.User) error {
@@ -310,11 +280,6 @@ func removeTeamMember(ctx context.Context, team *organization.Team, user *user_m
 	// Delete access to team repositories. If any user or repo is missing, we can continue.
 	for _, repo := range repos {
 		if err := access_model.RecalculateUserAccess(ctx, repo, user.ID); err != nil && !errors.Is(err, util.ErrNotExist) {
-			return err
-		}
-
-		// Remove watches from now inaccessible
-		if err := repo_service.ReconsiderWatches(ctx, repo, user); err != nil && !errors.Is(err, util.ErrNotExist) {
 			return err
 		}
 

@@ -19,7 +19,6 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/graceful"
-	issue_indexer "gitea.dev/modules/indexer/issues"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/queue"
 	repo_module "gitea.dev/modules/repository"
@@ -143,16 +142,6 @@ func MakeRepoPrivate(ctx context.Context, repo *repo_model.Repository, private b
 			return err
 		}
 
-		// If repo has become private, we need to set its actions to private, and clear stars and watches.
-		if private {
-			if err = repo_model.ClearRepoStars(ctx, repo.ID); err != nil {
-				return err
-			}
-			if err = repo_model.ClearRepoWatches(ctx, repo.ID); err != nil {
-				return err
-			}
-		}
-
 		shouldUpdateForks := private
 		if !private && repo.Owner.Visibility != structs.VisibleTypePrivate {
 			shouldUpdateForks = true
@@ -169,9 +158,6 @@ func MakeRepoPrivate(ctx context.Context, repo *repo_model.Repository, private b
 			}
 		}
 
-		// If visibility is changed, we need to update the issue indexer.
-		// Since the data in the issue indexer have field to indicate if the repo is public or not.
-		issue_indexer.UpdateRepoIndexer(ctx, repo.ID)
 		return nil
 	})
 }
@@ -255,18 +241,6 @@ func updateRepository(ctx context.Context, repo *repo_model.Repository, visibili
 			}
 		}
 
-		// If repo has become private, we need to set its actions to private.
-		if repo.IsPrivate {
-			if err = repo_model.ClearRepoStars(ctx, repo.ID); err != nil {
-				return err
-			}
-
-			// watchers who lost access must not keep watching the now-private repo
-			if err = repo_model.ClearRepoWatches(ctx, repo.ID); err != nil {
-				return err
-			}
-		}
-
 		// Create/Remove git-daemon-export-ok for git-daemon...
 		if err := CheckDaemonExportOK(ctx, repo); err != nil {
 			return err
@@ -283,9 +257,6 @@ func updateRepository(ctx context.Context, repo *repo_model.Repository, visibili
 			}
 		}
 
-		// If visibility is changed, we need to update the issue indexer.
-		// Since the data in the issue indexer have field to indicate if the repo is public or not.
-		issue_indexer.UpdateRepoIndexer(ctx, repo.ID)
 	}
 
 	return nil

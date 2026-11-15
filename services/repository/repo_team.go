@@ -9,11 +9,9 @@ import (
 	"fmt"
 
 	"gitea.dev/models/db"
-	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
-	"gitea.dev/modules/setting"
 )
 
 // TeamAddRepository adds new repository to team of organization.
@@ -42,18 +40,6 @@ func addRepositoryToTeam(ctx context.Context, t *organization.Team, repo *repo_m
 
 	if err = access_model.RecalculateTeamAccesses(ctx, repo, 0); err != nil {
 		return fmt.Errorf("recalculateAccesses: %w", err)
-	}
-
-	// Make all team members watch this repo if enabled in global settings
-	if setting.Service.AutoWatchNewRepos {
-		if err = t.LoadMembers(ctx); err != nil {
-			return fmt.Errorf("getMembers: %w", err)
-		}
-		for _, u := range t.Members {
-			if err = repo_model.WatchRepo(ctx, u, repo, true); err != nil {
-				return fmt.Errorf("watchRepo: %w", err)
-			}
-		}
 	}
 
 	return nil
@@ -117,14 +103,7 @@ func removeAllRepositoriesFromTeam(ctx context.Context, t *organization.Team) (e
 				continue
 			}
 
-			if err = repo_model.WatchRepo(ctx, user, repo, false); err != nil {
-				return err
-			}
-
 			// Remove all IssueWatches a user has subscribed to in the repositories
-			if err = issues_model.RemoveIssueWatchersByRepoID(ctx, user.ID, repo.ID); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -198,14 +177,7 @@ func removeRepositoryFromTeam(ctx context.Context, t *organization.Team, repo *r
 			continue
 		}
 
-		if err = repo_model.WatchRepo(ctx, member, repo, false); err != nil {
-			return err
-		}
-
 		// Remove all IssueWatches a user has subscribed to in the repositories
-		if err := issues_model.RemoveIssueWatchersByRepoID(ctx, member.ID, repo.ID); err != nil {
-			return err
-		}
 	}
 
 	return nil

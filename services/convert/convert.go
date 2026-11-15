@@ -388,17 +388,6 @@ func ToTagProtection(ctx context.Context, pt *git_model.ProtectedTag, repo *repo
 	}
 }
 
-// ToTopicResponse convert from models.Topic to api.TopicResponse
-func ToTopicResponse(topic *repo_model.Topic) *api.TopicResponse {
-	return &api.TopicResponse{
-		ID:        topic.ID,
-		Name:      topic.Name,
-		RepoCount: topic.RepoCount,
-		Created:   topic.CreatedUnix.AsTime(),
-		Updated:   topic.UpdatedUnix.AsTime(),
-	}
-}
-
 // ToLFSLock convert a LFSLock to api.LFSLock
 func ToLFSLock(ctx context.Context, l *git_model.LFSLock) *api.LFSLock {
 	_, u, err := user_model.GetPossibleUserByID(ctx, l.OwnerID)

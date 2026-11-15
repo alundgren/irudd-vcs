@@ -143,9 +143,6 @@ func GenerateRepository(ctx context.Context, doer, owner *user_model.User, templ
 
 	// Topics
 	if opts.Topics {
-		if err = repo_model.GenerateTopics(ctx, templateRepo, generateRepo); err != nil {
-			return nil, err
-		}
 	}
 
 	// Git Hooks

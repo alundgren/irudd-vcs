@@ -24,7 +24,6 @@ import (
 	"gitea.dev/routers/common"
 	"gitea.dev/routers/private"
 	web_routers "gitea.dev/routers/web"
-	indexer_service "gitea.dev/services/indexer"
 	pull_service "gitea.dev/services/pull"
 	release_service "gitea.dev/services/release"
 	repo_service "gitea.dev/services/repository"
@@ -100,7 +99,6 @@ func InitWebInstalled(ctx context.Context) {
 	mustInitCtx(ctx, repo_service.Init)
 
 	// Booting long running goroutines.
-	mustInit(indexer_service.Init)
 
 	mustInit(webhook.Init)
 	mustInit(pull_service.Init)

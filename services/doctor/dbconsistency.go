@@ -139,12 +139,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 			Fixer:        issues_model.FixIssueLabelWithOutsideLabels,
 			FixedMessage: "Removed",
 		},
-		{
-			Name:         "Topics with empty repository count",
-			Counter:      repo_model.CountOrphanedTopics,
-			Fixer:        repo_model.DeleteOrphanedTopics,
-			FixedMessage: "Removed",
-		},
 	}
 
 	// TODO: function to recalc all counters

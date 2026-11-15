@@ -566,8 +566,6 @@ func CreatePullRequest(ctx *context.APIContext) {
 	if err := pull_service.NewPullRequest(ctx, prOpts); err != nil {
 		if repo_model.IsErrUserDoesNotHaveAccessToRepo(err) {
 			ctx.APIError(http.StatusBadRequest, err.Error())
-		} else if errors.Is(err, user_model.ErrBlockedUser) {
-			ctx.APIError(http.StatusForbidden, err.Error())
 		} else if errors.Is(err, issues_model.ErrMustCollaborator) {
 			ctx.APIError(http.StatusForbidden, err.Error())
 		} else {
@@ -715,8 +713,6 @@ func EditPullRequest(ctx *context.APIContext) {
 		if err != nil {
 			if user_model.IsErrUserNotExist(err) {
 				ctx.APIError(http.StatusUnprocessableEntity, fmt.Sprintf("Assignee does not exist: [name: %s]", err))
-			} else if errors.Is(err, user_model.ErrBlockedUser) {
-				ctx.APIError(http.StatusForbidden, err.Error())
 			} else {
 				ctx.APIErrorInternal(err)
 			}

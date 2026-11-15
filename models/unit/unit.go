@@ -85,16 +85,6 @@ var (
 		TypePullRequests,
 	}
 
-	// DefaultMirrorRepoUnits contains the default unit types for mirrors
-	DefaultMirrorRepoUnits = []Type{
-		TypeCode,
-		TypeIssues,
-		TypeReleases,
-		TypeWiki,
-		TypeProjects,
-		TypePackages,
-	}
-
 	// DefaultTemplateRepoUnits contains the default unit types for templates
 	DefaultTemplateRepoUnits = []Type{
 		TypeCode,
@@ -181,15 +171,6 @@ func LoadUnitConfig() error {
 	DefaultForkRepoUnits = validateDefaultRepoUnits(DefaultForkRepoUnits, setDefaultForkRepoUnits)
 	if len(DefaultForkRepoUnits) == 0 {
 		return errors.New("no default fork repository units found")
-	}
-	// default mirror repo units
-	setDefaultMirrorRepoUnits, invalidKeys := FindUnitTypes(setting.Repository.DefaultMirrorRepoUnits...)
-	if len(invalidKeys) > 0 {
-		log.Warn("Invalid keys in default mirror repo units: %s", strings.Join(invalidKeys, ", "))
-	}
-	DefaultMirrorRepoUnits = validateDefaultRepoUnits(DefaultMirrorRepoUnits, setDefaultMirrorRepoUnits)
-	if len(DefaultMirrorRepoUnits) == 0 {
-		return errors.New("no default mirror repository units found")
 	}
 	// default template repo units
 	setDefaultTemplateRepoUnits, invalidKeys := FindUnitTypes(setting.Repository.DefaultTemplateRepoUnits...)

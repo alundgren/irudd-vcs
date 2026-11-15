@@ -10,7 +10,6 @@ import (
 
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
-	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/timeutil"
@@ -23,12 +22,6 @@ import (
 func CreateRefComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content, commitSHA string) error {
 	if len(commitSHA) == 0 {
 		return errors.New("cannot create reference with empty commit SHA")
-	}
-
-	if user_model.IsUserBlockedBy(ctx, doer, issue.PosterID, repo.OwnerID) {
-		if isAdmin, _ := access_model.IsUserRepoAdmin(ctx, repo, doer); !isAdmin {
-			return user_model.ErrBlockedUser
-		}
 	}
 
 	// Check if same reference from same commit has already existed.
@@ -56,11 +49,6 @@ func CreateRefComment(ctx context.Context, doer *user_model.User, repo *repo_mod
 
 // CreateIssueComment creates a plain issue comment.
 func CreateIssueComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content string, attachments []string) (*issues_model.Comment, error) {
-	if user_model.IsUserBlockedBy(ctx, doer, issue.PosterID, repo.OwnerID) {
-		if isAdmin, _ := access_model.IsUserRepoAdmin(ctx, repo, doer); !isAdmin {
-			return nil, user_model.ErrBlockedUser
-		}
-	}
 
 	comment, err := issues_model.CreateComment(ctx, &issues_model.CreateCommentOptions{
 		Type:        issues_model.CommentTypeComment,
@@ -97,12 +85,6 @@ func UpdateComment(ctx context.Context, c *issues_model.Comment, contentVersion 
 	}
 	if err := c.Issue.LoadRepo(ctx); err != nil {
 		return err
-	}
-
-	if user_model.IsUserBlockedBy(ctx, doer, c.Issue.PosterID, c.Issue.Repo.OwnerID) {
-		if isAdmin, _ := access_model.IsUserRepoAdmin(ctx, c.Issue.Repo, doer); !isAdmin {
-			return user_model.ErrBlockedUser
-		}
 	}
 
 	needsContentHistory := c.Content != oldContent && c.Type.HasContentSupport()

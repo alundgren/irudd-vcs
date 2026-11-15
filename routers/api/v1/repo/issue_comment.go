@@ -6,7 +6,6 @@ package repo
 
 import (
 	stdCtx "context"
-	"errors"
 	"net/http"
 
 	issues_model "gitea.dev/models/issues"
@@ -398,11 +397,7 @@ func CreateIssueComment(ctx *context.APIContext) {
 
 	comment, err := issue_service.CreateIssueComment(ctx, ctx.Doer, ctx.Repo.Repository, issue, form.Body, nil)
 	if err != nil {
-		if errors.Is(err, user_model.ErrBlockedUser) {
-			ctx.APIError(http.StatusForbidden, err.Error())
-		} else {
-			ctx.APIErrorInternal(err)
-		}
+		ctx.APIErrorInternal(err)
 		return
 	}
 
@@ -586,11 +581,7 @@ func editIssueComment(ctx *context.APIContext, form api.EditIssueCommentOption) 
 		oldContent := comment.Content
 		comment.Content = form.Body
 		if err := issue_service.UpdateComment(ctx, comment, comment.ContentVersion, ctx.Doer, oldContent); err != nil {
-			if errors.Is(err, user_model.ErrBlockedUser) {
-				ctx.APIError(http.StatusForbidden, err.Error())
-			} else {
-				ctx.APIErrorInternal(err)
-			}
+			ctx.APIErrorInternal(err)
 			return
 		}
 	}

@@ -251,15 +251,8 @@ func transferOwnership(ctx context.Context, doer *user_model.User, newOwnerName 
 		return fmt.Errorf("decrease old owner repository count: %w", err)
 	}
 
-	if err := repo_model.WatchRepo(ctx, doer, repo, true); err != nil {
-		return fmt.Errorf("watchRepo: %w", err)
-	}
-
 	if oldOwner.IsOrganization() {
 		// Remove watch for organization.
-		if err := repo_model.WatchRepo(ctx, oldOwner, repo, false); err != nil {
-			return fmt.Errorf("watchRepo [false]: %w", err)
-		}
 
 		// Delete labels that belong to the old organization and comments that added these labels
 		if _, err := sess.Exec(`DELETE FROM issue_label WHERE issue_label.id IN (
@@ -430,10 +423,6 @@ func StartRepositoryTransfer(ctx context.Context, doer, newOwner *user_model.Use
 		if doer.IsAdmin || doer.ID == newOwner.ID {
 			isDirectTransfer = true
 			return transferOwnership(ctx, doer, newOwner.Name, repo, teams)
-		}
-
-		if user_model.IsUserBlockedBy(ctx, doer, newOwner.ID) {
-			return user_model.ErrBlockedUser
 		}
 
 		// If new owner is an org and user can create repos he can transfer directly too

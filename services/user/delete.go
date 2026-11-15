@@ -20,75 +20,23 @@ import (
 	"gitea.dev/modules/setting"
 
 	_ "image/jpeg" // Needed for jpeg support
-
-	"xorm.io/builder"
 )
 
 // deleteUser deletes models associated to a user.
 func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error) {
 	e := db.GetEngine(ctx)
 
-	// ***** START: Watch *****
-	watchedRepoIDs, err := db.FindIDs(ctx, "watch", "watch.repo_id",
-		builder.Eq{"watch.user_id": u.ID}.
-			And(builder.Neq{"watch.mode": repo_model.WatchModeDont}))
-	if err != nil {
-		return fmt.Errorf("get all watches: %w", err)
-	}
-	if err = db.DecrByIDs(ctx, watchedRepoIDs, "num_watches", new(repo_model.Repository)); err != nil {
-		return fmt.Errorf("decrease repository num_watches: %w", err)
-	}
-	// ***** END: Watch *****
-
-	// ***** START: Star *****
-	starredRepoIDs, err := db.FindIDs(ctx, "star", "star.repo_id",
-		builder.Eq{"star.uid": u.ID})
-	if err != nil {
-		return fmt.Errorf("get all stars: %w", err)
-	} else if err = db.DecrByIDs(ctx, starredRepoIDs, "num_stars", new(repo_model.Repository)); err != nil {
-		return fmt.Errorf("decrease repository num_stars: %w", err)
-	}
-	// ***** END: Star *****
-
-	// ***** START: Follow *****
-	followeeIDs, err := db.FindIDs(ctx, "follow", "follow.follow_id",
-		builder.Eq{"follow.user_id": u.ID})
-	if err != nil {
-		return fmt.Errorf("get all followees: %w", err)
-	} else if err = db.DecrByIDs(ctx, followeeIDs, "num_followers", new(user_model.User)); err != nil {
-		return fmt.Errorf("decrease user num_followers: %w", err)
-	}
-
-	followerIDs, err := db.FindIDs(ctx, "follow", "follow.user_id",
-		builder.Eq{"follow.follow_id": u.ID})
-	if err != nil {
-		return fmt.Errorf("get all followers: %w", err)
-	} else if err = db.DecrByIDs(ctx, followerIDs, "num_following", new(user_model.User)); err != nil {
-		return fmt.Errorf("decrease user num_following: %w", err)
-	}
-	// ***** END: Follow *****
-
 	if err = db.DeleteBeans(ctx,
 		&auth_model.AccessToken{UID: u.ID},
 		&repo_model.Collaboration{UserID: u.ID},
 		&access_model.Access{UserID: u.ID},
-		&repo_model.Watch{UserID: u.ID},
-		&repo_model.Star{UID: u.ID},
-		&user_model.Follow{UserID: u.ID},
-		&user_model.Follow{FollowID: u.ID},
 		&issues_model.IssueUser{UID: u.ID},
 		&user_model.EmailAddress{UID: u.ID},
 		&issues_model.Reaction{UserID: u.ID},
 		&organization.TeamUser{UID: u.ID},
-		&issues_model.Stopwatch{UserID: u.ID},
 		&user_model.Setting{UserID: u.ID},
-		&user_model.UserBadge{UserID: u.ID},
-		&pull_model.AutoMerge{DoerID: u.ID},
 		&pull_model.ReviewState{UserID: u.ID},
 		&user_model.Redirect{RedirectUserID: u.ID},
-		&user_model.Blocking{BlockerID: u.ID},
-		&user_model.Blocking{BlockeeID: u.ID},
-		&issues_model.IssueWatch{UserID: u.ID},
 	); err != nil {
 		return fmt.Errorf("deleteBeans: %w", err)
 	}

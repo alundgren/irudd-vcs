@@ -12,7 +12,6 @@ import (
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
-	issue_indexer "gitea.dev/modules/indexer/issues"
 	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	repo_service "gitea.dev/services/repository"
@@ -30,7 +29,6 @@ func deleteOrganization(ctx context.Context, org *org_model.Organization) error 
 		&org_model.TeamUser{OrgID: org.ID},
 		&org_model.TeamUnit{OrgID: org.ID},
 		&org_model.TeamInvite{OrgID: org.ID},
-		&user_model.Blocking{BlockerID: org.ID},
 	); err != nil {
 		return fmt.Errorf("DeleteBeans: %w", err)
 	}
@@ -90,26 +88,10 @@ func updateRepoForVisibilityChanged(ctx context.Context, repo *repo_model.Reposi
 		return fmt.Errorf("RecalculateAccesses: %w", err)
 	}
 
-	if makePrivate {
-		// the repo is no longer publicly visible, so drop stars and watches from users who can no longer
-		// see it, matching the direct repository-private transition (see services/repository)
-		if err := repo_model.ClearRepoStars(ctx, repo.ID); err != nil {
-			return err
-		}
-		if err := repo_model.ClearRepoWatches(ctx, repo.ID); err != nil {
-			return err
-		}
-	}
-
 	// Create/Remove git-daemon-export-ok for git-daemon...
 	if err := repo_service.CheckDaemonExportOK(ctx, repo); err != nil {
 		return err
 	}
-
-	// If visibility is changed, we need to update the issue indexer.
-	// Since the data in the issue indexer have field to indicate if the repo is public or not.
-	// FIXME: it should check organization visibility instead of repository visibility only.
-	issue_indexer.UpdateRepoIndexer(ctx, repo.ID)
 
 	forkRepos, err := repo_model.GetRepositoriesByForkID(ctx, repo.ID)
 	if err != nil {

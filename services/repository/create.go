@@ -269,11 +269,6 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 		}
 	}()
 
-	// No need for init mirror.
-	if opts.IsMirror {
-		return repo, nil
-	}
-
 	// 2 - check whether the repository with the same storage exists
 	var isExist bool
 	isExist, err = gitrepo.IsRepositoryExist(ctx, repo)
@@ -363,8 +358,6 @@ func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *r
 	switch {
 	case isFork:
 		defaultUnits = unit.DefaultForkRepoUnits
-	case repo.IsMirror:
-		defaultUnits = unit.DefaultMirrorRepoUnits
 	case repo.IsTemplate:
 		defaultUnits = unit.DefaultTemplateRepoUnits
 	}
@@ -440,9 +433,6 @@ func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *r
 	}
 
 	if setting.Service.AutoWatchNewRepos {
-		if err = repo_model.WatchRepo(ctx, doer, repo, true); err != nil {
-			return fmt.Errorf("WatchRepo: %w", err)
-		}
 	}
 
 	if err = webhook.CopyDefaultWebhooksToRepo(ctx, repo.ID); err != nil {

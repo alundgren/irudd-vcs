@@ -154,17 +154,9 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 		log.Error("CountBranches [%d]: %v", repo.ID, err)
 	}
 
-	mirrorInterval := ""
+	mirrorInterval := "" // mirrors are not supported
 	var mirrorUpdated time.Time
 	var lastSync time.Time
-	if repo.IsMirror {
-		pullMirror, err := repo_model.GetMirrorByRepoID(ctx, repo.ID)
-		if err == nil {
-			mirrorInterval = pullMirror.Interval.String()
-			mirrorUpdated = pullMirror.UpdatedUnix.AsTime()
-			lastSync = pullMirror.LastSyncUnix.AsTime()
-		}
-	}
 
 	var transfer *api.RepoTransfer
 	if repo.Status == repo_model.RepositoryPendingTransfer {

@@ -16,10 +16,6 @@ func CreateIssueReaction(ctx context.Context, doer *user_model.User, issue *issu
 		return nil, err
 	}
 
-	if user_model.IsUserBlockedBy(ctx, doer, issue.PosterID, issue.Repo.OwnerID) {
-		return nil, user_model.ErrBlockedUser
-	}
-
 	return issues_model.CreateReaction(ctx, &issues_model.ReactionOptions{
 		Type:    content,
 		DoerID:  doer.ID,
@@ -35,10 +31,6 @@ func CreateCommentReaction(ctx context.Context, doer *user_model.User, comment *
 
 	if err := comment.Issue.LoadRepo(ctx); err != nil {
 		return nil, err
-	}
-
-	if user_model.IsUserBlockedBy(ctx, doer, comment.Issue.PosterID, comment.Issue.Repo.OwnerID, comment.PosterID) {
-		return nil, user_model.ErrBlockedUser
 	}
 
 	return issues_model.CreateReaction(ctx, &issues_model.ReactionOptions{

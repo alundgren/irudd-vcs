@@ -622,9 +622,7 @@ func CreateIssue(ctx *context.APIContext) {
 	}
 
 	if err := issue_service.NewIssue(ctx, ctx.Repo.Repository, issue, form.Labels, nil, assigneeIDs, form.Projects); err != nil {
-		if errors.Is(err, user_model.ErrBlockedUser) {
-			ctx.APIError(http.StatusForbidden, err.Error())
-		} else if errors.Is(err, util.ErrPermissionDenied) || errors.Is(err, util.ErrNotExist) {
+		if errors.Is(err, util.ErrPermissionDenied) || errors.Is(err, util.ErrNotExist) {
 			ctx.APIError(http.StatusBadRequest, err.Error())
 		} else {
 			ctx.APIErrorInternal(err)
@@ -798,11 +796,7 @@ func EditIssue(ctx *context.APIContext) {
 
 		err = issue_service.UpdateAssignees(ctx, issue, oneAssignee, form.Assignees, ctx.Doer)
 		if err != nil {
-			if errors.Is(err, user_model.ErrBlockedUser) {
-				ctx.APIError(http.StatusForbidden, err.Error())
-			} else {
-				ctx.APIErrorInternal(err)
-			}
+			ctx.APIErrorInternal(err)
 			return
 		}
 	}
