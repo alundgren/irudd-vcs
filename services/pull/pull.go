@@ -44,19 +44,18 @@ func getPullWorkingLockKey(prID int64) string {
 }
 
 type NewPullRequestOptions struct {
-	Repo            *repo_model.Repository
-	Issue           *issues_model.Issue
-	LabelIDs        []int64
-	AttachmentUUIDs []string
-	PullRequest     *issues_model.PullRequest
-	AssigneeIDs     []int64
-	Reviewers       []*user_model.User
-	TeamReviewers   []*organization.Team
+	Repo          *repo_model.Repository
+	Issue         *issues_model.Issue
+	LabelIDs      []int64
+	PullRequest   *issues_model.PullRequest
+	AssigneeIDs   []int64
+	Reviewers     []*user_model.User
+	TeamReviewers []*organization.Team
 }
 
 // NewPullRequest creates new pull request with labels for repository.
 func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
-	repo, issue, labelIDs, uuids, pr, assigneeIDs := opts.Repo, opts.Issue, opts.LabelIDs, opts.AttachmentUUIDs, opts.PullRequest, opts.AssigneeIDs
+	repo, issue, labelIDs, pr, assigneeIDs := opts.Repo, opts.Issue, opts.LabelIDs, opts.PullRequest, opts.AssigneeIDs
 	if err := issue.LoadPoster(ctx); err != nil {
 		return err
 	}
@@ -92,7 +91,7 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 	assignees := make(map[int64]*user_model.User)
 	var reviewNotifiers []*issue_service.ReviewRequestNotifier
 	if err := db.WithTx(ctx, func(ctx context.Context) error {
-		if err := issues_model.NewPullRequest(ctx, repo, issue, labelIDs, uuids, pr); err != nil {
+		if err := issues_model.NewPullRequest(ctx, repo, issue, labelIDs, pr); err != nil {
 			return err
 		}
 

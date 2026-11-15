@@ -243,55 +243,6 @@ func AddDeletePRBranchComment(ctx context.Context, doer *user_model.User, repo *
 	return err
 }
 
-// validateAttachmentForIssue rejects a foreign or already-linked attachment before it is linked to
-// issue: a known UUID could otherwise re-link (and expose) another repo's private attachment. A
-// legacy attachment predating repo_id-on-upload is adopted into the issue's repo.
-func validateAttachmentForIssue(ctx context.Context, issue *Issue, attachment *repo_model.Attachment) error {
-	if attachment.RepoID == 0 && attachment.CreatedUnix < repo_model.LegacyAttachmentMissingRepoIDCutoff {
-		attachment.RepoID = issue.RepoID
-		if err := repo_model.UpdateAttachmentByUUID(ctx, attachment, "repo_id"); err != nil {
-			return fmt.Errorf("update attachment repo_id [id: %d]: %w", attachment.ID, err)
-		}
-	}
-	if attachment.RepoID != issue.RepoID {
-		return util.NewPermissionDeniedErrorf("attachment belongs to a different repository")
-	}
-	if attachment.IssueID != 0 && attachment.IssueID != issue.ID {
-		return util.NewPermissionDeniedErrorf("attachment is already linked to another issue")
-	}
-	if attachment.ReleaseID != 0 {
-		return util.NewPermissionDeniedErrorf("attachment is already linked to a release")
-	}
-	return nil
-}
-
-// UpdateIssueAttachments update attachments by UUIDs for the issue
-func UpdateIssueAttachments(ctx context.Context, issueID int64, uuids []string) (err error) {
-	if len(uuids) == 0 {
-		return nil
-	}
-	return db.WithTx(ctx, func(ctx context.Context) error {
-		issue, err := GetIssueByID(ctx, issueID)
-		if err != nil {
-			return err
-		}
-		attachments, err := repo_model.GetAttachmentsByUUIDs(ctx, uuids)
-		if err != nil {
-			return fmt.Errorf("getAttachmentsByUUIDs [uuids: %v]: %w", uuids, err)
-		}
-		for i := range attachments {
-			if err := validateAttachmentForIssue(ctx, issue, attachments[i]); err != nil {
-				return err
-			}
-			attachments[i].IssueID = issueID
-			if err := repo_model.UpdateAttachment(ctx, attachments[i]); err != nil {
-				return fmt.Errorf("update attachment [id: %d]: %w", attachments[i].ID, err)
-			}
-		}
-		return nil
-	})
-}
-
 // ChangeIssueContent changes issue content, as the given user.
 func ChangeIssueContent(ctx context.Context, issue *Issue, doer *user_model.User, content string, contentVersion int) (err error) {
 	return db.WithTx(ctx, func(ctx context.Context) error {
@@ -327,10 +278,9 @@ func ChangeIssueContent(ctx context.Context, issue *Issue, doer *user_model.User
 
 // NewIssueOptions represents the options of a new issue.
 type NewIssueOptions struct {
-	Repo        *repo_model.Repository
-	Issue       *Issue
-	LabelIDs    []int64
-	Attachments []string // In UUID format.
+	Repo     *repo_model.Repository
+	Issue    *Issue
+	LabelIDs []int64
 }
 
 // NewIssueWithIndex creates issue with given index
@@ -382,16 +332,12 @@ func NewIssueWithIndex(ctx context.Context, doer *user_model.User, opts NewIssue
 		return err
 	}
 
-	if err := UpdateIssueAttachments(ctx, opts.Issue.ID, opts.Attachments); err != nil {
-		return err
-	}
-
 	return opts.Issue.LoadAttributes(ctx)
 }
 
 // NewIssue creates new issue with labels for repository.
 // The title will be cut off at 255 characters if it's longer than 255 characters.
-func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *Issue, labelIDs []int64, uuids []string) (err error) {
+func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *Issue, labelIDs []int64) (err error) {
 	return db.WithTx(ctx, func(ctx context.Context) error {
 		idx, err := db.GetNextResourceIndex(ctx, "issue_index", repo.ID)
 		if err != nil {
@@ -402,10 +348,9 @@ func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *Issue, la
 		issue.Title = util.EllipsisDisplayString(issue.Title, 255)
 
 		if err = NewIssueWithIndex(ctx, issue.Poster, NewIssueOptions{
-			Repo:        repo,
-			Issue:       issue,
-			LabelIDs:    labelIDs,
-			Attachments: uuids,
+			Repo:     repo,
+			Issue:    issue,
+			LabelIDs: labelIDs,
 		}); err != nil {
 			if repo_model.IsErrUserDoesNotHaveAccessToRepo(err) {
 				return err

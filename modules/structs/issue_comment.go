@@ -25,8 +25,6 @@ type Comment struct {
 	OriginalAuthorID int64 `json:"original_author_id"`
 	// Body contains the comment text content
 	Body string `json:"body"`
-	// Attachments contains files attached to the comment
-	Attachments []*Attachment `json:"assets"`
 	// swagger:strfmt date-time
 	Created time.Time `json:"created_at"`
 	// swagger:strfmt date-time

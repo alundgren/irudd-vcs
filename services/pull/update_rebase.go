@@ -77,7 +77,6 @@ func updateHeadByRebaseOnToBase(ctx context.Context, pr *issues_model.PullReques
 			headUser,
 			doer,
 			pr.HeadRepo,
-			pr.HeadRepo.Name,
 			pr.ID,
 			pr.Index,
 		)).

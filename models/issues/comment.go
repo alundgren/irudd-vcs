@@ -179,14 +179,6 @@ func (t CommentType) HasContentSupport() bool {
 	return false
 }
 
-func (t CommentType) HasAttachmentSupport() bool {
-	switch t {
-	case CommentTypeComment, CommentTypeCode, CommentTypeReview:
-		return true
-	}
-	return false
-}
-
 func (t CommentType) HasMailReplySupport() bool {
 	switch t {
 	case CommentTypeComment, CommentTypeCode, CommentTypeReview, CommentTypeDismissReview, CommentTypeReopen, CommentTypeClose, CommentTypeMergePull, CommentTypeAssignees:
@@ -274,8 +266,7 @@ type Comment struct {
 	// Reference issue in commit message
 	CommitSHA string `xorm:"VARCHAR(64)"`
 
-	Attachments []*repo_model.Attachment `xorm:"-"`
-	Reactions   ReactionList             `xorm:"-"`
+	Reactions ReactionList `xorm:"-"`
 
 	// For view issue page.
 	ShowRole RoleDescriptor `xorm:"-"`
@@ -370,18 +361,6 @@ func (c *Comment) LoadPoster(ctx context.Context) (err error) {
 	}
 	c.PosterID, c.Poster, err = user_model.GetPossibleUserByID(ctx, c.PosterID)
 	return err
-}
-
-// AfterDelete is invoked from XORM after the object is deleted.
-func (c *Comment) AfterDelete(ctx context.Context) {
-	if c.ID <= 0 {
-		return
-	}
-
-	_, err := repo_model.DeleteAttachmentsByComment(ctx, c.ID, true)
-	if err != nil {
-		log.Info("Could not delete files for comment %d on issue #%d: %s", c.ID, c.IssueID, err)
-	}
 }
 
 // HTMLURL formats a URL-string to the issue-comment
@@ -520,49 +499,6 @@ func (c *Comment) LoadLabel(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// LoadAttachments loads attachments (it never returns error, the error during `GetAttachmentsByCommentIDCtx` is ignored)
-func (c *Comment) LoadAttachments(ctx context.Context) error {
-	if len(c.Attachments) > 0 {
-		return nil
-	}
-
-	var err error
-	c.Attachments, err = repo_model.GetAttachmentsByCommentID(ctx, c.ID)
-	if err != nil {
-		log.Error("getAttachmentsByCommentID[%d]: %v", c.ID, err)
-	}
-	return nil
-}
-
-// UpdateCommentAttachments update attachments by UUIDs for the comment
-func UpdateCommentAttachments(ctx context.Context, c *Comment, uuids []string) error {
-	if len(uuids) == 0 {
-		return nil
-	}
-	return db.WithTx(ctx, func(ctx context.Context) error {
-		issue, err := GetIssueByID(ctx, c.IssueID)
-		if err != nil {
-			return err
-		}
-		attachments, err := repo_model.GetAttachmentsByUUIDs(ctx, uuids)
-		if err != nil {
-			return fmt.Errorf("getAttachmentsByUUIDs [uuids: %v]: %w", uuids, err)
-		}
-		for i := range attachments {
-			if err := validateAttachmentForIssue(ctx, issue, attachments[i]); err != nil {
-				return err
-			}
-			attachments[i].IssueID = c.IssueID
-			attachments[i].CommentID = c.ID
-			if err := repo_model.UpdateAttachment(ctx, attachments[i]); err != nil {
-				return fmt.Errorf("update attachment [id: %d]: %w", attachments[i].ID, err)
-			}
-		}
-		c.Attachments = attachments
-		return nil
-	})
 }
 
 // LoadAssigneeUserAndTeam if comment.Type is CommentTypeAssignees, then load assignees
@@ -734,9 +670,6 @@ func updateCommentInfos(ctx context.Context, opts *CreateCommentOptions, comment
 	// Check comment type.
 	switch opts.Type {
 	case CommentTypeCode:
-		if err = UpdateCommentAttachments(ctx, comment, opts.Attachments); err != nil {
-			return err
-		}
 		if comment.ReviewID != 0 {
 			if comment.Review == nil {
 				if err := comment.LoadReview(ctx); err != nil {
@@ -750,11 +683,6 @@ func updateCommentInfos(ctx context.Context, opts *CreateCommentOptions, comment
 		fallthrough
 	case CommentTypeComment:
 		if err := UpdateIssueNumComments(ctx, opts.Issue.ID); err != nil {
-			return err
-		}
-		fallthrough
-	case CommentTypeReview:
-		if err = UpdateCommentAttachments(ctx, comment, opts.Attachments); err != nil {
 			return err
 		}
 		// comment type reopen and close event have their own logic to update numbers but not here
@@ -821,7 +749,6 @@ type CreateCommentOptions struct {
 	TreePath        string
 	ReviewID        int64
 	Content         string
-	Attachments     []string // UUIDs of attachments
 	RefRepoID       int64
 	RefIssueID      int64
 	RefCommentID    int64

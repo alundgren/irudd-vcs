@@ -701,14 +701,6 @@ func SetRepoDefaultBranch(ctx context.Context, repo *repo_model.Repository, newB
 		return err
 	}
 
-	if !repo.IsEmpty {
-		if err := AddRepoToLicenseUpdaterQueue(&LicenseUpdaterOptions{
-			RepoID: repo.ID,
-		}); err != nil {
-			log.Error("AddRepoToLicenseUpdaterQueue: %v", err)
-		}
-	}
-
 	// clear divergence cache
 	if err := DelRepoDivergenceFromCache(ctx, repo.ID); err != nil {
 		log.Error("DelRepoDivergenceFromCache: %v", err)

@@ -84,18 +84,6 @@ func (*NullNotifier) UpdateComment(ctx context.Context, doer *user_model.User, c
 func (*NullNotifier) DeleteComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment) {
 }
 
-// NewWikiPage places a place holder function
-func (*NullNotifier) NewWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-}
-
-// EditWikiPage places a place holder function
-func (*NullNotifier) EditWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-}
-
-// DeleteWikiPage places a place holder function
-func (*NullNotifier) DeleteWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page string) {
-}
-
 // NewRelease places a place holder function
 func (*NullNotifier) NewRelease(ctx context.Context, rel *repo_model.Release) {
 }

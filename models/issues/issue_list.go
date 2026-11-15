@@ -256,49 +256,6 @@ func (issues IssueList) LoadPullRequests(ctx context.Context) error {
 	return nil
 }
 
-// LoadAttachments loads attachments
-func (issues IssueList) LoadAttachments(ctx context.Context) (err error) {
-	if len(issues) == 0 {
-		return nil
-	}
-
-	attachments := make(map[int64][]*repo_model.Attachment, len(issues))
-	issuesIDs := issues.getIssueIDs()
-	left := len(issuesIDs)
-	for left > 0 {
-		limit := min(left, db.DefaultMaxInSize)
-		rows, err := db.GetEngine(ctx).
-			In("issue_id", issuesIDs[:limit]).
-			Rows(new(repo_model.Attachment))
-		if err != nil {
-			return err
-		}
-
-		for rows.Next() {
-			var attachment repo_model.Attachment
-			err = rows.Scan(&attachment)
-			if err != nil {
-				if err1 := rows.Close(); err1 != nil {
-					return fmt.Errorf("IssueList.loadAttachments: Close: %w", err1)
-				}
-				return err
-			}
-			attachments[attachment.IssueID] = append(attachments[attachment.IssueID], &attachment)
-		}
-		if err1 := rows.Close(); err1 != nil {
-			return fmt.Errorf("IssueList.loadAttachments: Close: %w", err1)
-		}
-		left -= limit
-		issuesIDs = issuesIDs[limit:]
-	}
-
-	for _, issue := range issues {
-		issue.Attachments = attachments[issue.ID]
-		issue.isAttachmentsLoaded = true
-	}
-	return nil
-}
-
 func (issues IssueList) loadComments(ctx context.Context, cond builder.Cond) (err error) {
 	if len(issues) == 0 {
 		return nil
@@ -343,7 +300,7 @@ func (issues IssueList) loadComments(ctx context.Context, cond builder.Cond) (er
 	return nil
 }
 
-// loadAttributes loads all attributes, expect for attachments and comments
+// loadAttributes loads all attributes, expect for comments
 func (issues IssueList) LoadAttributes(ctx context.Context) error {
 	if _, err := issues.LoadRepositories(ctx); err != nil {
 		return fmt.Errorf("issue.loadAttributes: LoadRepositories: %w", err)

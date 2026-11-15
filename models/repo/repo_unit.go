@@ -65,39 +65,6 @@ func (cfg *UnitConfig) ToDB() ([]byte, error) {
 	return json.Marshal(cfg)
 }
 
-// ExternalWikiConfig describes external wiki config
-type ExternalWikiConfig struct {
-	ExternalWikiURL string
-}
-
-// FromDB fills up a ExternalWikiConfig from serialized format.
-func (cfg *ExternalWikiConfig) FromDB(bs []byte) error {
-	return json.UnmarshalHandleDoubleEncode(bs, &cfg)
-}
-
-// ToDB exports a ExternalWikiConfig to a serialized format.
-func (cfg *ExternalWikiConfig) ToDB() ([]byte, error) {
-	return json.Marshal(cfg)
-}
-
-// ExternalTrackerConfig describes external tracker config
-type ExternalTrackerConfig struct {
-	ExternalTrackerURL           string
-	ExternalTrackerFormat        string
-	ExternalTrackerStyle         string
-	ExternalTrackerRegexpPattern string
-}
-
-// FromDB fills up a ExternalTrackerConfig from serialized format.
-func (cfg *ExternalTrackerConfig) FromDB(bs []byte) error {
-	return json.UnmarshalHandleDoubleEncode(bs, &cfg)
-}
-
-// ToDB exports a ExternalTrackerConfig to a serialized format.
-func (cfg *ExternalTrackerConfig) ToDB() ([]byte, error) {
-	return json.Marshal(cfg)
-}
-
 // PullRequestsConfig describes pull requests config
 type PullRequestsConfig struct {
 	IgnoreWhitespaceConflicts     bool
@@ -199,16 +166,8 @@ func (r *RepoUnit) BeforeSet(colName string, val xorm.Cell) {
 			setting.PanicInDevOrTesting("Unable to convert repo unit (id=%d) type: %v", r.ID, err)
 		}
 		switch r.Type {
-		case unit.TypeExternalWiki:
-			r.Config = new(ExternalWikiConfig)
-		case unit.TypeExternalTracker:
-			r.Config = new(ExternalTrackerConfig)
 		case unit.TypePullRequests:
 			r.Config = new(PullRequestsConfig)
-		case unit.TypeActions:
-			r.Config = new(ActionsConfig)
-		case unit.TypeCode, unit.TypeIssues, unit.TypeReleases, unit.TypeWiki, unit.TypePackages:
-			fallthrough
 		default:
 			r.Config = new(UnitConfig)
 		}
@@ -238,21 +197,6 @@ func (r *RepoUnit) PullRequestsConfig() *PullRequestsConfig {
 // ReleasesConfig returns config for unit.TypeReleases
 func (r *RepoUnit) ReleasesConfig() *UnitConfig {
 	return r.Config.(*UnitConfig)
-}
-
-// ExternalWikiConfig returns config for unit.TypeExternalWiki
-func (r *RepoUnit) ExternalWikiConfig() *ExternalWikiConfig {
-	return r.Config.(*ExternalWikiConfig)
-}
-
-// ExternalTrackerConfig returns config for unit.TypeExternalTracker
-func (r *RepoUnit) ExternalTrackerConfig() *ExternalTrackerConfig {
-	return r.Config.(*ExternalTrackerConfig)
-}
-
-// ActionsConfig returns config for unit.ActionsConfig
-func (r *RepoUnit) ActionsConfig() *ActionsConfig {
-	return r.Config.(*ActionsConfig)
 }
 
 func getUnitsByRepoID(ctx context.Context, repoID int64) (units []*RepoUnit, err error) {

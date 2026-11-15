@@ -294,9 +294,6 @@ func ToAPIPullRequests(ctx context.Context, baseRepo *repo_model.Repository, prs
 	if err := issueList.LoadPosters(ctx); err != nil {
 		return nil, err
 	}
-	if err := issueList.LoadAttachments(ctx); err != nil {
-		return nil, err
-	}
 	if err := issueList.LoadAssignees(ctx); err != nil {
 		return nil, err
 	}

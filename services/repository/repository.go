@@ -11,16 +11,13 @@ import (
 
 	"gitea.dev/models/db"
 	"gitea.dev/models/git"
-	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
-	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/queue"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/structs"
@@ -95,12 +92,6 @@ func PushCreateRepo(ctx context.Context, authUser, owner *user_model.User, repoN
 
 // Init start repository service
 func Init(ctx context.Context) error {
-	licenseUpdaterQueue = queue.CreateUniqueQueue(graceful.GetManager().ShutdownContext(), "repo_license_updater", repoLicenseUpdater)
-	if licenseUpdaterQueue == nil {
-		return errors.New("unable to create repo_license_updater queue")
-	}
-	go graceful.GetManager().RunWithCancel(licenseUpdaterQueue)
-
 	if err := repo_module.LoadRepoConfig(); err != nil {
 		return err
 	}
@@ -160,30 +151,6 @@ func MakeRepoPrivate(ctx context.Context, repo *repo_model.Repository, private b
 
 		return nil
 	})
-}
-
-// GetAttachmentLinkedTypeAndRepoID returns the linked type and repository id of attachment if any
-func GetAttachmentLinkedTypeAndRepoID(ctx context.Context, a *repo_model.Attachment) (unit.Type, int64, error) {
-	if a.IssueID != 0 {
-		iss, err := issues_model.GetIssueByID(ctx, a.IssueID)
-		if err != nil {
-			return unit.TypeIssues, 0, err
-		}
-		unitType := unit.TypeIssues
-		if iss.IsPull {
-			unitType = unit.TypePullRequests
-		}
-		return unitType, iss.RepoID, nil
-	}
-
-	if a.ReleaseID != 0 {
-		rel, err := repo_model.GetReleaseByID(ctx, a.ReleaseID)
-		if err != nil {
-			return unit.TypeReleases, 0, err
-		}
-		return unit.TypeReleases, rel.RepoID, nil
-	}
-	return unit.TypeInvalid, 0, nil
 }
 
 // CheckDaemonExportOK creates/removes git-daemon-export-ok for git-daemon...
@@ -260,14 +227,6 @@ func updateRepository(ctx context.Context, repo *repo_model.Repository, visibili
 	}
 
 	return nil
-}
-
-func HasWiki(ctx context.Context, repo *repo_model.Repository) bool {
-	hasWiki, err := gitrepo.IsRepositoryExist(ctx, repo.WikiStorageRepo())
-	if err != nil {
-		log.Error("gitrepo.IsRepositoryExist: %v", err)
-	}
-	return hasWiki && err == nil
 }
 
 // CheckCreateRepository check if doer could create a repository in new owner

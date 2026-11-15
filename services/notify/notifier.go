@@ -54,10 +54,6 @@ type Notifier interface {
 	UpdateComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment, oldContent string)
 	DeleteComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment)
 
-	NewWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string)
-	EditWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string)
-	DeleteWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page string)
-
 	NewRelease(ctx context.Context, rel *repo_model.Release)
 	UpdateRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release)
 	DeleteRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release)

@@ -8,14 +8,11 @@ import (
 	"context"
 	"fmt"
 	"html/template"
-	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 
 	"gitea.dev/models/db"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/container"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/structs"
 	"gitea.dev/modules/timeutil"
@@ -85,17 +82,12 @@ type Release struct {
 	IsDraft          bool               `xorm:"NOT NULL DEFAULT false"`
 	IsPrerelease     bool               `xorm:"NOT NULL DEFAULT false"`
 	IsTag            bool               `xorm:"NOT NULL DEFAULT false"` // will be true only if the record is a tag and has no related releases
-	Attachments      []*Attachment      `xorm:"-"`
 	CreatedUnix      timeutil.TimeStamp `xorm:"INDEX"`
 }
 
 func init() {
 	db.RegisterModel(new(Release))
 }
-
-// LegacyAttachmentMissingRepoIDCutoff marks the date when repo_id started to be written during uploads
-// (2026-01-16T00:00:00Z). Older rows might have repo_id=0 and should be tolerated once.
-const LegacyAttachmentMissingRepoIDCutoff timeutil.TimeStamp = 1768521600
 
 func (r *Release) LoadRepo(ctx context.Context) (err error) {
 	if r.Repo != nil {
@@ -122,7 +114,7 @@ func (r *Release) LoadAttributes(ctx context.Context) (err error) {
 			}
 		}
 	}
-	return GetReleaseAttachments(ctx, r)
+	return nil
 }
 
 // APIURL the api url for a release. release must have attributes loaded
@@ -130,24 +122,9 @@ func (r *Release) APIURL() string {
 	return r.Repo.APIURL() + "/releases/" + strconv.FormatInt(r.ID, 10)
 }
 
-// ZipURL the zip url for a release. release must have attributes loaded
-func (r *Release) ZipURL() string {
-	return r.Repo.HTMLURL() + "/archive/" + util.PathEscapeSegments(r.TagName) + ".zip"
-}
-
-// TarURL the tar.gz url for a release. release must have attributes loaded
-func (r *Release) TarURL() string {
-	return r.Repo.HTMLURL() + "/archive/" + util.PathEscapeSegments(r.TagName) + ".tar.gz"
-}
-
 // HTMLURL the url for a release on the web UI. release must have attributes loaded
 func (r *Release) HTMLURL() string {
 	return r.Repo.HTMLURL() + "/releases/tag/" + util.PathEscapeSegments(r.TagName)
-}
-
-// APIUploadURL the api url to upload assets to a release. release must have attributes loaded
-func (r *Release) APIUploadURL() string {
-	return r.APIURL() + "/assets"
 }
 
 // Link the relative url for a release on the web UI. release must have attributes loaded
@@ -173,44 +150,6 @@ func UpdateRelease(ctx context.Context, rel *Release) error {
 
 func UpdateReleaseNumCommits(ctx context.Context, rel *Release) error {
 	_, err := db.GetEngine(ctx).ID(rel.ID).Cols("num_commits").Update(rel)
-	return err
-}
-
-// AddReleaseAttachments adds a release attachments
-func AddReleaseAttachments(ctx context.Context, releaseID int64, attachmentUUIDs []string) (err error) {
-	rel, err := GetReleaseByID(ctx, releaseID)
-	if err != nil {
-		return err
-	}
-
-	// Check attachments
-	attachments, err := GetAttachmentsByUUIDs(ctx, attachmentUUIDs)
-	if err != nil {
-		return fmt.Errorf("GetAttachmentsByUUIDs [uuids: %v]: %w", attachmentUUIDs, err)
-	}
-
-	for i := range attachments {
-		if attachments[i].RepoID == 0 && attachments[i].CreatedUnix < LegacyAttachmentMissingRepoIDCutoff {
-			attachments[i].RepoID = rel.RepoID
-			if _, err = db.GetEngine(ctx).ID(attachments[i].ID).Cols("repo_id").Update(attachments[i]); err != nil {
-				return fmt.Errorf("update attachment repo_id [%d]: %w", attachments[i].ID, err)
-			}
-		}
-
-		if attachments[i].RepoID != rel.RepoID {
-			return util.NewPermissionDeniedErrorf("attachment belongs to different repository")
-		}
-
-		if attachments[i].ReleaseID != 0 {
-			return util.NewPermissionDeniedErrorf("release permission denied")
-		}
-		attachments[i].ReleaseID = releaseID
-		// No assign value could be 0, so ignore AllCols().
-		if _, err = db.GetEngine(ctx).ID(attachments[i].ID).Cols("release_id").Update(attachments[i]); err != nil {
-			return fmt.Errorf("update attachment [%d]: %w", attachments[i].ID, err)
-		}
-	}
-
 	return err
 }
 
@@ -347,91 +286,6 @@ func GetLatestReleaseByRepoID(ctx context.Context, repoID int64) (*Release, erro
 	return rel, nil
 }
 
-type releaseMetaSearch struct {
-	ID  []int64
-	Rel []*Release
-}
-
-func (s releaseMetaSearch) Len() int {
-	return len(s.ID)
-}
-
-func (s releaseMetaSearch) Swap(i, j int) {
-	s.ID[i], s.ID[j] = s.ID[j], s.ID[i]
-	s.Rel[i], s.Rel[j] = s.Rel[j], s.Rel[i]
-}
-
-func (s releaseMetaSearch) Less(i, j int) bool {
-	return s.ID[i] < s.ID[j]
-}
-
-func hasDuplicateName(attaches []*Attachment) bool {
-	attachSet := container.Set[string]{}
-	for _, attachment := range attaches {
-		if attachSet.Contains(attachment.Name) {
-			return true
-		}
-		attachSet.Add(attachment.Name)
-	}
-	return false
-}
-
-// GetReleaseAttachments retrieves the attachments for releases
-func GetReleaseAttachments(ctx context.Context, rels ...*Release) (err error) {
-	if len(rels) == 0 {
-		return nil
-	}
-
-	// To keep this efficient as possible sort all releases by id,
-	//    select attachments by release id,
-	//    then merge join them
-
-	// Sort
-	sortedRels := releaseMetaSearch{ID: make([]int64, len(rels)), Rel: make([]*Release, len(rels))}
-	var attachments []*Attachment
-	for index, element := range rels {
-		element.Attachments = []*Attachment{}
-		sortedRels.ID[index] = element.ID
-		sortedRels.Rel[index] = element
-	}
-	sort.Sort(sortedRels)
-
-	// Select attachments
-	err = db.GetEngine(ctx).
-		Asc("release_id", "name").
-		In("release_id", sortedRels.ID).
-		Find(&attachments)
-	if err != nil {
-		return err
-	}
-
-	// merge join
-	currentIndex := 0
-	for _, attachment := range attachments {
-		for sortedRels.ID[currentIndex] < attachment.ReleaseID {
-			currentIndex++
-		}
-		sortedRels.Rel[currentIndex].Attachments = append(sortedRels.Rel[currentIndex].Attachments, attachment)
-	}
-
-	// Makes URL's predictable
-	for _, release := range rels {
-		// If we have no Repo, we don't need to execute this loop
-		if release.Repo == nil {
-			continue
-		}
-
-		// If the names unique, use the URL with the Name instead of the UUID
-		if !hasDuplicateName(release.Attachments) {
-			for _, attachment := range release.Attachments {
-				attachment.CustomDownloadURL = release.Repo.HTMLURL() + "/releases/download/" + url.PathEscape(release.TagName) + "/" + url.PathEscape(attachment.Name)
-			}
-		}
-	}
-
-	return err
-}
-
 // UpdateReleasesMigrationsByType updates all migrated repositories' releases from gitServiceType to replace originalAuthorID to posterID
 func UpdateReleasesMigrationsByType(ctx context.Context, gitServiceType structs.GitServiceType, originalAuthorID string, posterID int64) error {
 	_, err := db.GetEngine(ctx).Table("release").
@@ -498,16 +352,6 @@ func InsertReleases(ctx context.Context, rels ...*Release) error {
 		for _, rel := range rels {
 			if _, err := db.GetEngine(ctx).NoAutoTime().Insert(rel); err != nil {
 				return err
-			}
-
-			if len(rel.Attachments) > 0 {
-				for i := range rel.Attachments {
-					rel.Attachments[i].ReleaseID = rel.ID
-				}
-
-				if _, err := db.GetEngine(ctx).NoAutoTime().Insert(rel.Attachments); err != nil {
-					return err
-				}
 			}
 		}
 		return nil

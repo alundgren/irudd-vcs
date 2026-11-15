@@ -173,14 +173,10 @@ func attachTeamUnitsMap(team *organization.Team, unitsMap map[string]string) {
 func attachAdminTeamUnits(team *organization.Team) {
 	team.Units = make([]*organization.TeamUnit, 0, len(unit_model.AllRepoUnitTypes))
 	for _, ut := range unit_model.AllRepoUnitTypes {
-		up := perm.AccessModeAdmin
-		if ut == unit_model.TypeExternalTracker || ut == unit_model.TypeExternalWiki {
-			up = perm.AccessModeRead
-		}
 		team.Units = append(team.Units, &organization.TeamUnit{
 			OrgID:      team.OrgID,
 			Type:       ut,
-			AccessMode: up,
+			AccessMode: perm.AccessModeAdmin,
 		})
 	}
 }

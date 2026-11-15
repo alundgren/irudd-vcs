@@ -203,7 +203,7 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 	var environ []string
 	if !isPull {
 		// if not "pull", then must be "push", and doer must exist
-		environ = repo_module.DoerPushingEnvironment(ctx.Doer, repo, false)
+		environ = repo_module.DoerPushingEnvironment(ctx.Doer, repo)
 	}
 
 	return &serviceHandler{serviceType, repo, environ}

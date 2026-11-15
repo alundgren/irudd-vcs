@@ -25,7 +25,6 @@ import (
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
-	"gitea.dev/modules/validation"
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/api/v1/utils"
 	"gitea.dev/services/context"
@@ -577,7 +576,6 @@ func updateBasicProperties(ctx *context.APIContext, opts api.EditRepoOption) err
 	}
 
 	// Default branch only updated if changed and exist or the repository is empty
-	updateRepoLicense := false
 	if opts.DefaultBranch != nil && repo.DefaultBranch != *opts.DefaultBranch && (repo.IsEmpty || gitrepo.IsBranchExist(ctx, ctx.Repo.Repository, *opts.DefaultBranch)) {
 		repo.DefaultBranch = *opts.DefaultBranch
 		if !repo.IsEmpty {
@@ -585,7 +583,6 @@ func updateBasicProperties(ctx *context.APIContext, opts api.EditRepoOption) err
 				ctx.APIErrorInternal(err)
 				return err
 			}
-			updateRepoLicense = true
 		}
 	}
 
@@ -594,20 +591,11 @@ func updateBasicProperties(ctx *context.APIContext, opts api.EditRepoOption) err
 		return err
 	}
 
-	if updateRepoLicense {
-		if err := repo_service.AddRepoToLicenseUpdaterQueue(&repo_service.LicenseUpdaterOptions{
-			RepoID: ctx.Repo.Repository.ID,
-		}); err != nil {
-			ctx.APIErrorInternal(err)
-			return err
-		}
-	}
-
 	log.Trace("Repository basic settings updated: %s/%s", owner.Name, repo.Name)
 	return nil
 }
 
-// updateRepoUnits updates repo units: Issue settings, Wiki settings, PR settings
+// updateRepoUnits updates repo units: Issue settings, PR settings
 func updateRepoUnits(ctx *context.APIContext, opts api.EditRepoOption) error {
 	owner := ctx.Repo.Owner
 	repo := ctx.Repo.Repository
@@ -615,80 +603,14 @@ func updateRepoUnits(ctx *context.APIContext, opts api.EditRepoOption) error {
 	var units []repo_model.RepoUnit
 	var deleteUnitTypes []unit_model.Type
 
-	if opts.HasIssues != nil {
-		if *opts.HasIssues && opts.ExternalTracker != nil && !unit_model.TypeExternalTracker.UnitGlobalDisabled() {
-			// Check that values are valid
-			if !validation.IsValidURL(opts.ExternalTracker.ExternalTrackerURL) {
-				err := errors.New("External tracker URL not valid")
-				ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-				return err
-			}
-			if len(opts.ExternalTracker.ExternalTrackerFormat) != 0 && !validation.IsValidExternalTrackerURLFormat(opts.ExternalTracker.ExternalTrackerFormat) {
-				err := errors.New("External tracker URL format not valid")
-				ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-				return err
-			}
-
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   unit_model.TypeExternalTracker,
-				Config: &repo_model.ExternalTrackerConfig{
-					ExternalTrackerURL:           opts.ExternalTracker.ExternalTrackerURL,
-					ExternalTrackerFormat:        opts.ExternalTracker.ExternalTrackerFormat,
-					ExternalTrackerStyle:         opts.ExternalTracker.ExternalTrackerStyle,
-					ExternalTrackerRegexpPattern: opts.ExternalTracker.ExternalTrackerRegexpPattern,
-				},
-			})
-			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeIssues)
-		} else if *opts.HasIssues && opts.ExternalTracker == nil && !unit_model.TypeIssues.UnitGlobalDisabled() {
-			// Default to built-in tracker
+	if opts.HasIssues != nil && !unit_model.TypeIssues.UnitGlobalDisabled() {
+		if *opts.HasIssues {
 			units = append(units, repo_model.RepoUnit{
 				RepoID: repo.ID,
 				Type:   unit_model.TypeIssues,
 			})
-			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeExternalTracker)
-		} else if !*opts.HasIssues {
-			if !unit_model.TypeExternalTracker.UnitGlobalDisabled() {
-				deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeExternalTracker)
-			}
-			if !unit_model.TypeIssues.UnitGlobalDisabled() {
-				deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeIssues)
-			}
-		}
-	}
-
-	if opts.HasWiki != nil {
-		if *opts.HasWiki && opts.ExternalWiki != nil && !unit_model.TypeExternalWiki.UnitGlobalDisabled() {
-			// Check that values are valid
-			if !validation.IsValidURL(opts.ExternalWiki.ExternalWikiURL) {
-				err := errors.New("External wiki URL not valid")
-				ctx.APIError(http.StatusUnprocessableEntity, "Invalid external wiki URL")
-				return err
-			}
-
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   unit_model.TypeExternalWiki,
-				Config: &repo_model.ExternalWikiConfig{
-					ExternalWikiURL: opts.ExternalWiki.ExternalWikiURL,
-				},
-			})
-			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeWiki)
-		} else if *opts.HasWiki && opts.ExternalWiki == nil && !unit_model.TypeWiki.UnitGlobalDisabled() {
-			config := &repo_model.UnitConfig{}
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   unit_model.TypeWiki,
-				Config: config,
-			})
-			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeExternalWiki)
-		} else if !*opts.HasWiki {
-			if !unit_model.TypeExternalWiki.UnitGlobalDisabled() {
-				deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeExternalWiki)
-			}
-			if !unit_model.TypeWiki.UnitGlobalDisabled() {
-				deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeWiki)
-			}
+		} else {
+			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeIssues)
 		}
 	}
 
@@ -763,28 +685,6 @@ func updateRepoUnits(ctx *context.APIContext, opts api.EditRepoOption) error {
 			})
 		} else {
 			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeReleases)
-		}
-	}
-
-	if opts.HasPackages != nil && !unit_model.TypePackages.UnitGlobalDisabled() {
-		if *opts.HasPackages {
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   unit_model.TypePackages,
-			})
-		} else {
-			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypePackages)
-		}
-	}
-
-	if opts.HasActions != nil && !unit_model.TypeActions.UnitGlobalDisabled() {
-		if *opts.HasActions {
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   unit_model.TypeActions,
-			})
-		} else {
-			deleteUnitTypes = append(deleteUnitTypes, unit_model.TypeActions)
 		}
 	}
 

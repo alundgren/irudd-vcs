@@ -40,7 +40,6 @@ type MarkdownMathCodeBlockOptions struct {
 // Markdown settings
 var Markdown = struct {
 	RenderOptionsComment  MarkdownRenderOptions `ini:"-"`
-	RenderOptionsWiki     MarkdownRenderOptions `ini:"-"`
 	RenderOptionsRepoFile MarkdownRenderOptions `ini:"-"`
 
 	CustomURLSchemes []string `ini:"CUSTOM_URL_SCHEMES"` // Actually it is a "markup" option because it is used in "post processor"
@@ -108,7 +107,6 @@ func loadMarkupFrom(rootCfg ConfigProvider) {
 		return ret
 	}
 	Markdown.RenderOptionsComment = parseMarkdownRenderOptions("RENDER_OPTIONS_COMMENT", []string{renderOptionShortIssuePattern, renderOptionNewLineHardBreak})
-	Markdown.RenderOptionsWiki = parseMarkdownRenderOptions("RENDER_OPTIONS_WIKI", []string{renderOptionShortIssuePattern})
 	Markdown.RenderOptionsRepoFile = parseMarkdownRenderOptions("RENDER_OPTIONS_REPO_FILE", nil)
 
 	const mathCodeInlineDollar = "inline-dollar"

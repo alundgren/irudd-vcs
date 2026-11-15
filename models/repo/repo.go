@@ -84,15 +84,6 @@ func IsUsableRepoName(name string) error {
 	return db.IsUsableName(vars.reservedRepoNames, vars.reservedRepoNamePatterns, name)
 }
 
-// IsValidSSHAccessRepoName is like IsUsableRepoName, but it allows "*.wiki" because wiki repo needs to be accessed in SSH code
-func IsValidSSHAccessRepoName(name string) bool {
-	vars := globalVars()
-	if !vars.validRepoNamePattern.MatchString(name) || vars.invalidRepoNamePattern.MatchString(name) {
-		return false
-	}
-	return db.IsUsableName(vars.reservedRepoNames, vars.reservedRepoNamePatterns[1:], name) == nil
-}
-
 // TrustModelType defines the types of trust model for this repository
 type TrustModelType int
 
@@ -158,20 +149,16 @@ type Repository struct {
 	OriginalServiceType api.GitServiceType `xorm:"index"`
 	OriginalURL         string             `xorm:"VARCHAR(2048)"`
 	DefaultBranch       string
-	DefaultWikiBranch   string
 
-	NumWatches          int
-	NumStars            int
-	NumForks            int
-	NumIssues           int
-	NumClosedIssues     int
-	NumOpenIssues       int `xorm:"-"`
-	NumPulls            int
-	NumClosedPulls      int
-	NumOpenPulls        int `xorm:"-"`
-	NumActionRuns       int `xorm:"NOT NULL DEFAULT 0"`
-	NumClosedActionRuns int `xorm:"NOT NULL DEFAULT 0"`
-	NumOpenActionRuns   int `xorm:"-"`
+	NumWatches      int
+	NumStars        int
+	NumForks        int
+	NumIssues       int
+	NumClosedIssues int
+	NumOpenIssues   int `xorm:"-"`
+	NumPulls        int
+	NumClosedPulls  int
+	NumOpenPulls    int `xorm:"-"`
 
 	IsPrivate  bool `xorm:"INDEX"`
 	IsEmpty    bool `xorm:"INDEX"`
@@ -180,23 +167,20 @@ type Repository struct {
 
 	Status RepositoryStatus `xorm:"NOT NULL DEFAULT 0"`
 
-	Units           []*RepoUnit   `xorm:"-"`
-	PrimaryLanguage *LanguageStat `xorm:"-"`
+	Units []*RepoUnit `xorm:"-"`
 
-	IsFork                          bool               `xorm:"INDEX NOT NULL DEFAULT false"`
-	ForkID                          int64              `xorm:"INDEX"`
-	BaseRepo                        *Repository        `xorm:"-"`
-	IsTemplate                      bool               `xorm:"INDEX NOT NULL DEFAULT false"`
-	TemplateID                      int64              `xorm:"INDEX"`
-	Size                            int64              `xorm:"NOT NULL DEFAULT 0"`
-	GitSize                         int64              `xorm:"NOT NULL DEFAULT 0"`
-	LFSSize                         int64              `xorm:"NOT NULL DEFAULT 0"`
-	CodeIndexerStatus               *RepoIndexerStatus `xorm:"-"`
-	StatsIndexerStatus              *RepoIndexerStatus `xorm:"-"`
-	IsFsckEnabled                   bool               `xorm:"NOT NULL DEFAULT true"`
-	CloseIssuesViaCommitInAnyBranch bool               `xorm:"NOT NULL DEFAULT false"`
-	Topics                          []string           `xorm:"TEXT JSON"`
-	ObjectFormatName                string             `xorm:"VARCHAR(6) NOT NULL DEFAULT 'sha1'"`
+	IsFork                          bool        `xorm:"INDEX NOT NULL DEFAULT false"`
+	ForkID                          int64       `xorm:"INDEX"`
+	BaseRepo                        *Repository `xorm:"-"`
+	IsTemplate                      bool        `xorm:"INDEX NOT NULL DEFAULT false"`
+	TemplateID                      int64       `xorm:"INDEX"`
+	Size                            int64       `xorm:"NOT NULL DEFAULT 0"`
+	GitSize                         int64       `xorm:"NOT NULL DEFAULT 0"`
+	LFSSize                         int64       `xorm:"NOT NULL DEFAULT 0"`
+	IsFsckEnabled                   bool        `xorm:"NOT NULL DEFAULT true"`
+	CloseIssuesViaCommitInAnyBranch bool        `xorm:"NOT NULL DEFAULT false"`
+	Topics                          []string    `xorm:"TEXT JSON"`
+	ObjectFormatName                string      `xorm:"VARCHAR(6) NOT NULL DEFAULT 'sha1'"`
 
 	TrustModel TrustModelType
 
@@ -307,10 +291,6 @@ func (repo *Repository) MarkAsBrokenEmpty() {
 func (repo *Repository) AfterLoad() {
 	repo.NumOpenIssues = repo.NumIssues - repo.NumClosedIssues
 	repo.NumOpenPulls = repo.NumPulls - repo.NumClosedPulls
-	repo.NumOpenActionRuns = repo.NumActionRuns - repo.NumClosedActionRuns
-	if repo.DefaultWikiBranch == "" {
-		repo.DefaultWikiBranch = setting.Repository.DefaultBranch
-	}
 }
 
 // LoadAttributes loads attributes of the repository.
@@ -320,20 +300,6 @@ func (repo *Repository) LoadAttributes(ctx context.Context) error {
 		return fmt.Errorf("load owner: %w", err)
 	}
 
-	// Load primary language
-	stats := make(LanguageStatList, 0, 1)
-	if err := db.GetEngine(ctx).
-		Where("`repo_id` = ? AND `is_primary` = ? AND `language` != ?", repo.ID, true, "other").
-		Find(&stats); err != nil {
-		return fmt.Errorf("find primary languages: %w", err)
-	}
-	stats.LoadAttributes()
-	for _, st := range stats {
-		if st.RepoID == repo.ID {
-			repo.PrimaryLanguage = st
-			break
-		}
-	}
 	return nil
 }
 
@@ -419,14 +385,8 @@ func (repo *Repository) MustGetUnit(ctx context.Context, tp unit.Type) *RepoUnit
 	}
 	ru = &RepoUnit{RepoID: repo.ID, Type: tp}
 	switch tp {
-	case unit.TypeExternalWiki:
-		ru.Config = new(ExternalWikiConfig)
-	case unit.TypeExternalTracker:
-		ru.Config = new(ExternalTrackerConfig)
 	case unit.TypePullRequests:
 		ru.Config = new(PullRequestsConfig)
-	case unit.TypeActions:
-		ru.Config = new(ActionsConfig)
 	default: // other units don't have config
 	}
 	if ru.Config != nil {

@@ -59,31 +59,7 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 	}
 
 	// check enabled/disabled units
-	hasIssues := false
-	var externalTracker *api.ExternalTracker
-	if repo.UnitEnabled(ctx, unit_model.TypeIssues) {
-		hasIssues = true
-	} else if unit, err := repo.GetUnit(ctx, unit_model.TypeExternalTracker); err == nil {
-		config := unit.ExternalTrackerConfig()
-		hasIssues = true
-		externalTracker = &api.ExternalTracker{
-			ExternalTrackerURL:           config.ExternalTrackerURL,
-			ExternalTrackerFormat:        config.ExternalTrackerFormat,
-			ExternalTrackerStyle:         config.ExternalTrackerStyle,
-			ExternalTrackerRegexpPattern: config.ExternalTrackerRegexpPattern,
-		}
-	}
-	hasWiki := false
-	var externalWiki *api.ExternalWiki
-	if _, err := repo.GetUnit(ctx, unit_model.TypeWiki); err == nil {
-		hasWiki = true
-	} else if unit, err := repo.GetUnit(ctx, unit_model.TypeExternalWiki); err == nil {
-		hasWiki = true
-		config := unit.ExternalWikiConfig()
-		externalWiki = &api.ExternalWiki{
-			ExternalWikiURL: config.ExternalWikiURL,
-		}
-	}
+	hasIssues := repo.UnitEnabled(ctx, unit_model.TypeIssues)
 	hasPullRequests := false
 	ignoreWhitespaceConflicts := false
 	allowMerge := false
@@ -121,8 +97,6 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 	}
 	hasCode := repo.UnitEnabled(ctx, unit_model.TypeCode)
 	hasReleases := repo.UnitEnabled(ctx, unit_model.TypeReleases)
-	hasPackages := repo.UnitEnabled(ctx, unit_model.TypePackages)
-	hasActions := repo.UnitEnabled(ctx, unit_model.TypeActions)
 
 	if err := repo.LoadOwner(ctx); err != nil {
 		return nil
@@ -157,18 +131,6 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 		}
 	}
 
-	var language string
-	if repo.PrimaryLanguage != nil {
-		language = repo.PrimaryLanguage.Language
-	}
-
-	repoLicenses, err := repo_model.GetRepoLicenses(ctx, repo)
-	if err != nil {
-		return nil
-	}
-
-	repoAPIURL := repo.APIURL()
-
 	return &api.Repository{
 		ID:                            repo.ID,
 		Owner:                         ToUserWithAccessMode(ctx, repo.Owner, permissionInRepo.AccessMode),
@@ -184,13 +146,11 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 		Parent:                        parent,
 		Mirror:                        repo.IsMirror,
 		HTMLURL:                       repo.HTMLURL(ctx),
-		URL:                           repoAPIURL,
+		URL:                           repo.APIURL(),
 		SSHURL:                        cloneLink.SSH,
 		CloneURL:                      cloneLink.HTTPS,
 		OriginalURL:                   repo.SanitizedOriginalURL(),
 		Website:                       repo.Website,
-		Language:                      language,
-		LanguagesURL:                  repoAPIURL + "/languages",
 		Stars:                         repo.NumStars,
 		Forks:                         repo.NumForks,
 		Watchers:                      repo.NumWatches,
@@ -205,12 +165,7 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 		Permissions:                   permission,
 		HasCode:                       hasCode,
 		HasIssues:                     hasIssues,
-		ExternalTracker:               externalTracker,
-		HasWiki:                       hasWiki,
 		HasReleases:                   hasReleases,
-		HasPackages:                   hasPackages,
-		HasActions:                    hasActions,
-		ExternalWiki:                  externalWiki,
 		HasPullRequests:               hasPullRequests,
 		IgnoreWhitespaceConflicts:     ignoreWhitespaceConflicts,
 		AllowMerge:                    allowMerge,
@@ -235,7 +190,6 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 		RepoTransfer:                  transfer,
 		Topics:                        util.SliceNilAsEmpty(repo.Topics),
 		ObjectFormatName:              api.ObjectFormatName(repo.ObjectFormatName),
-		Licenses:                      util.SliceNilAsEmpty(repoLicenses.StringList()),
 	}
 }
 

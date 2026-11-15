@@ -271,7 +271,7 @@ func CreatePullReviewCommentReply(ctx *context.APIContext) {
 		ctx.Doer, ctx.Repo.GitRepo, parent.Issue,
 		parent.Line, opts.Body, parent.TreePath,
 		false, parent.ReviewID,
-		"", nil,
+		"",
 	)
 	if err != nil {
 		ctx.APIErrorInternal(err)
@@ -552,7 +552,6 @@ func CreatePullReview(ctx *context.APIContext) {
 			true, // pending review
 			0,    // no reply
 			opts.CommitID,
-			nil,
 		); err != nil {
 			ctx.APIErrorInternal(err)
 			return
@@ -560,7 +559,7 @@ func CreatePullReview(ctx *context.APIContext) {
 	}
 
 	// create review and associate all pending review comments
-	review, _, err := pull_service.SubmitReview(ctx, ctx.Doer, ctx.Repo.GitRepo, pr.Issue, reviewType, opts.Body, opts.CommitID, nil)
+	review, _, err := pull_service.SubmitReview(ctx, ctx.Doer, ctx.Repo.GitRepo, pr.Issue, reviewType, opts.Body, opts.CommitID)
 	if err != nil {
 		if errors.Is(err, pull_service.ErrSubmitReviewOnClosedPR) {
 			ctx.APIError(http.StatusUnprocessableEntity, err.Error())
@@ -652,7 +651,7 @@ func SubmitPullReview(ctx *context.APIContext) {
 	}
 
 	// create review and associate all pending review comments
-	review, _, err = pull_service.SubmitReview(ctx, ctx.Doer, ctx.Repo.GitRepo, pr.Issue, reviewType, opts.Body, headCommitID, nil)
+	review, _, err = pull_service.SubmitReview(ctx, ctx.Doer, ctx.Repo.GitRepo, pr.Issue, reviewType, opts.Body, headCommitID)
 	if err != nil {
 		if errors.Is(err, pull_service.ErrSubmitReviewOnClosedPR) {
 			ctx.APIError(http.StatusUnprocessableEntity, err.Error())

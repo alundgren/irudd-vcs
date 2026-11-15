@@ -88,17 +88,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		}
 	}
 
-	attachments := make([]*repo_model.Attachment, 0, 20)
-	if err = sess.Join("INNER", "`release`", "`release`.id = `attachment`.release_id").
-		Where("`release`.repo_id = ?", repoID).
-		Find(&attachments); err != nil {
-		return err
-	}
-	releaseAttachments := make([]string, 0, len(attachments))
-	for i := 0; i < len(attachments); i++ {
-		releaseAttachments = append(releaseAttachments, attachments[i].RelativePath())
-	}
-
 	if _, err := db.Exec(ctx, "UPDATE `user` SET num_stars=num_stars-1 WHERE id IN (SELECT `uid` FROM `star` WHERE repo_id = ?)", repo.ID); err != nil {
 		return err
 	}
@@ -118,12 +107,9 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		&git_model.Branch{RepoID: repoID},
 		&git_model.RenamedBranch{RepoID: repoID},
 		&git_model.LFSLock{RepoID: repoID},
-		&repo_model.LanguageStat{RepoID: repoID},
-		&repo_model.RepoLicense{RepoID: repoID},
 		&git_model.ProtectedBranch{RepoID: repoID},
 		&git_model.ProtectedTag{RepoID: repoID},
 		&repo_model.Release{RepoID: repoID},
-		&repo_model.RepoIndexerStatus{RepoID: repoID},
 		&repo_model.Redirect{RedirectRepoID: repoID},
 		&repo_model.RepoTransfer{RepoID: repoID}, // this column doesn't have index, maybe it's fine since the table shouldn't be too large.
 		&repo_model.RepoUnit{RepoID: repoID},
@@ -143,8 +129,7 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 	}
 
 	// Delete Issues and related objects
-	var attachmentPaths []string
-	if attachmentPaths, err = issue_service.DeleteIssuesByRepoID(ctx, repoID); err != nil {
+	if err = issue_service.DeleteIssuesByRepoID(ctx, repoID); err != nil {
 		return err
 	}
 
@@ -186,44 +171,10 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		return err
 	}
 
-	// Remove archives
-	var archives []*repo_model.RepoArchiver
-	if err = sess.Where("repo_id=?", repoID).Find(&archives); err != nil {
-		return err
-	}
-
-	archivePaths := make([]string, 0, len(archives))
-	for _, v := range archives {
-		archivePaths = append(archivePaths, v.RelativePath())
-	}
-
-	if _, err := db.DeleteByBean(ctx, &repo_model.RepoArchiver{RepoID: repoID}); err != nil {
-		return err
-	}
-
 	if repo.NumForks > 0 {
 		if _, err = sess.Exec("UPDATE `repository` SET fork_id=0,is_fork=? WHERE fork_id=?", false, repo.ID); err != nil {
 			log.Error("reset 'fork_id' and 'is_fork': %v", err)
 		}
-	}
-
-	// Get all attachments with both issue_id and release_id are zero
-	var newAttachments []*repo_model.Attachment
-	if err := sess.Where(builder.Eq{
-		"repo_id":    repo.ID,
-		"issue_id":   0,
-		"release_id": 0,
-	}).Find(&newAttachments); err != nil {
-		return err
-	}
-
-	newAttachmentPaths := make([]string, 0, len(newAttachments))
-	for _, attach := range newAttachments {
-		newAttachmentPaths = append(newAttachmentPaths, attach.RelativePath())
-	}
-
-	if _, err := sess.Where("repo_id=?", repo.ID).Delete(new(repo_model.Attachment)); err != nil {
-		return err
 	}
 
 	if err = committer.Commit(); err != nil {
@@ -243,38 +194,9 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		}
 	}
 
-	// Remove wiki files if it exists.
-	if err := gitrepo.DeleteRepository(ctx, repo.WikiStorageRepo()); err != nil {
-		desc := fmt.Sprintf("Delete wiki repository files (%s): %v", repo.FullName(), err)
-		// Note we use the db.DefaultContext here rather than passing in a context as the context may be cancelled
-		if err = system_model.CreateNotice(graceful.GetManager().ShutdownContext(), system_model.NoticeRepository, desc); err != nil {
-			log.Error("CreateRepositoryNotice: %v", err)
-		}
-	}
-
-	// Remove archives
-	for _, archive := range archivePaths {
-		system_model.RemoveStorageWithNotice(ctx, storage.RepoArchives, "Delete repo archive file", archive)
-	}
-
 	// Remove lfs objects
 	for _, lfsObj := range lfsPaths {
 		system_model.RemoveStorageWithNotice(ctx, storage.LFS, "Delete orphaned LFS file", lfsObj)
-	}
-
-	// Remove issue attachment files.
-	for _, attachment := range attachmentPaths {
-		system_model.RemoveStorageWithNotice(ctx, storage.Attachments, "Delete issue attachment", attachment)
-	}
-
-	// Remove release attachment files.
-	for _, releaseAttachment := range releaseAttachments {
-		system_model.RemoveStorageWithNotice(ctx, storage.Attachments, "Delete release attachment", releaseAttachment)
-	}
-
-	// Remove attachment with no issue_id and release_id.
-	for _, newAttachment := range newAttachmentPaths {
-		system_model.RemoveStorageWithNotice(ctx, storage.Attachments, "Delete issue attachment", newAttachment)
 	}
 
 	return nil

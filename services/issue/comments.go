@@ -48,15 +48,14 @@ func CreateRefComment(ctx context.Context, doer *user_model.User, repo *repo_mod
 }
 
 // CreateIssueComment creates a plain issue comment.
-func CreateIssueComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content string, attachments []string) (*issues_model.Comment, error) {
+func CreateIssueComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content string) (*issues_model.Comment, error) {
 
 	comment, err := issues_model.CreateComment(ctx, &issues_model.CreateCommentOptions{
-		Type:        issues_model.CommentTypeComment,
-		Doer:        doer,
-		Repo:        repo,
-		Issue:       issue,
-		Content:     content,
-		Attachments: attachments,
+		Type:    issues_model.CommentTypeComment,
+		Doer:    doer,
+		Repo:    repo,
+		Issue:   issue,
+		Content: content,
 	})
 	if err != nil {
 		return nil, err

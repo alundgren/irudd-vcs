@@ -56,12 +56,6 @@ func getMergeMessage(ctx context.Context, baseGitRepo *git.Repository, pr *issue
 		return "", "", err
 	}
 
-	isExternalTracker := pr.BaseRepo.UnitEnabled(ctx, unit.TypeExternalTracker)
-	issueReference := "#"
-	if isExternalTracker {
-		issueReference = "!"
-	}
-
 	reviewedOn := "Reviewed-on: " + httplib.MakeAbsoluteURL(ctx, pr.Issue.Link())
 	reviewedBy := pr.GetApprovers(ctx)
 
@@ -88,7 +82,7 @@ func getMergeMessage(ctx context.Context, baseGitRepo *git.Repository, pr *issue
 				"PullRequestDescription": pr.Issue.Content,
 				"PullRequestPosterName":  pr.Issue.Poster.Name,
 				"PullRequestIndex":       strconv.FormatInt(pr.Index, 10),
-				"PullRequestReference":   fmt.Sprintf("%s%d", issueReference, pr.Index),
+				"PullRequestReference":   fmt.Sprintf("#%d", pr.Index),
 				"ReviewedOn":             reviewedOn,
 				"ReviewedBy":             reviewedBy,
 			}
@@ -112,18 +106,18 @@ func getMergeMessage(ctx context.Context, baseGitRepo *git.Repository, pr *issue
 
 	// Squash merge has a different from other styles.
 	if mergeStyle == repo_model.MergeStyleSquash {
-		return fmt.Sprintf("%s (%s%d)", pr.Issue.Title, issueReference, pr.Issue.Index), body, nil
+		return fmt.Sprintf("%s (#%d)", pr.Issue.Title, pr.Issue.Index), body, nil
 	}
 
 	if pr.BaseRepoID == pr.HeadRepoID {
-		return fmt.Sprintf("Merge pull request '%s' (%s%d) from %s into %s", pr.Issue.Title, issueReference, pr.Issue.Index, pr.HeadBranch, pr.BaseBranch), body, nil
+		return fmt.Sprintf("Merge pull request '%s' (#%d) from %s into %s", pr.Issue.Title, pr.Issue.Index, pr.HeadBranch, pr.BaseBranch), body, nil
 	}
 
 	if pr.HeadRepo == nil {
-		return fmt.Sprintf("Merge pull request '%s' (%s%d) from <deleted>:%s into %s", pr.Issue.Title, issueReference, pr.Issue.Index, pr.HeadBranch, pr.BaseBranch), body, nil
+		return fmt.Sprintf("Merge pull request '%s' (#%d) from <deleted>:%s into %s", pr.Issue.Title, pr.Issue.Index, pr.HeadBranch, pr.BaseBranch), body, nil
 	}
 
-	return fmt.Sprintf("Merge pull request '%s' (%s%d) from %s:%s into %s", pr.Issue.Title, issueReference, pr.Issue.Index, pr.HeadRepo.FullName(), pr.HeadBranch, pr.BaseBranch), body, nil
+	return fmt.Sprintf("Merge pull request '%s' (#%d) from %s:%s into %s", pr.Issue.Title, pr.Issue.Index, pr.HeadRepo.FullName(), pr.HeadBranch, pr.BaseBranch), body, nil
 }
 
 func expandDefaultMergeMessage(template string, vars map[string]string) (message, body string) {
@@ -358,7 +352,6 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 		headUser,
 		doer,
 		pr.BaseRepo,
-		pr.BaseRepo.Name,
 		pr.ID,
 		pr.Index,
 	)

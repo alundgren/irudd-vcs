@@ -6,12 +6,10 @@ package repository
 import (
 	"os"
 	"strconv"
-	"strings"
 
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/util"
 )
 
 // env keys for git hooks need
@@ -19,7 +17,6 @@ const (
 	EnvRepoName      = "GITEA_REPO_NAME"
 	EnvRepoUsername  = "GITEA_REPO_USER_NAME"
 	EnvRepoID        = "GITEA_REPO_ID"
-	EnvRepoIsWiki    = "GITEA_REPO_IS_WIKI"
 	EnvPusherName    = "GITEA_PUSHER_NAME"
 	EnvPusherEmail   = "GITEA_PUSHER_EMAIL"
 	EnvPusherID      = "GITEA_PUSHER_ID"
@@ -52,16 +49,15 @@ func InternalPushingEnvironment(doer *user_model.User, repo *repo_model.Reposito
 
 // PushingEnvironment returns an os environment to allow hooks to work on push
 func PushingEnvironment(doer *user_model.User, repo *repo_model.Repository) []string {
-	return FullPushingEnvironment(doer, doer, repo, repo.Name, 0, 0)
+	return FullPushingEnvironment(doer, doer, repo, 0, 0)
 }
 
-func DoerPushingEnvironment(doer *user_model.User, repo *repo_model.Repository, isWiki bool) []string {
+func DoerPushingEnvironment(doer *user_model.User, repo *repo_model.Repository) []string {
 	env := []string{
 		EnvAppURL + "=" + setting.AppURL,
-		EnvRepoName + "=" + repo.Name + util.Iif(isWiki, ".wiki", ""),
+		EnvRepoName + "=" + repo.Name,
 		EnvRepoUsername + "=" + repo.OwnerName,
 		EnvRepoID + "=" + strconv.FormatInt(repo.ID, 10),
-		EnvRepoIsWiki + "=" + strconv.FormatBool(isWiki),
 		EnvPusherName + "=" + doer.Name,
 		EnvPusherID + "=" + strconv.FormatInt(doer.ID, 10),
 	}
@@ -75,8 +71,7 @@ func DoerPushingEnvironment(doer *user_model.User, repo *repo_model.Repository, 
 }
 
 // FullPushingEnvironment returns an os environment to allow hooks to work on push
-func FullPushingEnvironment(author, committer *user_model.User, repo *repo_model.Repository, repoName string, prID, prIndex int64) []string {
-	isWiki := strings.HasSuffix(repoName, ".wiki")
+func FullPushingEnvironment(author, committer *user_model.User, repo *repo_model.Repository, prID, prIndex int64) []string {
 	authorSig := author.NewGitSig()
 	committerSig := committer.NewGitSig()
 	environ := append(os.Environ(),
@@ -88,6 +83,6 @@ func FullPushingEnvironment(author, committer *user_model.User, repo *repo_model
 		EnvPRIndex+"="+strconv.FormatInt(prIndex, 10),
 		"SSH_ORIGINAL_COMMAND=gitea-internal",
 	)
-	environ = append(environ, DoerPushingEnvironment(committer, repo, isWiki)...)
+	environ = append(environ, DoerPushingEnvironment(committer, repo)...)
 	return environ
 }

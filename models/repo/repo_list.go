@@ -111,38 +111,9 @@ func (repos RepositoryList) LoadOwners(ctx context.Context) error {
 	return nil
 }
 
-func (repos RepositoryList) LoadLanguageStats(ctx context.Context) error {
-	if len(repos) == 0 {
-		return nil
-	}
-
-	// Load primary language.
-	stats := make(LanguageStatList, 0, len(repos))
-	if err := db.GetEngine(ctx).
-		Where("`is_primary` = ? AND `language` != ?", true, "other").
-		In("`repo_id`", repos.IDs()).
-		Find(&stats); err != nil {
-		return fmt.Errorf("find primary languages: %w", err)
-	}
-	stats.LoadAttributes()
-	for i := range repos {
-		for _, st := range stats {
-			if st.RepoID == repos[i].ID {
-				repos[i].PrimaryLanguage = st
-				break
-			}
-		}
-	}
-	return nil
-}
-
 // LoadAttributes loads the attributes for the given RepositoryList
 func (repos RepositoryList) LoadAttributes(ctx context.Context) error {
-	if err := repos.LoadOwners(ctx); err != nil {
-		return err
-	}
-
-	return repos.LoadLanguageStats(ctx)
+	return repos.LoadOwners(ctx)
 }
 
 // SearchRepoOptions holds the search options
@@ -191,8 +162,6 @@ type SearchRepoOptions struct {
 	Archived optional.Option[bool]
 	// only search topic name
 	TopicOnly bool
-	// only search repositories with specified primary language
-	Language string
 	// include description in keyword search
 	IncludeDescription bool
 	// LowerNames represents valid lower names to restrict to
@@ -488,13 +457,6 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 		cond = cond.And(keywordCond)
 	}
 
-	if opts.Language != "" {
-		cond = cond.And(builder.In("id", builder.
-			Select("repo_id").
-			From("language_stat").
-			Where(builder.Eq{"language": opts.Language}).And(builder.Eq{"is_primary": true})))
-	}
-
 	if opts.Fork.Has() || opts.OnlyShowRelevant {
 		if opts.OnlyShowRelevant && !opts.Fork.Has() {
 			cond = cond.And(builder.Eq{"is_fork": false})
@@ -759,30 +721,6 @@ func NotPublicRepoUnderPublicOwnerCond() builder.Cond {
 		builder.Eq{"`repository`.is_private": true},
 		builder.In("`repository`.owner_id", builder.Select("id").From("`user`").Where(builder.Neq{"visibility": structs.VisibleTypePublic})),
 	)
-}
-
-// UserActionsAccessibleOwnerRepoCond selects the repos owned by ownerID whose Actions `user` may read.
-// It is used to list an org/user's Actions runs and jobs (see the callers in routers/api/v1/shared).
-//   - owner_id = ownerID: only that owner's repos.
-//   - AccessibleRepositoryCondition(user, TypeActions): only repos whose Actions the user can read
-//     (admin/owner teams are handled inside it; a site admin is not, callers must skip the filter for one).
-//   - publicOnly (a public-only token): additionally limit to public repos under a public owner.
-func UserActionsAccessibleOwnerRepoCond(ownerID int64, user *user_model.User, publicOnly bool) builder.Cond {
-	cond := builder.NewCond().And(
-		builder.Eq{"`repository`.owner_id": ownerID},
-		AccessibleRepositoryCondition(user, unit.TypeActions),
-	)
-	if publicOnly {
-		cond = cond.And(PublicRepoUnderPublicOwnerCond())
-	}
-	return cond
-}
-
-// FindUserActionsAccessibleOwnerRepoIDsSubQuery returns a subquery selecting the repository IDs the user
-// can see for the given owner. Callers embed it in an `IN (...)` condition so that a large owner does not
-// materialize every repo ID into the SQL statement, which could exceed database parameter limits.
-func FindUserActionsAccessibleOwnerRepoIDsSubQuery(ownerID int64, user *user_model.User, publicOnly bool) *builder.Builder {
-	return builder.Select("id").From("repository").Where(UserActionsAccessibleOwnerRepoCond(ownerID, user, publicOnly))
 }
 
 // GetUserRepositories returns a list of repositories of given user.

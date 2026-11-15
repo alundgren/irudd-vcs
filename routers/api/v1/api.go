@@ -736,13 +736,6 @@ func mustEnableIssuesOrPulls(ctx *context.APIContext) {
 	}
 }
 
-func mustEnableWiki(ctx *context.APIContext) {
-	if !(ctx.Repo.Permission.CanRead(unit.TypeWiki)) {
-		ctx.APIErrorNotFound()
-		return
-	}
-}
-
 // FIXME: for consistency, maybe most mustNotBeArchived checks should be replaced with mustEnableEditor
 func mustNotBeArchived(ctx *context.APIContext) {
 	if ctx.Repo.Repository.IsArchived {
@@ -754,13 +747,6 @@ func mustNotBeArchived(ctx *context.APIContext) {
 func mustEnableEditor(ctx *context.APIContext) {
 	if !ctx.Repo.Repository.CanEnableEditor() {
 		ctx.APIError(http.StatusLocked, "repo is not allowed to edit")
-		return
-	}
-}
-
-func mustEnableAttachments(ctx *context.APIContext) {
-	if !setting.Attachment.Enabled {
-		ctx.APIErrorNotFound()
 		return
 	}
 }

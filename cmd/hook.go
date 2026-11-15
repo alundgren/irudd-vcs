@@ -169,7 +169,6 @@ Gitea or set your environment appropriately.`, "")
 	}
 
 	// the environment is set by serv command
-	isWiki, _ := strconv.ParseBool(os.Getenv(repo_module.EnvRepoIsWiki))
 	username := os.Getenv(repo_module.EnvRepoUsername)
 	reponame := os.Getenv(repo_module.EnvRepoName)
 	userID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPusherID), 10, 64)
@@ -186,7 +185,6 @@ Gitea or set your environment appropriately.`, "")
 		PullRequestID:                   prID,
 		DeployKeyID:                     deployKeyID,
 		ActionsTaskID:                   actionsTaskID,
-		IsWiki:                          isWiki,
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -210,11 +208,6 @@ Gitea or set your environment appropriately.`, "")
 	}
 
 	for scanner.Scan() {
-		// TODO: support news feeds for wiki
-		if isWiki {
-			continue
-		}
-
 		oldCommitID, newCommitID, refFullName, ok := parseGitHookCommitRefLine(scanner.Text())
 		if !ok {
 			continue
@@ -327,7 +320,6 @@ Gitea or set your environment appropriately.`, "")
 
 	// the environment is set by serv command
 	repoUser := os.Getenv(repo_module.EnvRepoUsername)
-	isWiki, _ := strconv.ParseBool(os.Getenv(repo_module.EnvRepoIsWiki))
 	repoName := os.Getenv(repo_module.EnvRepoName)
 	pusherID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPusherID), 10, 64)
 	prID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPRID), 10, 64)
@@ -342,7 +334,6 @@ Gitea or set your environment appropriately.`, "")
 		GitPushOptions:                  pushOptions(),
 		PullRequestID:                   prID,
 		PushTrigger:                     repo_module.PushTrigger(os.Getenv(repo_module.EnvPushTrigger)),
-		IsWiki:                          isWiki,
 	}
 
 	oldCommitIDs := make([]string, 0, hookBatchSize)
@@ -375,11 +366,6 @@ Gitea or set your environment appropriately.`, "")
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		// wiki doesn't need "post-receive" at the moment
-		if isWiki {
-			continue
-		}
-
 		oldCommitID, newCommitID, refFullName, ok := parseGitHookCommitRefLine(scanner.Text())
 		if !ok {
 			continue

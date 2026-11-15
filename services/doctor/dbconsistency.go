@@ -102,12 +102,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 		// find pull requests without base repository
 		genericOrphanCheck("Pull request entries without existing base repository",
 			"pull_request", "repository", "pull_request.base_repo_id=repository.id"),
-		// find attachments without existing issues or releases
-		{
-			Name:    "Orphaned Attachments without existing issues or releases",
-			Counter: repo_model.CountOrphanedAttachments,
-			Fixer:   asFixer(repo_model.DeleteOrphanedAttachments),
-		},
 		// find null archived repositories
 		{
 			Name:         "Repositories with is_archived IS NULL",

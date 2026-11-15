@@ -24,26 +24,6 @@ type Permission struct {
 	Pull  bool `json:"pull"`  // Pull indicates if the user can pull code from the repository.
 }
 
-// ExternalTracker represents settings for external tracker
-// swagger:model
-type ExternalTracker struct {
-	// URL of external issue tracker.
-	ExternalTrackerURL string `json:"external_tracker_url"`
-	// External Issue Tracker URL Format. Use the placeholders {user}, {repo} and {index} for the username, repository name and issue index.
-	ExternalTrackerFormat string `json:"external_tracker_format"`
-	// External Issue Tracker Number Format, either `numeric`, `alphanumeric`, or `regexp`
-	ExternalTrackerStyle string `json:"external_tracker_style"`
-	// External Issue Tracker issue regular expression
-	ExternalTrackerRegexpPattern string `json:"external_tracker_regexp_pattern"`
-}
-
-// ExternalWiki represents setting for external wiki
-// swagger:model
-type ExternalWiki struct {
-	// URL of external wiki.
-	ExternalWikiURL string `json:"external_wiki_url"`
-}
-
 // Repository represents a repository
 type Repository struct {
 	ID          int64  `json:"id"`
@@ -59,8 +39,6 @@ type Repository struct {
 	Parent              *Repository `json:"parent,omitempty"`
 	Mirror              bool        `json:"mirror"`
 	Size                int         `json:"size"`
-	Language            string      `json:"language"`
-	LanguagesURL        string      `json:"languages_url"`
 	HTMLURL             string      `json:"html_url"`
 	URL                 string      `json:"url"`
 	Link                string      `json:"link"`
@@ -81,35 +59,30 @@ type Repository struct {
 	// swagger:strfmt date-time
 	Created time.Time `json:"created_at"`
 	// swagger:strfmt date-time
-	Updated                       time.Time        `json:"updated_at"`
-	ArchivedAt                    time.Time        `json:"archived_at"`
-	Permissions                   *Permission      `json:"permissions,omitempty"`
-	HasCode                       bool             `json:"has_code"`
-	HasIssues                     bool             `json:"has_issues"`
-	ExternalTracker               *ExternalTracker `json:"external_tracker,omitempty"`
-	HasWiki                       bool             `json:"has_wiki"`
-	ExternalWiki                  *ExternalWiki    `json:"external_wiki,omitempty"`
-	HasPullRequests               bool             `json:"has_pull_requests"`
-	HasReleases                   bool             `json:"has_releases"`
-	HasPackages                   bool             `json:"has_packages"`
-	HasActions                    bool             `json:"has_actions"`
-	IgnoreWhitespaceConflicts     bool             `json:"ignore_whitespace_conflicts"`
-	AllowMerge                    bool             `json:"allow_merge_commits"`
-	AllowRebase                   bool             `json:"allow_rebase"`
-	AllowRebaseMerge              bool             `json:"allow_rebase_explicit"`
-	AllowSquash                   bool             `json:"allow_squash_merge"`
-	AllowFastForwardOnly          bool             `json:"allow_fast_forward_only_merge"`
-	AllowMergeUpdate              bool             `json:"allow_merge_update"`
-	AllowRebaseUpdate             bool             `json:"allow_rebase_update"`
-	AllowManualMerge              bool             `json:"allow_manual_merge"`
-	AutodetectManualMerge         bool             `json:"autodetect_manual_merge"`
-	DefaultDeleteBranchAfterMerge bool             `json:"default_delete_branch_after_merge"`
-	DefaultMergeStyle             string           `json:"default_merge_style"`
-	DefaultUpdateStyle            string           `json:"default_update_style"`
-	DefaultAllowMaintainerEdit    bool             `json:"default_allow_maintainer_edit"`
-	AvatarURL                     string           `json:"avatar_url"`
-	Internal                      bool             `json:"internal"`
-	MirrorInterval                string           `json:"mirror_interval"`
+	Updated                       time.Time   `json:"updated_at"`
+	ArchivedAt                    time.Time   `json:"archived_at"`
+	Permissions                   *Permission `json:"permissions,omitempty"`
+	HasCode                       bool        `json:"has_code"`
+	HasIssues                     bool        `json:"has_issues"`
+	HasPullRequests               bool        `json:"has_pull_requests"`
+	HasReleases                   bool        `json:"has_releases"`
+	IgnoreWhitespaceConflicts     bool        `json:"ignore_whitespace_conflicts"`
+	AllowMerge                    bool        `json:"allow_merge_commits"`
+	AllowRebase                   bool        `json:"allow_rebase"`
+	AllowRebaseMerge              bool        `json:"allow_rebase_explicit"`
+	AllowSquash                   bool        `json:"allow_squash_merge"`
+	AllowFastForwardOnly          bool        `json:"allow_fast_forward_only_merge"`
+	AllowMergeUpdate              bool        `json:"allow_merge_update"`
+	AllowRebaseUpdate             bool        `json:"allow_rebase_update"`
+	AllowManualMerge              bool        `json:"allow_manual_merge"`
+	AutodetectManualMerge         bool        `json:"autodetect_manual_merge"`
+	DefaultDeleteBranchAfterMerge bool        `json:"default_delete_branch_after_merge"`
+	DefaultMergeStyle             string      `json:"default_merge_style"`
+	DefaultUpdateStyle            string      `json:"default_update_style"`
+	DefaultAllowMaintainerEdit    bool        `json:"default_allow_maintainer_edit"`
+	AvatarURL                     string      `json:"avatar_url"`
+	Internal                      bool        `json:"internal"`
+	MirrorInterval                string      `json:"mirror_interval"`
 	// ObjectFormatName of the underlying git repository
 	ObjectFormatName ObjectFormatName `json:"object_format_name"`
 	// swagger:strfmt date-time
@@ -118,7 +91,6 @@ type Repository struct {
 	MirrorLastSyncAt time.Time     `json:"mirror_last_sync_at"`
 	RepoTransfer     *RepoTransfer `json:"repo_transfer,omitempty"`
 	Topics           []string      `json:"topics"`
-	Licenses         []string      `json:"licenses"`
 }
 
 // CreateRepoOption options when creating repository
@@ -174,22 +146,12 @@ type EditRepoOption struct {
 	HasCode *bool `json:"has_code,omitempty"`
 	// either `true` to enable issues for this repository or `false` to disable them.
 	HasIssues *bool `json:"has_issues,omitempty"`
-	// set this structure to use external issue tracker
-	ExternalTracker *ExternalTracker `json:"external_tracker,omitempty"`
-	// either `true` to enable the wiki for this repository or `false` to disable it.
-	HasWiki *bool `json:"has_wiki,omitempty"`
-	// set this structure to use external wiki instead of internal
-	ExternalWiki *ExternalWiki `json:"external_wiki,omitempty"`
 	// sets the default branch for this repository.
 	DefaultBranch *string `json:"default_branch,omitempty"`
 	// either `true` to allow pull requests, or `false` to prevent pull request.
 	HasPullRequests *bool `json:"has_pull_requests,omitempty"`
 	// either `true` to enable releases unit, or `false` to disable them.
 	HasReleases *bool `json:"has_releases,omitempty"`
-	// either `true` to enable packages unit, or `false` to disable them.
-	HasPackages *bool `json:"has_packages,omitempty"`
-	// either `true` to enable actions unit, or `false` to disable them.
-	HasActions *bool `json:"has_actions,omitempty"`
 	// either `true` to ignore whitespace for conflicts, or `false` to not ignore whitespace.
 	IgnoreWhitespaceConflicts *bool `json:"ignore_whitespace_conflicts,omitempty"`
 	// either `true` to allow merging pull requests with a merge commit, or `false` to prevent merging pull requests with merge commits.

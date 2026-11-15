@@ -511,44 +511,6 @@ func (m *webhookNotifier) DeleteComment(ctx context.Context, doer *user_model.Us
 	}
 }
 
-func (m *webhookNotifier) NewWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-	// Add to hook queue for created wiki page.
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventWiki, &api.WikiPayload{
-		Action:     api.HookWikiCreated,
-		Repository: convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Sender:     convert.ToUser(ctx, doer, nil),
-		Page:       page,
-		Comment:    comment,
-	}); err != nil {
-		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
-	}
-}
-
-func (m *webhookNotifier) EditWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-	// Add to hook queue for edit wiki page.
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventWiki, &api.WikiPayload{
-		Action:     api.HookWikiEdited,
-		Repository: convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Sender:     convert.ToUser(ctx, doer, nil),
-		Page:       page,
-		Comment:    comment,
-	}); err != nil {
-		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
-	}
-}
-
-func (m *webhookNotifier) DeleteWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page string) {
-	// Add to hook queue for edit wiki page.
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventWiki, &api.WikiPayload{
-		Action:     api.HookWikiDeleted,
-		Repository: convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Sender:     convert.ToUser(ctx, doer, nil),
-		Page:       page,
-	}); err != nil {
-		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
-	}
-}
-
 func (m *webhookNotifier) IssueChangeLabels(ctx context.Context, doer *user_model.User, issue *issues_model.Issue,
 	addedLabels, removedLabels []*issues_model.Label,
 ) {

@@ -180,9 +180,6 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 					if err := DelRepoDivergenceFromCache(ctx, repo.ID); err != nil {
 						log.Error("DelRepoDivergenceFromCache: %v", err)
 					}
-					if err := AddRepoToLicenseUpdaterQueue(&LicenseUpdaterOptions{RepoID: repo.ID}); err != nil {
-						log.Error("AddRepoToLicenseUpdaterQueue: %v", err)
-					}
 				} else {
 					if err := DelDivergenceFromCache(repo.ID, branch); err != nil {
 						log.Error("DelDivergenceFromCache: %v", err)

@@ -82,11 +82,9 @@ type Issue struct {
 	UpdatedUnix timeutil.TimeStamp `xorm:"INDEX updated"`
 	ClosedUnix  timeutil.TimeStamp `xorm:"INDEX"`
 
-	Attachments         []*repo_model.Attachment `xorm:"-"`
-	isAttachmentsLoaded bool                     `xorm:"-"`
-	Comments            CommentList              `xorm:"-"`
-	Reactions           ReactionList             `xorm:"-"`
-	Assignees           []*user_model.User       `xorm:"-"`
+	Comments  CommentList        `xorm:"-"`
+	Reactions ReactionList       `xorm:"-"`
+	Assignees []*user_model.User `xorm:"-"`
 
 	// IsLocked limits commenting abilities to users on an issue
 	// with write access
@@ -125,19 +123,6 @@ func (issue *Issue) LoadRepo(ctx context.Context) (err error) {
 			return fmt.Errorf("getRepositoryByID [%d]: %w", issue.RepoID, err)
 		}
 	}
-	return nil
-}
-
-func (issue *Issue) LoadAttachments(ctx context.Context) (err error) {
-	if issue.isAttachmentsLoaded || issue.Attachments != nil {
-		return nil
-	}
-
-	issue.Attachments, err = repo_model.GetAttachmentsByIssueID(ctx, issue.ID)
-	if err != nil {
-		return fmt.Errorf("getAttachmentsByIssueID [%d]: %w", issue.ID, err)
-	}
-	issue.isAttachmentsLoaded = true
 	return nil
 }
 
@@ -249,10 +234,6 @@ func (issue *Issue) LoadAttributes(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err = issue.LoadAttachments(ctx); err != nil {
-		return err
-	}
-
 	if err = issue.loadComments(ctx); err != nil {
 		return err
 	}
@@ -265,7 +246,6 @@ func (issue *Issue) LoadAttributes(ctx context.Context) (err error) {
 
 func (issue *Issue) ResetAttributesLoaded() {
 	issue.isLabelsLoaded = false
-	issue.isAttachmentsLoaded = false
 	issue.isAssigneeLoaded = false
 }
 

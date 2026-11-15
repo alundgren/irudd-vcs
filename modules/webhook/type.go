@@ -25,19 +25,13 @@ const (
 	HookEventPullRequestReviewComment  HookEventType = "pull_request_review_comment"
 	HookEventPullRequestSync           HookEventType = "pull_request_sync"
 	HookEventPullRequestReviewRequest  HookEventType = "pull_request_review_request"
-	HookEventWiki                      HookEventType = "wiki"
 	HookEventRepository                HookEventType = "repository"
 	HookEventRelease                   HookEventType = "release"
-	HookEventPackage                   HookEventType = "package"
 	HookEventStatus                    HookEventType = "status"
 	// once a new event added here, please also added to AllEvents() function
 
 	// FIXME: This event should be a group of pull_request_review_xxx events
 	HookEventPullRequestReview HookEventType = "pull_request_review"
-	// Actions event only
-	HookEventSchedule    HookEventType = "schedule"
-	HookEventWorkflowRun HookEventType = "workflow_run"
-	HookEventWorkflowJob HookEventType = "workflow_job"
 )
 
 func AllEvents() []HookEventType {
@@ -59,13 +53,9 @@ func AllEvents() []HookEventType {
 		HookEventPullRequestReviewComment,
 		HookEventPullRequestSync,
 		HookEventPullRequestReviewRequest,
-		HookEventWiki,
 		HookEventRepository,
 		HookEventRelease,
-		HookEventPackage,
 		HookEventStatus,
-		HookEventWorkflowRun,
-		HookEventWorkflowJob,
 	}
 }
 

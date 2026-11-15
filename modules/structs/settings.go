@@ -40,15 +40,3 @@ type GeneralAPISettings struct {
 	// DefaultMaxResponseSize is the default maximum response size
 	DefaultMaxResponseSize int64 `json:"default_max_response_size"`
 }
-
-// GeneralAttachmentSettings contains global Attachment settings exposed by API
-type GeneralAttachmentSettings struct {
-	// Enabled indicates if file attachments are enabled
-	Enabled bool `json:"enabled"`
-	// AllowedTypes contains the allowed file types for attachments
-	AllowedTypes string `json:"allowed_types"`
-	// MaxSize is the maximum size for individual attachments
-	MaxSize int64 `json:"max_size"`
-	// MaxFiles is the maximum number of files per attachment
-	MaxFiles int `json:"max_files"`
-}

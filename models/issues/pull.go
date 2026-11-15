@@ -459,7 +459,7 @@ func (pr *PullRequest) IsFromFork() bool {
 }
 
 // NewPullRequest creates new pull request with labels for repository.
-func NewPullRequest(ctx context.Context, repo *repo_model.Repository, issue *Issue, labelIDs []int64, uuids []string, pr *PullRequest) (err error) {
+func NewPullRequest(ctx context.Context, repo *repo_model.Repository, issue *Issue, labelIDs []int64, pr *PullRequest) (err error) {
 	return db.WithTx(ctx, func(ctx context.Context) error {
 		idx, err := db.GetNextResourceIndex(ctx, "issue_index", repo.ID)
 		if err != nil {
@@ -471,10 +471,9 @@ func NewPullRequest(ctx context.Context, repo *repo_model.Repository, issue *Iss
 		issue.IsPull = true
 
 		if err = NewIssueWithIndex(ctx, issue.Poster, NewIssueOptions{
-			Repo:        repo,
-			Issue:       issue,
-			LabelIDs:    labelIDs,
-			Attachments: uuids,
+			Repo:     repo,
+			Issue:    issue,
+			LabelIDs: labelIDs,
 		}); err != nil {
 			if repo_model.IsErrUserDoesNotHaveAccessToRepo(err) {
 				return err

@@ -5,17 +5,14 @@ package doctor
 
 import (
 	"context"
-	"errors"
 	"io/fs"
 	"strings"
 
 	"gitea.dev/models/git"
-	"gitea.dev/models/repo"
 	"gitea.dev/modules/base"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
-	"gitea.dev/modules/util"
 )
 
 type commonStorageCheckOptions struct {
@@ -77,10 +74,8 @@ func commonCheckStorage(logger log.Logger, autofix bool, opts *commonStorageChec
 }
 
 type checkStorageOptions struct {
-	All          bool
-	Attachments  bool
-	LFS          bool
-	RepoArchives bool
+	All bool
+	LFS bool
 }
 
 // checkStorage will return a doctor check function to check the requested storage types for "orphaned" stored object/files and optionally delete them
@@ -89,20 +84,6 @@ func checkStorage(opts *checkStorageOptions) func(ctx context.Context, logger lo
 		if err := storage.Init(); err != nil {
 			logger.Error("storage.Init failed: %v", err)
 			return err
-		}
-
-		if opts.Attachments || opts.All {
-			if err := commonCheckStorage(logger, autofix,
-				&commonStorageCheckOptions{
-					storer: storage.Attachments,
-					isOrphaned: func(path string, obj storage.Object, stat fs.FileInfo) (bool, error) {
-						exists, err := repo.ExistAttachmentsByUUID(ctx, stat.Name())
-						return !exists, err
-					},
-					name: "attachment",
-				}); err != nil {
-				return err
-			}
 		}
 
 		if opts.LFS || opts.All {
@@ -125,24 +106,6 @@ func checkStorage(opts *checkStorageOptions) func(ctx context.Context, logger lo
 			}
 		}
 
-		if opts.RepoArchives || opts.All {
-			if err := commonCheckStorage(logger, autofix,
-				&commonStorageCheckOptions{
-					storer: storage.RepoArchives,
-					isOrphaned: func(path string, obj storage.Object, stat fs.FileInfo) (bool, error) {
-						exists, err := repo.ExistsRepoArchiverWithStoragePath(ctx, path)
-						if err == nil || errors.Is(err, util.ErrInvalidArgument) {
-							// invalid arguments mean that the object is not a valid repo archiver and it should be removed
-							return !exists, nil
-						}
-						return !exists, err
-					},
-					name: "repo archive",
-				}); err != nil {
-				return err
-			}
-		}
-
 		return nil
 	}
 }
@@ -159,30 +122,10 @@ func init() {
 	})
 
 	Register(&Check{
-		Title:                      "Check if there are orphaned attachments in storage",
-		Name:                       "storage-attachments",
-		IsDefault:                  false,
-		Run:                        checkStorage(&checkStorageOptions{Attachments: true}),
-		AbortIfFailed:              false,
-		SkipDatabaseInitialization: false,
-		Priority:                   1,
-	})
-
-	Register(&Check{
 		Title:                      "Check if there are orphaned lfs files in storage",
 		Name:                       "storage-lfs",
 		IsDefault:                  false,
 		Run:                        checkStorage(&checkStorageOptions{LFS: true}),
-		AbortIfFailed:              false,
-		SkipDatabaseInitialization: false,
-		Priority:                   1,
-	})
-
-	Register(&Check{
-		Title:                      "Check if there are orphaned archives in storage",
-		Name:                       "storage-archives",
-		IsDefault:                  false,
-		Run:                        checkStorage(&checkStorageOptions{RepoArchives: true}),
 		AbortIfFailed:              false,
 		SkipDatabaseInitialization: false,
 		Priority:                   1,

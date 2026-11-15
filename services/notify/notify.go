@@ -23,27 +23,6 @@ func RegisterNotifier(notifier Notifier) {
 	notifiers = append(notifiers, notifier)
 }
 
-// NewWikiPage notifies creating new wiki pages to notifiers
-func NewWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-	for _, notifier := range notifiers {
-		notifier.NewWikiPage(ctx, doer, repo, page, comment)
-	}
-}
-
-// EditWikiPage notifies editing or renaming wiki pages to notifiers
-func EditWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-	for _, notifier := range notifiers {
-		notifier.EditWikiPage(ctx, doer, repo, page, comment)
-	}
-}
-
-// DeleteWikiPage notifies deleting wiki pages to notifiers
-func DeleteWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page string) {
-	for _, notifier := range notifiers {
-		notifier.DeleteWikiPage(ctx, doer, repo, page)
-	}
-}
-
 func shouldSendCommentChangeNotification(ctx context.Context, comment *issues_model.Comment) bool {
 	if err := comment.LoadReview(ctx); err != nil {
 		log.Error("LoadReview: %v", err)

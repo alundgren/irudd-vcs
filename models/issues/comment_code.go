@@ -72,10 +72,6 @@ func findCodeComments(ctx context.Context, opts FindCommentsOptions, issue *Issu
 		return nil, err
 	}
 
-	if err := comments.LoadAttachments(ctx); err != nil {
-		return nil, err
-	}
-
 	if err := comments.loadResolveDoers(ctx); err != nil {
 		return nil, err
 	}

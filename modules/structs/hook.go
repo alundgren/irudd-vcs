@@ -155,7 +155,6 @@ var (
 	_ Payloader = &PullRequestPayload{}
 	_ Payloader = &RepositoryPayload{}
 	_ Payloader = &ReleasePayload{}
-	_ Payloader = &PackagePayload{}
 )
 
 // CreatePayload represents a payload information of create event.
@@ -465,37 +464,6 @@ type ReviewPayload struct {
 	Content string `json:"content"`
 }
 
-// HookWikiAction an action that happens to a wiki page
-type HookWikiAction string
-
-const (
-	// HookWikiCreated created
-	HookWikiCreated HookWikiAction = "created"
-	// HookWikiEdited edited
-	HookWikiEdited HookWikiAction = "edited"
-	// HookWikiDeleted deleted
-	HookWikiDeleted HookWikiAction = "deleted"
-)
-
-// WikiPayload payload for repository webhooks
-type WikiPayload struct {
-	// The action performed on the wiki page
-	Action HookWikiAction `json:"action"`
-	// The repository containing the wiki
-	Repository *Repository `json:"repository"`
-	// The user who performed the action
-	Sender *User `json:"sender"`
-	// The name of the wiki page
-	Page string `json:"page"`
-	// The comment/commit message for the wiki change
-	Comment string `json:"comment"`
-}
-
-// JSONPayload JSON representation of the payload
-func (p *WikiPayload) JSONPayload() ([]byte, error) {
-	return json.MarshalIndent(p, "", " ")
-}
-
 // HookRepoAction an action that happens to a repo
 type HookRepoAction string
 
@@ -521,68 +489,6 @@ type RepositoryPayload struct {
 // JSONPayload JSON representation of the payload
 func (p *RepositoryPayload) JSONPayload() ([]byte, error) {
 	return json.MarshalIndent(p, "", " ")
-}
-
-// HookPackageAction an action that happens to a package
-type HookPackageAction string
-
-const (
-	// HookPackageCreated created
-	HookPackageCreated HookPackageAction = "created"
-	// HookPackageDeleted deleted
-	HookPackageDeleted HookPackageAction = "deleted"
-)
-
-// PackagePayload represents a package payload
-type PackagePayload struct {
-	// The action performed on the package
-	Action HookPackageAction `json:"action"`
-	// The repository associated with the package
-	Repository *Repository `json:"repository"`
-	// The package that was acted upon
-	Package *Package `json:"package"`
-	// The organization that owns the package (if applicable)
-	Organization *Organization `json:"organization"`
-	// The user who performed the action
-	Sender *User `json:"sender"`
-}
-
-// JSONPayload implements Payload
-func (p *PackagePayload) JSONPayload() ([]byte, error) {
-	return json.MarshalIndent(p, "", "  ")
-}
-
-// WorkflowDispatchPayload represents a workflow dispatch payload
-type WorkflowDispatchPayload struct {
-	// The name or path of the workflow file
-	Workflow string `json:"workflow"`
-	// The git reference (branch, tag, or commit SHA) to run the workflow on
-	Ref string `json:"ref"`
-	// Input parameters for the workflow dispatch event
-	Inputs map[string]any `json:"inputs"`
-	// The repository containing the workflow
-	Repository *Repository `json:"repository"`
-	// The user who triggered the workflow dispatch
-	Sender *User `json:"sender"`
-}
-
-// JSONPayload implements Payload
-func (p *WorkflowDispatchPayload) JSONPayload() ([]byte, error) {
-	return json.MarshalIndent(p, "", "  ")
-}
-
-// WorkflowCallPayload is persisted on a reusable workflow caller job's CallPayload field.
-type WorkflowCallPayload struct {
-	Workflow   string         `json:"workflow"`
-	Ref        string         `json:"ref"`
-	Inputs     map[string]any `json:"inputs"`
-	Repository *Repository    `json:"repository"`
-	Sender     *User          `json:"sender"`
-}
-
-// JSONPayload implements Payload
-func (p *WorkflowCallPayload) JSONPayload() ([]byte, error) {
-	return json.MarshalIndent(p, "", "  ")
 }
 
 // CommitStatusPayload represents a payload information of commit status event.
@@ -616,49 +522,5 @@ type CommitStatusPayload struct {
 
 // JSONPayload implements Payload
 func (p *CommitStatusPayload) JSONPayload() ([]byte, error) {
-	return json.MarshalIndent(p, "", "  ")
-}
-
-// WorkflowRunPayload represents a payload information of workflow run event.
-type WorkflowRunPayload struct {
-	// The action performed on the workflow run
-	Action string `json:"action"`
-	// The workflow definition
-	Workflow *ActionWorkflow `json:"workflow"`
-	// The workflow run that was acted upon
-	WorkflowRun *ActionWorkflowRun `json:"workflow_run"`
-	// The pull request associated with the workflow run (if applicable)
-	PullRequest *PullRequest `json:"pull_request,omitempty"`
-	// The organization that owns the repository (if applicable)
-	Organization *Organization `json:"organization,omitempty"`
-	// The repository containing the workflow
-	Repo *Repository `json:"repository"`
-	// The user who triggered the workflow run
-	Sender *User `json:"sender"`
-}
-
-// JSONPayload implements Payload
-func (p *WorkflowRunPayload) JSONPayload() ([]byte, error) {
-	return json.MarshalIndent(p, "", "  ")
-}
-
-// WorkflowJobPayload represents a payload information of workflow job event.
-type WorkflowJobPayload struct {
-	// The action performed on the workflow job
-	Action string `json:"action"`
-	// The workflow job that was acted upon
-	WorkflowJob *ActionWorkflowJob `json:"workflow_job"`
-	// The pull request associated with the workflow job (if applicable)
-	PullRequest *PullRequest `json:"pull_request,omitempty"`
-	// The organization that owns the repository (if applicable)
-	Organization *Organization `json:"organization,omitempty"`
-	// The repository containing the workflow
-	Repo *Repository `json:"repository"`
-	// The user who triggered the workflow job
-	Sender *User `json:"sender"`
-}
-
-// JSONPayload implements Payload
-func (p *WorkflowJobPayload) JSONPayload() ([]byte, error) {
 	return json.MarshalIndent(p, "", "  ")
 }

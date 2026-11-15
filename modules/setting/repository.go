@@ -51,33 +51,17 @@ var (
 		DefaultRepoUnits                        []string
 		DefaultForkRepoUnits                    []string
 		DefaultTemplateRepoUnits                []string
-		PrefixArchiveFiles                      bool
 		DisableMigrations                       bool
 		DisableStars                            bool `ini:"DISABLE_STARS"`
 		DefaultBranch                           string
 		AllowAdoptionOfUnadoptedRepositories    bool
 		AllowDeleteOfUnadoptedRepositories      bool
-		DisableDownloadSourceArchives           bool
 		AllowForkWithoutMaximumLimit            bool
 		AllowForkIntoSameOwner                  bool
-
-		// StreamArchives makes Gitea stream git archive files to the client directly instead of creating an archive first.
-		// Ideally all users should use this streaming method. However, at the moment we don't know whether there are
-		// any users who still need the old behavior, so we introduce this option, intentionally not documenting it.
-		// After one or two releases, if no one complains, we will remove this option and always use streaming.
-		StreamArchives bool
 
 		// Repository editor settings
 		Editor struct {
 			LineWrapExtensions []string
-		} `ini:"-"`
-
-		// Repository upload settings
-		Upload struct {
-			Enabled      bool
-			AllowedTypes string
-			FileMaxSize  int64
-			MaxFiles     int
 		} `ini:"-"`
 
 		// Pull request settings
@@ -104,13 +88,6 @@ var (
 			LockReasons []string
 		} `ini:"repository.issue"`
 
-		Release struct {
-			AllowedTypes     string
-			DefaultPagingNum int
-			FileMaxSize      int64
-			MaxFiles         int64
-		} `ini:"repository.release"`
-
 		Signing struct {
 			SigningKey        string
 			SigningName       string
@@ -119,7 +96,6 @@ var (
 			InitialCommit     []string
 			CRUDActions       []string `ini:"CRUD_ACTIONS"`
 			Merges            []string
-			Wiki              []string
 			DefaultTrustModel string
 			TrustedSSHKeys    []string `ini:"TRUSTED_SSH_KEYS"`
 		} `ini:"repository.signing"`
@@ -178,31 +154,16 @@ var (
 		DefaultRepoUnits:                        []string{},
 		DefaultForkRepoUnits:                    []string{},
 		DefaultTemplateRepoUnits:                []string{},
-		PrefixArchiveFiles:                      true,
 		DisableMigrations:                       false,
 		DisableStars:                            false,
 		DefaultBranch:                           "main",
 		AllowForkWithoutMaximumLimit:            true,
-		StreamArchives:                          true,
 
 		// Repository editor settings
 		Editor: struct {
 			LineWrapExtensions []string
 		}{
 			LineWrapExtensions: strings.Split(".txt,.md,.markdown,.mdown,.mkd,.livemd,", ","),
-		},
-
-		// Repository upload settings
-		Upload: struct {
-			Enabled      bool
-			AllowedTypes string
-			FileMaxSize  int64
-			MaxFiles     int
-		}{
-			Enabled:      true,
-			AllowedTypes: "",
-			FileMaxSize:  50,
-			MaxFiles:     5,
 		},
 
 		// Pull request settings
@@ -248,18 +209,6 @@ var (
 			LockReasons: strings.Split("Too heated,Off-topic,Spam,Resolved", ","),
 		},
 
-		Release: struct {
-			AllowedTypes     string
-			DefaultPagingNum int
-			FileMaxSize      int64
-			MaxFiles         int64
-		}{
-			AllowedTypes:     "",
-			DefaultPagingNum: 10,
-			FileMaxSize:      2048,
-			MaxFiles:         5,
-		},
-
 		// Signing settings
 		Signing: struct {
 			SigningKey        string
@@ -269,7 +218,6 @@ var (
 			InitialCommit     []string
 			CRUDActions       []string `ini:"CRUD_ACTIONS"`
 			Merges            []string
-			Wiki              []string
 			DefaultTrustModel string
 			TrustedSSHKeys    []string `ini:"TRUSTED_SSH_KEYS"`
 		}{
@@ -280,7 +228,6 @@ var (
 			InitialCommit:     []string{"always"},
 			CRUDActions:       []string{"pubkey", "twofa", "parentsigned"},
 			Merges:            []string{"pubkey", "twofa", "basesigned", "commitssigned"},
-			Wiki:              []string{"never"},
 			DefaultTrustModel: "collaborator",
 			TrustedSSHKeys:    []string{},
 		},
@@ -325,18 +272,8 @@ func loadRepositoryFrom(rootCfg ConfigProvider) {
 		log.Fatal("Failed to map Repository settings: %v", err)
 	} else if err = rootCfg.Section("repository.editor").MapTo(&Repository.Editor); err != nil {
 		log.Fatal("Failed to map Repository.Editor settings: %v", err)
-	} else if err = rootCfg.Section("repository.upload").MapTo(&Repository.Upload); err != nil {
-		log.Fatal("Failed to map Repository.Upload settings: %v", err)
 	} else if err = rootCfg.Section("repository.pull-request").MapTo(&Repository.PullRequest); err != nil {
 		log.Fatal("Failed to map Repository.PullRequest settings: %v", err)
-	}
-
-	if !rootCfg.Section("packages").Key("ENABLED").MustBool(Packages.Enabled) {
-		Repository.DisabledRepoUnits = append(Repository.DisabledRepoUnits, "repo.packages")
-	}
-
-	if !rootCfg.Section("actions").Key("ENABLED").MustBool(Actions.Enabled) {
-		Repository.DisabledRepoUnits = append(Repository.DisabledRepoUnits, "repo.actions")
 	}
 
 	// Handle default trustmodel settings
@@ -376,9 +313,5 @@ func loadRepositoryFrom(rootCfg ConfigProvider) {
 			Repository.DetectedCharsetScore[charset] = i
 			i++
 		}
-	}
-
-	if err := loadRepoArchiveFrom(rootCfg); err != nil {
-		log.Fatal("loadRepoArchiveFrom: %v", err)
 	}
 }

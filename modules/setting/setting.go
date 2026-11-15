@@ -128,20 +128,11 @@ func loadCommonSettingsFrom(cfg ConfigProvider) error {
 
 	loadOAuth2From(cfg)
 	loadSecurityFrom(cfg)
-	if err := loadAttachmentFrom(cfg); err != nil {
-		return err
-	}
 	if err := loadLFSFrom(cfg); err != nil {
 		return err
 	}
 	loadTimeFrom(cfg)
 	loadRepositoryFrom(cfg)
-	if err := loadPackagesFrom(cfg); err != nil {
-		return err
-	}
-	if err := loadActionsFrom(cfg); err != nil {
-		return err
-	}
 	loadUIFrom(cfg)
 	loadAdminFrom(cfg)
 	loadAPIFrom(cfg)

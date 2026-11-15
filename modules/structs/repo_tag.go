@@ -15,10 +15,6 @@ type Tag struct {
 	ID string `json:"id"`
 	// The commit information associated with this tag
 	Commit *CommitMeta `json:"commit"`
-	// The URL to download the zipball archive
-	ZipballURL string `json:"zipball_url,omitempty"`
-	// The URL to download the tarball archive
-	TarballURL string `json:"tarball_url,omitempty"`
 }
 
 // AnnotatedTag represents an annotated tag

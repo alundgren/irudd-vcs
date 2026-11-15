@@ -103,11 +103,6 @@ func ListIssueComments(ctx *context.APIContext) {
 		return
 	}
 
-	if err := comments.LoadAttachments(ctx); err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
-
 	apiComments := make([]*api.Comment, len(comments))
 	for i, comment := range comments {
 		comment.Issue = issue
@@ -322,10 +317,6 @@ func ListRepoIssueComments(ctx *context.APIContext) {
 		ctx.APIErrorInternal(err)
 		return
 	}
-	if err := comments.LoadAttachments(ctx); err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
 	if _, err := comments.Issues().LoadRepositories(ctx); err != nil {
 		ctx.APIErrorInternal(err)
 		return
@@ -395,7 +386,7 @@ func CreateIssueComment(ctx *context.APIContext) {
 		return
 	}
 
-	comment, err := issue_service.CreateIssueComment(ctx, ctx.Doer, ctx.Repo.Repository, issue, form.Body, nil)
+	comment, err := issue_service.CreateIssueComment(ctx, ctx.Doer, ctx.Repo.Repository, issue, form.Body)
 	if err != nil {
 		ctx.APIErrorInternal(err)
 		return

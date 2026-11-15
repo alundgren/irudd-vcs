@@ -18,7 +18,6 @@ import (
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/repository"
-	"gitea.dev/modules/storage"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 	notify_service "gitea.dev/services/notify"
@@ -267,17 +266,6 @@ func DeleteReleaseByID(ctx context.Context, repo *repo_model.Repository, rel *re
 	rel.Repo = repo
 	if err := rel.LoadAttributes(ctx); err != nil {
 		return fmt.Errorf("LoadAttributes: %w", err)
-	}
-
-	if err := repo_model.DeleteAttachmentsByRelease(ctx, rel.ID); err != nil {
-		return fmt.Errorf("DeleteAttachments: %w", err)
-	}
-
-	for i := range rel.Attachments {
-		attachment := rel.Attachments[i]
-		if err := storage.Attachments.Delete(attachment.RelativePath()); err != nil {
-			log.Error("Delete attachment %s of release %s failed: %v", attachment.UUID, rel.ID, err)
-		}
 	}
 
 	if !rel.IsDraft {

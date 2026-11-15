@@ -466,7 +466,7 @@ func IsContentEmptyErr(err error) bool {
 }
 
 // SubmitReview creates a review out of the existing pending review or creates a new one if no pending review exist
-func SubmitReview(ctx context.Context, doer *user_model.User, issue *Issue, reviewType ReviewType, content, commitID string, stale bool, attachmentUUIDs []string) (*Review, *Comment, error) {
+func SubmitReview(ctx context.Context, doer *user_model.User, issue *Issue, reviewType ReviewType, content, commitID string, stale bool) (*Review, *Comment, error) {
 	ctx, committer, err := db.TxContext(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -547,13 +547,12 @@ func SubmitReview(ctx context.Context, doer *user_model.User, issue *Issue, revi
 	}
 
 	comm, err := CreateComment(ctx, &CreateCommentOptions{
-		Type:        CommentTypeReview,
-		Doer:        doer,
-		Content:     review.Content,
-		Issue:       issue,
-		Repo:        issue.Repo,
-		ReviewID:    review.ID,
-		Attachments: attachmentUUIDs,
+		Type:     CommentTypeReview,
+		Doer:     doer,
+		Content:  review.Content,
+		Issue:    issue,
+		Repo:     issue.Repo,
+		ReviewID: review.ID,
 	})
 	if err != nil || comm == nil {
 		return nil, nil, err

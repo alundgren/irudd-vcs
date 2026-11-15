@@ -7,7 +7,6 @@ package convert
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	"gitea.dev/services/gitdiff"
@@ -196,59 +194,12 @@ func ToBranchProtection(ctx context.Context, bp *git_model.ProtectedBranch, repo
 
 // ToTag convert a git.Tag to an api.Tag
 func ToTag(repo *repo_model.Repository, t *git.Tag) *api.Tag {
-	tarballURL := repo.HTMLURL() + "/archive/" + url.PathEscape(t.Name+".tar.gz")
-	zipballURL := repo.HTMLURL() + "/archive/" + url.PathEscape(t.Name+".zip")
-
-	// Archive URLs are "" if the download feature is disabled
-	if setting.Repository.DisableDownloadSourceArchives {
-		tarballURL = ""
-		zipballURL = ""
-	}
-
 	return &api.Tag{
-		Name:       t.Name,
-		Message:    t.MessageUTF8(),
-		ID:         t.ID.String(),
-		Commit:     ToCommitMeta(repo, t),
-		ZipballURL: zipballURL,
-		TarballURL: tarballURL,
+		Name:    t.Name,
+		Message: t.MessageUTF8(),
+		ID:      t.ID.String(),
+		Commit:  ToCommitMeta(repo, t),
 	}
-}
-
-func toPullRequestMinimal(ctx context.Context, repo *repo_model.Repository, pr *issues_model.PullRequest, headSHA string) (*api.PullRequestMinimal, error) {
-	if err := pr.LoadBaseRepo(ctx); err != nil {
-		return nil, err
-	}
-	if err := pr.LoadHeadRepo(ctx); err != nil {
-		return nil, err
-	}
-	headRepo := pr.HeadRepo
-	if headRepo == nil {
-		headRepo = pr.BaseRepo
-	}
-	return &api.PullRequestMinimal{
-		ID:     pr.ID,
-		Number: pr.Index,
-		URL:    fmt.Sprintf("%s/pulls/%d", repo.APIURL(ctx), pr.Index),
-		Head: api.PullRequestMinimalHead{
-			Ref: pr.HeadBranch,
-			SHA: headSHA,
-			Repo: api.PullRequestMinimalHeadRepo{
-				ID:   headRepo.ID,
-				URL:  headRepo.APIURL(ctx),
-				Name: headRepo.Name,
-			},
-		},
-		Base: api.PullRequestMinimalHead{
-			Ref: pr.BaseBranch,
-			SHA: pr.MergeBase,
-			Repo: api.PullRequestMinimalHeadRepo{
-				ID:   pr.BaseRepo.ID,
-				URL:  pr.BaseRepo.APIURL(ctx),
-				Name: pr.BaseRepo.Name,
-			},
-		},
-	}, nil
 }
 
 // ToVerification convert a git.Commit.Signature to an api.PayloadCommitVerification

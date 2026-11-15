@@ -78,11 +78,6 @@ type swaggerParameterBodies struct {
 	MergePullRequestOption forms.MergePullRequestForm
 
 	// in:body
-	CreateReleaseOption api.CreateReleaseOption
-	// in:body
-	EditReleaseOption api.EditReleaseOption
-
-	// in:body
 	CreateRepoOption api.CreateRepoOption
 	// in:body
 	EditRepoOption api.EditRepoOption
@@ -108,9 +103,6 @@ type swaggerParameterBodies struct {
 
 	// in:body
 	EditUserOption api.EditUserOption
-
-	// in:body
-	EditAttachmentOptions api.EditAttachmentOptions
 
 	// in:body
 	GetFilesOptions api.GetFilesOptions
@@ -193,9 +185,6 @@ type swaggerParameterBodies struct {
 	UserSettingsOptions api.UserSettingsOptions
 
 	// in:body
-	CreateWikiPageOptions api.CreateWikiPageOptions
-
-	// in:body
 	CreatePushMirrorOption api.CreatePushMirrorOption
 
 	// in:body
@@ -205,25 +194,10 @@ type swaggerParameterBodies struct {
 	UpdateRepoAvatarOptions api.UpdateRepoAvatarOption
 
 	// in:body
-	CreateOrUpdateSecretOption api.CreateOrUpdateSecretOption
-
-	// in:body
 	UserBadgeOption api.UserBadgeOption
 
 	// in:body
-	CreateVariableOption api.CreateVariableOption
-
-	// in:body
 	RenameOrgOption api.RenameOrgOption
-
-	// in:body
-	CreateActionWorkflowDispatch api.CreateActionWorkflowDispatch
-
-	// in:body
-	UpdateVariableOption api.UpdateVariableOption
-
-	// in:body
-	EditActionRunnerOption api.EditActionRunnerOption
 
 	// in:body
 	LockIssueOption api.LockIssueOption

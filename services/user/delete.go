@@ -97,12 +97,6 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 		return fmt.Errorf("clear assignee: %w", err)
 	}
 
-	// ***** START: ExternalLoginUser *****
-	if err = user_model.RemoveAllAccountLinks(ctx, u); err != nil {
-		return fmt.Errorf("ExternalLoginUser: %w", err)
-	}
-	// ***** END: ExternalLoginUser *****
-
 	if err := auth_model.DeleteAuthTokensByUserID(ctx, u.ID); err != nil {
 		return fmt.Errorf("DeleteAuthTokensByUserID: %w", err)
 	}

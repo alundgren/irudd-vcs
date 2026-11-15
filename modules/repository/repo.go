@@ -21,25 +21,6 @@ import (
 	"gitea.dev/modules/timeutil"
 )
 
-/*
-GitHub, GitLab, Gogs: *.wiki.git
-BitBucket: *.git/wiki
-*/
-var commonWikiURLSuffixes = []string{".wiki.git", ".git/wiki"}
-
-// WikiRemoteURL returns accessible repository URL for wiki if exists.
-// Otherwise, it returns an empty string.
-func WikiRemoteURL(ctx context.Context, remote string) string {
-	remote = strings.TrimSuffix(remote, ".git")
-	for _, suffix := range commonWikiURLSuffixes {
-		wikiURL := remote + suffix
-		if git.IsRepoURLAccessible(ctx, wikiURL) {
-			return wikiURL
-		}
-	}
-	return ""
-}
-
 // SyncRepoTags synchronizes releases table with repository tags
 func SyncRepoTags(ctx context.Context, repoID int64) error {
 	repo, err := repo_model.GetRepositoryByID(ctx, repoID)

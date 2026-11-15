@@ -169,12 +169,8 @@ func updateHookEvents(events []string) webhook_module.HookEvents {
 	hookEvents[webhook_module.HookEventDelete] = util.SliceContainsString(events, string(webhook_module.HookEventDelete), true)
 	hookEvents[webhook_module.HookEventFork] = util.SliceContainsString(events, string(webhook_module.HookEventFork), true)
 	hookEvents[webhook_module.HookEventRepository] = util.SliceContainsString(events, string(webhook_module.HookEventRepository), true)
-	hookEvents[webhook_module.HookEventWiki] = util.SliceContainsString(events, string(webhook_module.HookEventWiki), true)
 	hookEvents[webhook_module.HookEventRelease] = util.SliceContainsString(events, string(webhook_module.HookEventRelease), true)
-	hookEvents[webhook_module.HookEventPackage] = util.SliceContainsString(events, string(webhook_module.HookEventPackage), true)
 	hookEvents[webhook_module.HookEventStatus] = util.SliceContainsString(events, string(webhook_module.HookEventStatus), true)
-	hookEvents[webhook_module.HookEventWorkflowRun] = util.SliceContainsString(events, string(webhook_module.HookEventWorkflowRun), true)
-	hookEvents[webhook_module.HookEventWorkflowJob] = util.SliceContainsString(events, string(webhook_module.HookEventWorkflowJob), true)
 
 	// Issues
 	hookEvents[webhook_module.HookEventIssues] = issuesHook(events, "issues_only")

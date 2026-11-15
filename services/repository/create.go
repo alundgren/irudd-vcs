@@ -153,12 +153,11 @@ func initRepository(ctx context.Context, u *user_model.User, repo *repo_model.Re
 	}
 
 	repo.DefaultBranch = util.IfZero(opts.DefaultBranch, setting.Repository.DefaultBranch)
-	repo.DefaultWikiBranch = setting.Repository.DefaultBranch
 	if !opts.AutoInit {
 		repo.IsEmpty = true
 	}
 
-	if err = repo_model.UpdateRepositoryColsNoAutoTime(ctx, repo, "is_empty", "default_branch", "default_wiki_branch"); err != nil {
+	if err = repo_model.UpdateRepositoryColsNoAutoTime(ctx, repo, "is_empty", "default_branch"); err != nil {
 		return fmt.Errorf("updateRepository: %w", err)
 	}
 
@@ -248,7 +247,6 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 		TrustModel:                      opts.TrustModel,
 		IsMirror:                        opts.IsMirror,
 		DefaultBranch:                   opts.DefaultBranch,
-		DefaultWikiBranch:               setting.Repository.DefaultBranch,
 		ObjectFormatName:                opts.ObjectFormatName,
 	}
 
@@ -303,23 +301,7 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 		return nil, fmt.Errorf("updateGitRepoAfterCreate: %w", err)
 	}
 
-	// 6 - update licenses
-	var licenses []string
-	if len(opts.License) > 0 {
-		licenses = append(licenses, opts.License)
-
-		var stdout string
-		stdout, _, err = gitrepo.RunCmdString(ctx, repo, gitcmd.NewCommand("rev-parse", "HEAD"))
-		if err != nil {
-			log.Error("CreateRepository(git rev-parse HEAD) in %v: Stdout: %s\nError: %v", repo, stdout, err)
-			return nil, fmt.Errorf("CreateRepository(git rev-parse HEAD): %w", err)
-		}
-		if err = repo_model.UpdateRepoLicenses(ctx, repo, stdout, licenses); err != nil {
-			return nil, err
-		}
-	}
-
-	// 7 - update repository status to be ready
+	// 6 - update repository status to be ready
 	if needsUpdateToReady {
 		repo.Status = repo_model.RepositoryReady
 		if err = repo_model.UpdateRepositoryColsWithAutoTime(ctx, repo, "status"); err != nil {

@@ -20,14 +20,10 @@ func ToAPIRelease(ctx context.Context, repo *repo_model.Repository, r *repo_mode
 		Note:         r.Note,
 		URL:          r.APIURL(),
 		HTMLURL:      r.HTMLURL(),
-		TarURL:       r.TarURL(),
-		ZipURL:       r.ZipURL(),
-		UploadURL:    r.APIUploadURL(),
 		IsDraft:      r.IsDraft,
 		IsPrerelease: r.IsPrerelease,
 		CreatedAt:    r.CreatedUnix.AsTime(),
 		PublishedAt:  r.CreatedUnix.AsTime(),
 		Publisher:    ToUser(ctx, r.Publisher, nil),
-		Attachments:  ToAPIAttachments(repo, r.Attachments),
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitea.dev/models/db"
+	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 )
 
@@ -111,5 +112,19 @@ func UpdateRepoSize(ctx context.Context, repoID, gitSize, lfsSize int64) error {
 		GitSize: gitSize,
 		LFSSize: lfsSize,
 	})
+	return err
+}
+
+// SetArchiveRepoState sets if a repo is archived
+func SetArchiveRepoState(ctx context.Context, repo *Repository, isArchived bool) (err error) {
+	repo.IsArchived = isArchived
+
+	if isArchived {
+		repo.ArchivedUnix = timeutil.TimeStampNow()
+	} else {
+		repo.ArchivedUnix = timeutil.TimeStamp(0)
+	}
+
+	_, err = db.GetEngine(ctx).ID(repo.ID).Cols("is_archived", "archived_unix").NoAutoTime().Update(repo)
 	return err
 }
