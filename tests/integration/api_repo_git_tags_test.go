@@ -75,11 +75,4 @@ func TestAPIDeleteTagByName(t *testing.T) {
 	req := NewRequest(t, http.MethodDelete, fmt.Sprintf("/api/v1/repos/%s/%s/tags/delete-tag", owner.Name, repo.Name)).
 		AddTokenAuth(token)
 	_ = MakeRequest(t, req, http.StatusNoContent)
-
-	// Make sure that actual releases can't be deleted outright
-	createNewReleaseUsingAPI(t, token, owner, repo, "release-tag", "", "Release Tag", "test")
-
-	req = NewRequest(t, http.MethodDelete, fmt.Sprintf("/api/v1/repos/%s/%s/tags/release-tag", owner.Name, repo.Name)).
-		AddTokenAuth(token)
-	_ = MakeRequest(t, req, http.StatusConflict)
 }

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -162,56 +161,6 @@ func doAPIDeleteRepository(ctx APITestContext) func(*testing.T) {
 	}
 }
 
-func doAPICreateUserKey(ctx APITestContext, keyname, keyFile string, callback ...func(*testing.T, api.PublicKey)) func(*testing.T) {
-	return func(t *testing.T) {
-		dataPubKey, err := os.ReadFile(keyFile + ".pub")
-		assert.NoError(t, err)
-		req := NewRequestWithJSON(t, "POST", "/api/v1/user/keys", &api.CreateKeyOption{
-			Title: keyname,
-			Key:   string(dataPubKey),
-		}).AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		resp := ctx.Session.MakeRequest(t, req, http.StatusCreated)
-		publicKey := DecodeJSON(t, resp, &api.PublicKey{})
-		if len(callback) > 0 {
-			callback[0](t, *publicKey)
-		}
-	}
-}
-
-func doAPIDeleteUserKey(ctx APITestContext, keyID int64) func(*testing.T) {
-	return func(t *testing.T) {
-		req := NewRequest(t, "DELETE", fmt.Sprintf("/api/v1/user/keys/%d", keyID)).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		ctx.Session.MakeRequest(t, req, http.StatusNoContent)
-	}
-}
-
-func doAPICreateDeployKey(ctx APITestContext, keyname, keyFile string, readOnly bool) func(*testing.T) {
-	return func(t *testing.T) {
-		dataPubKey, err := os.ReadFile(keyFile + ".pub")
-		assert.NoError(t, err)
-		req := NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/keys", ctx.Username, ctx.Reponame), api.CreateKeyOption{
-			Title:    keyname,
-			Key:      string(dataPubKey),
-			ReadOnly: readOnly,
-		}).AddTokenAuth(ctx.Token)
-
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		ctx.Session.MakeRequest(t, req, http.StatusCreated)
-	}
-}
-
 func doAPICreatePullRequest(ctx APITestContext, owner, repo, baseBranch, headBranch string) func(*testing.T) (api.PullRequest, error) {
 	return func(t *testing.T) (api.PullRequest, error) {
 		req := NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls", owner, repo), &api.CreatePullRequestOption{
@@ -300,35 +249,6 @@ func doAPIManuallyMergePullRequest(ctx APITestContext, owner, repo, commitID str
 			return
 		}
 		ctx.Session.MakeRequest(t, req, http.StatusOK)
-	}
-}
-
-func doAPIAutoMergePullRequest(ctx APITestContext, owner, repo string, index int64) func(*testing.T) {
-	return func(t *testing.T) {
-		urlStr := fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/merge", owner, repo, index)
-		req := NewRequestWithJSON(t, http.MethodPost, urlStr, &forms.MergePullRequestForm{
-			MergeMessageField:      "doAPIMergePullRequest Merge",
-			Do:                     string(repo_model.MergeStyleMerge),
-			MergeWhenChecksSucceed: true,
-		}).AddTokenAuth(ctx.Token)
-
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		ctx.Session.MakeRequest(t, req, http.StatusOK)
-	}
-}
-
-func doAPICancelAutoMergePullRequest(ctx APITestContext, owner, repo string, index int64) func(*testing.T) {
-	return func(t *testing.T) {
-		req := NewRequest(t, http.MethodDelete, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/merge", owner, repo, index)).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		ctx.Session.MakeRequest(t, req, http.StatusNoContent)
 	}
 }
 

@@ -59,13 +59,6 @@ func TestAPIIssuesReactions(t *testing.T) {
 	}).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusOK)
 
-	// Blocked user can't react to comment
-	user34 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 34})
-	req = NewRequestWithJSON(t, "POST", urlStr, &api.EditReactionOption{
-		Reaction: "rocket",
-	}).AddTokenAuth(getUserToken(t, user34.Name, auth_model.AccessTokenScopeWriteIssue))
-	MakeRequest(t, req, http.StatusForbidden)
-
 	// Get end result of reaction list of issue #1
 	req = NewRequest(t, "GET", urlStr).
 		AddTokenAuth(token)

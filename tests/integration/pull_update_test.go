@@ -225,16 +225,16 @@ func createOutdatedPR(t *testing.T, actor, forkOrg *user_model.User) *issues_mod
 		Readme:      "Default",
 		IsPrivate:   false,
 	})
-	assert.NoError(t, err)
-	assert.NotEmpty(t, baseRepo)
+	require.NoError(t, err)
+	require.NotEmpty(t, baseRepo)
 
 	headRepo, err := repo_service.ForkRepository(t.Context(), actor, forkOrg, repo_service.ForkRepoOptions{
 		BaseRepo:    baseRepo,
 		Name:        "repo-pr-update",
 		Description: "desc",
 	})
-	assert.NoError(t, err)
-	assert.NotEmpty(t, headRepo)
+	require.NoError(t, err)
+	require.NotEmpty(t, headRepo)
 
 	// create a commit on base Repo
 	_, err = files_service.ChangeRepoFiles(t.Context(), baseRepo, actor, &files_service.ChangeRepoFilesOptions{

@@ -28,7 +28,7 @@ func getExpectedContentsListResponseForContents(ref, refType, lastCommitSHA stri
 	selfURL := setting.AppURL + "api/v1/repos/user2/repo1/contents/" + treePath + "?ref=" + ref
 	htmlURL := setting.AppURL + "user2/repo1/src/" + refType + "/" + ref + "/" + treePath
 	gitURL := setting.AppURL + "api/v1/repos/user2/repo1/git/blobs/" + sha
-	downloadURL := setting.AppURL + "user2/repo1/raw/" + refType + "/" + ref + "/" + treePath
+	downloadURL := setting.AppURL + "api/v1/repos/user2/repo1/raw/" + treePath + "?ref=" + ref
 	return []*api.ContentsResponse{
 		{
 			Name:              path.Base(treePath),

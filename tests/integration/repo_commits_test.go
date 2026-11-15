@@ -6,8 +6,6 @@ package integration
 import (
 	"fmt"
 	"net/http"
-	"path"
-	"strings"
 	"sync"
 	"testing"
 
@@ -20,90 +18,18 @@ import (
 	api "gitea.dev/modules/structs"
 	"gitea.dev/tests"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestRepoCommits(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	session := loginUser(t, "user2")
-
-	t.Run("CommitList", func(t *testing.T) {
-		req := NewRequest(t, "GET", "/user2/repo16/commits/branch/master")
-		resp := session.MakeRequest(t, req, http.StatusOK)
-
-		var commits, userHrefs []string
-		doc := NewHTMLParser(t, resp.Body)
-		doc.doc.Find("#commits-table .commit-id-short").Each(func(i int, s *goquery.Selection) {
-			commits = append(commits, path.Base(s.AttrOr("href", "")))
-		})
-		doc.doc.Find("#commits-table .avatar-stack-names a.muted").Each(func(i int, s *goquery.Selection) {
-			userHrefs = append(userHrefs, s.AttrOr("href", ""))
-		})
-		assert.Equal(t, []string{"69554a64c1e6030f051e5c3f94bfbd773cd6a324", "27566bd5738fc8b4e3fef3c5e72cce608537bd95", "5099b81332712fe655e34e8dd63574f503f61811"}, commits)
-		assert.Equal(t, []string{
-			"/user2/repo16/commits/branch/master/search?q=author%3Auser2%40example.com",
-			"/user2/repo16/commits/branch/master/search?q=author%3Auser21%40example.com",
-			"/user2/repo16/commits/branch/master/search?q=author%3Auser2%40example.com",
-		}, userHrefs)
-	})
-
-	t.Run("LastCommit", func(t *testing.T) {
-		req := NewRequest(t, "GET", "/user2/repo16")
-		resp := session.MakeRequest(t, req, http.StatusOK)
-		doc := NewHTMLParser(t, resp.Body)
-		commitHref := doc.doc.Find(".latest-commit .commit-id-short").AttrOr("href", "")
-		authorHref := doc.doc.Find(".latest-commit .avatar-stack-names a").AttrOr("href", "")
-		assert.Equal(t, "/user2/repo16/commit/69554a64c1e6030f051e5c3f94bfbd773cd6a324", commitHref)
-		assert.Equal(t, "/user2/repo16/commits/branch/master/search?q=author%3Auser2%40example.com", authorHref)
-	})
-
-	t.Run("CommitListNonExistingCommiter", func(t *testing.T) {
-		// check the commit list for a repository with no gitea user
-		// * commit 985f0301dba5e7b34be866819cd15ad3d8f508ee (branch2)
-		// * Author: 6543 <6543@obermui.de>
-		req := NewRequest(t, "GET", "/user2/repo1/commits/branch/branch2")
-		resp := session.MakeRequest(t, req, http.StatusOK)
-
-		doc := NewHTMLParser(t, resp.Body)
-		commitHref := doc.doc.Find("#commits-table tr:first-child .commit-id-short").AttrOr("href", "")
-		assert.Equal(t, "/user2/repo1/commit/985f0301dba5e7b34be866819cd15ad3d8f508ee", commitHref)
-		authorElem := doc.doc.Find("#commits-table tr:first-child .avatar-stack-names")
-		assert.Equal(t, "6543", strings.TrimSpace(authorElem.Text()))
-	})
-
-	t.Run("CommitPageUsesCommitterDate", func(t *testing.T) {
-		const (
-			commitID              = "5099b81332712fe655e34e8dd63574f503f61811"
-			expectedCommitterTime = "2017-08-06T19:56:13+02:00"
-			authorTime            = "2017-08-06T19:55:01+02:00"
-		)
-
-		req := NewRequest(t, "GET", "/user2/repo16/commits/branch/master")
-		resp := session.MakeRequest(t, req, http.StatusOK)
-		doc := NewHTMLParser(t, resp.Body)
-
-		var commitListTime string
-		doc.doc.Find("#commits-table tbody tr").EachWithBreak(func(_ int, row *goquery.Selection) bool {
-			if path.Base(row.Find(".commit-id-short").AttrOr("href", "")) != commitID {
-				return true
-			}
-			commitListTime = row.Find("td").Eq(3).Find("relative-time").AttrOr("datetime", "")
-			return false
-		})
-		require.Equal(t, expectedCommitterTime, commitListTime)
-	})
-
-	t.Run("LastCommitNonExistingCommiter", func(t *testing.T) {
-		req := NewRequest(t, "GET", "/user2/repo1/src/branch/branch2")
-		resp := session.MakeRequest(t, req, http.StatusOK)
-		doc := NewHTMLParser(t, resp.Body)
-		commitHref := doc.doc.Find(".latest-commit .commit-id-short").AttrOr("href", "")
-		assert.Equal(t, "/user2/repo1/commit/985f0301dba5e7b34be866819cd15ad3d8f508ee", commitHref)
-		authorElem := doc.doc.Find(".latest-commit .avatar-stack-names")
-		assert.Equal(t, "6543", strings.TrimSpace(authorElem.Text()))
-	})
+// testAPIBranchCommitID returns the head commit of a branch via the API
+func testAPIBranchCommitID(t *testing.T, session *TestSession, owner, repo, branch string) string {
+	req := NewRequestf(t, "GET", "/api/v1/repos/%s/%s/branches/%s", owner, repo, branch)
+	resp := session.MakeRequest(t, req, http.StatusOK)
+	apiBranch := DecodeJSON(t, resp, &api.Branch{})
+	require.NotNil(t, apiBranch.Commit)
+	require.NotEmpty(t, apiBranch.Commit.ID)
+	return apiBranch.Commit.ID
 }
 
 func TestRepoCommitsWithStatus(t *testing.T) {
@@ -118,32 +44,13 @@ func TestRepoCommitsWithStatus(t *testing.T) {
 		return statuses, status
 	}
 
-	testRefMaster := func(t *testing.T, state commitstatus.CommitStatusState, classes ...string) {
+	testRefMaster := func(t *testing.T, state commitstatus.CommitStatusState) {
 		_ = db.TruncateBeans(t.Context(), &git_model.CommitStatus{})
 
-		// Request repository commits page
-		req := NewRequest(t, "GET", "/user2/repo1/commits/branch/master")
-		resp := session.MakeRequest(t, req, http.StatusOK)
-
-		doc := NewHTMLParser(t, resp.Body)
-		// Get first commit URL
-		commitURL, _ := doc.doc.Find("#commits-table .commit-id-short").Attr("href")
-		require.NotEmpty(t, commitURL)
-		commitID := path.Base(commitURL)
+		commitID := testAPIBranchCommitID(t, session, "user2", "repo1", "master")
 
 		// Call API to add status for commit
-		doAPICreateCommitStatusTest(ctx, path.Base(commitURL), state, "testci")(t)
-
-		req = NewRequest(t, "GET", "/user2/repo1/commits/branch/master")
-		resp = session.MakeRequest(t, req, http.StatusOK)
-
-		doc = NewHTMLParser(t, resp.Body)
-		// Check if commit status is displayed in message column (.tippy-target to ignore the tippy trigger)
-		sel := doc.doc.Find("#commits-table .message .tippy-target .commit-status")
-		assert.Equal(t, 1, sel.Length())
-		for _, class := range classes {
-			assert.True(t, sel.HasClass(class))
-		}
+		doAPICreateCommitStatusTest(ctx, commitID, state, "testci")(t)
 
 		testRepoCommitsWithStatus := func(t *testing.T, linkList, linkCombined string, state commitstatus.CommitStatusState) {
 			statuses, status := requestCommitStatuses(t, linkList, linkCombined)
@@ -159,6 +66,11 @@ func TestRepoCommitsWithStatus(t *testing.T) {
 			assert.Len(t, status.Statuses, 1)
 			assert.Equal(t, statuses[0], status.Statuses[0])
 			assert.Equal(t, commitID, status.SHA)
+			combinedState := state
+			if state == commitstatus.CommitStatusError || state == commitstatus.CommitStatusWarning {
+				combinedState = commitstatus.CommitStatusFailure // the combined state reports these as failure
+			}
+			assert.Equal(t, combinedState, status.State)
 		}
 		// By SHA
 		testRepoCommitsWithStatus(t, "/api/v1/repos/user2/repo1/commits/"+commitID+"/statuses", "/api/v1/repos/user2/repo1/commits/"+commitID+"/status", state)
@@ -170,11 +82,11 @@ func TestRepoCommitsWithStatus(t *testing.T) {
 		testRepoCommitsWithStatus(t, "/api/v1/repos/user2/repo1/commits/v1.1/statuses", "/api/v1/repos/user2/repo1/commits/v1.1/status", state)
 	}
 
-	t.Run("pending", func(t *testing.T) { testRefMaster(t, "pending", "octicon-dot-fill", "tw-text-yellow") })
-	t.Run("success", func(t *testing.T) { testRefMaster(t, "success", "octicon-check", "tw-text-green") })
-	t.Run("error", func(t *testing.T) { testRefMaster(t, "error", "gitea-exclamation", "tw-text-red") })
-	t.Run("failure", func(t *testing.T) { testRefMaster(t, "failure", "octicon-x", "tw-text-red") })
-	t.Run("warning", func(t *testing.T) { testRefMaster(t, "warning", "gitea-exclamation", "tw-text-yellow") })
+	t.Run("pending", func(t *testing.T) { testRefMaster(t, "pending") })
+	t.Run("success", func(t *testing.T) { testRefMaster(t, "success") })
+	t.Run("error", func(t *testing.T) { testRefMaster(t, "error") })
+	t.Run("failure", func(t *testing.T) { testRefMaster(t, "failure") })
+	t.Run("warning", func(t *testing.T) { testRefMaster(t, "warning") })
 	t.Run("BranchWithSlash", func(t *testing.T) {
 		_ = db.TruncateBeans(t.Context(), &git_model.CommitStatus{})
 
@@ -193,23 +105,14 @@ func TestRepoCommitsStatusParallel(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 
 	session := loginUser(t, "user2")
-
-	// Request repository commits page
-	req := NewRequest(t, "GET", "/user2/repo1/commits/branch/master")
-	resp := session.MakeRequest(t, req, http.StatusOK)
-
-	doc := NewHTMLParser(t, resp.Body)
-	// Get first commit URL
-	commitURL, exists := doc.doc.Find("#commits-table .commit-id-short").Attr("href")
-	assert.True(t, exists)
-	assert.NotEmpty(t, commitURL)
+	commitID := testAPIBranchCommitID(t, session, "user2", "repo1", "master")
 
 	var wg sync.WaitGroup
 	for i := range 10 {
 		wg.Go(func() {
 			t.Run(fmt.Sprintf("ParallelCreateStatus_%d", i), func(t *testing.T) {
 				ctx := NewAPITestContext(t, "user2", "repo1", auth_model.AccessTokenScopeWriteRepository)
-				doAPICreateCommitStatusTest(ctx, path.Base(commitURL), commitstatus.CommitStatusPending, "testci")(t)
+				doAPICreateCommitStatusTest(ctx, commitID, commitstatus.CommitStatusPending, "testci")(t)
 			})
 		})
 	}
@@ -220,26 +123,16 @@ func TestRepoCommitsStatusMultiple(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 
 	session := loginUser(t, "user2")
-
-	// Request repository commits page
-	req := NewRequest(t, "GET", "/user2/repo1/commits/branch/master")
-	resp := session.MakeRequest(t, req, http.StatusOK)
-
-	doc := NewHTMLParser(t, resp.Body)
-	// Get first commit URL
-	commitURL, exists := doc.doc.Find("#commits-table .commit-id-short").Attr("href")
-	assert.True(t, exists)
-	assert.NotEmpty(t, commitURL)
+	commitID := testAPIBranchCommitID(t, session, "user2", "repo1", "master")
 
 	// Call API to add status for commit
 	ctx := NewAPITestContext(t, "user2", "repo1", auth_model.AccessTokenScopeWriteRepository)
-	t.Run("CreateStatus", doAPICreateCommitStatusTest(ctx, path.Base(commitURL), commitstatus.CommitStatusSuccess, "testci"))
-	t.Run("CreateStatus", doAPICreateCommitStatusTest(ctx, path.Base(commitURL), commitstatus.CommitStatusSuccess, "other_context"))
-	req = NewRequest(t, "GET", "/user2/repo1/commits/branch/master")
-	resp = session.MakeRequest(t, req, http.StatusOK)
+	t.Run("CreateStatus", doAPICreateCommitStatusTest(ctx, commitID, commitstatus.CommitStatusSuccess, "testci"))
+	t.Run("CreateStatus", doAPICreateCommitStatusTest(ctx, commitID, commitstatus.CommitStatusSuccess, "other_context"))
 
-	doc = NewHTMLParser(t, resp.Body)
-	// Check that the data-global-init="initCommitStatuses" (for trigger) and commit-status (svg) are present
-	sel := doc.doc.Find(`#commits-table .message [data-global-init="initCommitStatuses"] .commit-status`)
-	assert.Equal(t, 1, sel.Length())
+	req := NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/commits/%s/status", commitID)
+	resp := session.MakeRequest(t, req, http.StatusOK)
+	status := DecodeJSON(t, resp, &api.CombinedStatus{})
+	assert.Len(t, status.Statuses, 2)
+	assert.Equal(t, commitstatus.CommitStatusSuccess, status.State)
 }

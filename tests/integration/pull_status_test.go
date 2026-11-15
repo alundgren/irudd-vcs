@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
-	"strings"
 	"testing"
+	"time"
 
 	auth_model "gitea.dev/models/auth"
 	git_model "gitea.dev/models/git"
@@ -23,6 +22,7 @@ import (
 	"gitea.dev/services/pull"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPullCreate_CommitStatus(t *testing.T) {
@@ -31,28 +31,20 @@ func TestPullCreate_CommitStatus(t *testing.T) {
 		testRepoFork(t, session, "user2", "repo1", "user1", "repo1", "")
 		testEditFileToNewBranch(t, session, "user1", "repo1", "master", "status1", "README.md", "status1")
 
-		req := NewRequestWithValues(t, "POST", "/user1/repo1/compare/master...status1",
-			map[string]string{
-				"title": "pull request from status1",
-			},
-		)
-		session.MakeRequest(t, req, http.StatusOK)
+		testPullCreateDirectly(t, session, createPullRequestOptions{
+			BaseRepoOwner: "user1",
+			BaseRepoName:  "repo1",
+			BaseBranch:    "master",
+			HeadBranch:    "status1",
+			Title:         "pull request from status1",
+		})
 
-		req = NewRequest(t, "GET", "/user1/repo1/pulls")
+		// Request pull request commits
+		req := NewRequest(t, "GET", "/api/v1/repos/user1/repo1/pulls/1/commits")
 		resp := session.MakeRequest(t, req, http.StatusOK)
-		NewHTMLParser(t, resp.Body)
-
-		// Request repository commits page
-		req = NewRequest(t, "GET", "/user1/repo1/pulls/1/commits")
-		resp = session.MakeRequest(t, req, http.StatusOK)
-		doc := NewHTMLParser(t, resp.Body)
-
-		// Get first commit URL
-		commitURL, exists := doc.doc.Find("#commits-table tbody tr td.sha a").Last().Attr("href")
-		assert.True(t, exists)
-		assert.NotEmpty(t, commitURL)
-
-		commitID := path.Base(commitURL)
+		commits := DecodeJSON(t, resp, []*api.Commit{})
+		require.Len(t, commits, 1)
+		commitID := commits[0].SHA
 
 		statusList := []commitstatus.CommitStatusState{
 			commitstatus.CommitStatusPending,
@@ -62,33 +54,29 @@ func TestPullCreate_CommitStatus(t *testing.T) {
 			commitstatus.CommitStatusSuccess,
 		}
 
-		statesIcons := map[commitstatus.CommitStatusState]string{
-			commitstatus.CommitStatusPending: "octicon-dot-fill",
-			commitstatus.CommitStatusSuccess: "octicon-check",
-			commitstatus.CommitStatusError:   "gitea-exclamation",
-			commitstatus.CommitStatusFailure: "octicon-x",
-			commitstatus.CommitStatusWarning: "gitea-exclamation",
+		// the combined state reports error and warning as failure
+		combinedStates := map[commitstatus.CommitStatusState]commitstatus.CommitStatusState{
+			commitstatus.CommitStatusPending: commitstatus.CommitStatusPending,
+			commitstatus.CommitStatusError:   commitstatus.CommitStatusFailure,
+			commitstatus.CommitStatusFailure: commitstatus.CommitStatusFailure,
+			commitstatus.CommitStatusWarning: commitstatus.CommitStatusFailure,
+			commitstatus.CommitStatusSuccess: commitstatus.CommitStatusSuccess,
 		}
 
 		testCtx := NewAPITestContext(t, "user1", "repo1", auth_model.AccessTokenScopeWriteRepository)
 
-		// Update commit status, and check if icon is updated as well
+		// Update commit status, and check if the combined status is updated as well
 		for _, status := range statusList {
 			// Call API to add status for commit
 			t.Run("CreateStatus", doAPICreateCommitStatusTest(testCtx, commitID, status, "testci"))
 
-			req = NewRequest(t, "GET", "/user1/repo1/pulls/1/commits")
+			req = NewRequestf(t, "GET", "/api/v1/repos/user1/repo1/commits/%s/status", commitID)
 			resp = session.MakeRequest(t, req, http.StatusOK)
-			doc = NewHTMLParser(t, resp.Body)
-
-			commitURL, exists = doc.doc.Find("#commits-table tbody tr td.sha a").Last().Attr("href")
-			assert.True(t, exists)
-			assert.NotEmpty(t, commitURL)
-			assert.Equal(t, commitID, path.Base(commitURL))
-
-			cls, ok := doc.doc.Find("#commits-table tbody tr td.message .commit-status").Last().Attr("class")
-			assert.True(t, ok)
-			assert.Contains(t, cls, statesIcons[status])
+			combined := DecodeJSON(t, resp, &api.CombinedStatus{})
+			assert.Equal(t, combinedStates[status], combined.State)
+			if assert.Len(t, combined.Statuses, 1) {
+				assert.Equal(t, status, combined.Statuses[0].State)
+			}
 		}
 
 		repo1 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerName: "user1", Name: "repo1"})
@@ -109,6 +97,15 @@ func doAPICreateCommitStatusTest(ctx APITestContext, ref string, state commitsta
 	}
 }
 
+func testWaitPullStatus(t *testing.T, repoID, index int64, status issues.PullRequestStatus) *issues.PullRequest {
+	var pr *issues.PullRequest
+	require.Eventually(t, func() bool {
+		pr = unittest.AssertExistsAndLoadBean(t, &issues.PullRequest{BaseRepoID: repoID, Index: index})
+		return pr.Status == status
+	}, 5*time.Second, 50*time.Millisecond)
+	return pr
+}
+
 func TestPullCreate_EmptyChangesWithDifferentCommits(t *testing.T) {
 	// Merge must continue if commits SHA are different, even if content is same
 	// Reason: gitflow and merging master back into develop, where is high possibility, there are no changes
@@ -120,20 +117,25 @@ func TestPullCreate_EmptyChangesWithDifferentCommits(t *testing.T) {
 		testEditFileToNewBranch(t, session, "user1", "repo1", "master", "status1", "README.md", "status1")
 		testEditFile(t, session, "user1", "repo1", "status1", "README.md", "# repo1\n\nDescription for repo1")
 
-		req := NewRequestWithValues(t, "POST", "/user1/repo1/compare/master...status1",
-			map[string]string{
-				"title": "pull request from status1",
-			},
-		)
-		session.MakeRequest(t, req, http.StatusOK)
+		testPullCreateDirectly(t, session, createPullRequestOptions{
+			BaseRepoOwner: "user1",
+			BaseRepoName:  "repo1",
+			BaseBranch:    "master",
+			HeadBranch:    "status1",
+			Title:         "pull request from status1",
+		})
 
-		req = NewRequest(t, "GET", "/user1/repo1/pulls/1")
+		// the changes are already on the target branch, it will be an empty commit, but it can be merged
+		repo1 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerName: "user1", Name: "repo1"})
+		testWaitPullStatus(t, repo1.ID, 1, issues.PullRequestStatusEmpty)
+
+		req := NewRequest(t, "GET", "/api/v1/repos/user1/repo1/pulls/1")
 		resp := session.MakeRequest(t, req, http.StatusOK)
-		doc := NewHTMLParser(t, resp.Body)
+		assert.True(t, DecodeJSON(t, resp, &api.PullRequest{}).Mergeable)
 
-		text := strings.TrimSpace(doc.doc.Find(".merge-section").Text())
-		assert.Contains(t, text, "The changes on this branch are already on the target branch. This will be an empty commit.")
-		assert.Contains(t, text, "This pull request can be merged automatically.")
+		req = NewRequest(t, "GET", "/api/v1/repos/user1/repo1/pulls/1/commits")
+		resp = session.MakeRequest(t, req, http.StatusOK)
+		assert.Len(t, DecodeJSON(t, resp, []*api.Commit{}), 2)
 	})
 }
 
@@ -141,7 +143,7 @@ func TestPullCreate_EmptyChangesWithSameCommits(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, u *url.URL) {
 		session := loginUser(t, "user1")
 
-		testCreateBranch(t, session, "user2", "repo1", "branch/master", "empty-pr-branch", http.StatusSeeOther)
+		testCreateBranch(t, session, "user2", "repo1", "branch/master", "empty-pr-branch", http.StatusCreated)
 		resp := testPullCreateDirectly(t, session, createPullRequestOptions{
 			BaseRepoOwner: "user2",
 			BaseRepoName:  "repo1",
@@ -149,20 +151,18 @@ func TestPullCreate_EmptyChangesWithSameCommits(t *testing.T) {
 			HeadBranch:    "empty-pr-branch",
 			Title:         "empty pr test",
 		})
-		prURL := test.RedirectURL(resp)
+		pr := DecodeJSON(t, resp, &api.PullRequest{})
 
-		// check the "merge box" text
-		req := NewRequest(t, "GET", prURL)
-		resp = session.MakeRequest(t, req, http.StatusOK)
-		doc := NewHTMLParser(t, resp.Body)
-		text := strings.TrimSpace(doc.doc.Find(".merge-section").Text())
-		assert.Contains(t, text, "This branch is already included in the target branch. There is nothing to merge.")
+		// the branch is already included in the target branch, there is nothing to merge
+		testWaitPullStatus(t, 1, pr.Index, issues.PullRequestStatusAncestor)
 
-		// check the "files" tab content
-		req = NewRequest(t, "GET", prURL+"/files")
+		req := NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/pulls/%d/files", pr.Index)
 		resp = session.MakeRequest(t, req, http.StatusOK)
-		doc = NewHTMLParser(t, resp.Body)
-		assert.Equal(t, "Diff Content Not Available", strings.TrimSpace(doc.Find("#diff-container").Text()))
+		assert.Empty(t, DecodeJSON(t, resp, []*api.ChangedFile{}))
+
+		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/pulls/%d/commits", pr.Index)
+		resp = session.MakeRequest(t, req, http.StatusOK)
+		assert.Empty(t, DecodeJSON(t, resp, []*api.Commit{}))
 	})
 }
 
@@ -183,26 +183,10 @@ func TestPullStatusDelayCheck(t *testing.T) {
 			return issue3, checkedPrID
 		}
 
-		assertReloadingInterval := func(t *testing.T, interval string) {
-			req := NewRequest(t, "GET", "/user2/repo1/pulls/3")
-			resp := session.MakeRequest(t, req, http.StatusOK)
-			attr := "data-pull-merge-box-reloading-interval"
-			if interval == "" {
-				assert.NotContains(t, resp.Body.String(), attr)
-			} else {
-				assert.Contains(t, resp.Body.String(), fmt.Sprintf(`%s="%v"`, attr, interval))
-			}
-		}
-
 		// PR issue3 is merageable at the beginning
 		issue3, checkedPrID := run(t, func(t *testing.T) {})
 		assert.Equal(t, issues.PullRequestStatusMergeable, issue3.PullRequest.Status)
 		assert.Zero(t, checkedPrID)
-		assertReloadingInterval(t, "") // the PR is mergeable, so no need to reload the merge box
-
-		// setting.IsProd = false // it would cause data-race because the queue handlers might be running and reading its value
-		// assertReloadingInterval(t, "1") // make sure dev mode always do merge box reloading, to make sure the UI logic won't break
-		// setting.IsProd = true
 
 		// when base branch changes, PR status should be updated, but it is inactive for long time, so no real check
 		issue3, checkedPrID = run(t, func(t *testing.T) {
@@ -210,11 +194,10 @@ func TestPullStatusDelayCheck(t *testing.T) {
 		})
 		assert.Equal(t, issues.PullRequestStatusChecking, issue3.PullRequest.Status)
 		assert.Zero(t, checkedPrID)
-		assertReloadingInterval(t, "5000") // the PR status is "checking", so try to reload the merge box
 
-		// view a PR with status=checking, it starts the real check
+		// view a PR with status=checking via the API, it starts the real check
 		issue3, checkedPrID = run(t, func(t *testing.T) {
-			req := NewRequest(t, "GET", "/user2/repo1/pulls/3")
+			req := NewRequest(t, "GET", "/api/v1/repos/user2/repo1/pulls/3")
 			session.MakeRequest(t, req, http.StatusOK)
 		})
 		assert.Equal(t, issues.PullRequestStatusChecking, issue3.PullRequest.Status)

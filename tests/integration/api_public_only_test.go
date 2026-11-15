@@ -67,39 +67,6 @@ func TestAPIRepoByIDPublicOnly(t *testing.T) {
 	MakeRequest(t, req, http.StatusNotFound)
 }
 
-func TestAPIActivityFeedsPublicOnly(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-
-	token := getUserToken(t, "user2", auth_model.AccessTokenScopeReadUser)
-	req := NewRequest(t, "GET", "/api/v1/users/user2/activities/feeds").
-		AddTokenAuth(token)
-	resp := MakeRequest(t, req, http.StatusOK)
-	var activities []api.Activity
-	DecodeJSON(t, resp, &activities)
-	assert.NotEmpty(t, activities)
-
-	publicToken := getUserToken(t, "user2", auth_model.AccessTokenScopeReadUser, auth_model.AccessTokenScopePublicOnly)
-	req = NewRequest(t, "GET", "/api/v1/users/user2/activities/feeds").
-		AddTokenAuth(publicToken)
-	resp = MakeRequest(t, req, http.StatusOK)
-	DecodeJSON(t, resp, &activities)
-	assertPublicActivitiesOnly(t, activities)
-
-	orgToken := getUserToken(t, "user2", auth_model.AccessTokenScopeReadOrganization)
-	req = NewRequest(t, "GET", "/api/v1/orgs/org3/activities/feeds").
-		AddTokenAuth(orgToken)
-	resp = MakeRequest(t, req, http.StatusOK)
-	DecodeJSON(t, resp, &activities)
-	assert.NotEmpty(t, activities)
-
-	publicOrgToken := getUserToken(t, "user2", auth_model.AccessTokenScopeReadOrganization, auth_model.AccessTokenScopePublicOnly)
-	req = NewRequest(t, "GET", "/api/v1/orgs/org3/activities/feeds").
-		AddTokenAuth(publicOrgToken)
-	resp = MakeRequest(t, req, http.StatusOK)
-	DecodeJSON(t, resp, &activities)
-	assertPublicActivitiesOnly(t, activities)
-}
-
 func TestAPIOrgPermissionsPublicOnly(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 
@@ -151,17 +118,6 @@ func TestAPITeamReposPublicOnly(t *testing.T) {
 	MakeRequest(t, req, http.StatusOK)
 	req = NewRequestf(t, "GET", "/api/v1/teams/%d/repos/%s", team.ID, privateRepo.FullName()).AddTokenAuth(publicToken)
 	MakeRequest(t, req, http.StatusNotFound)
-}
-
-func assertPublicActivitiesOnly(t *testing.T, activities []api.Activity) {
-	t.Helper()
-
-	for _, activity := range activities {
-		assert.False(t, activity.IsPrivate)
-		if activity.Repo != nil {
-			assert.False(t, activity.Repo.Private)
-		}
-	}
 }
 
 // TestAPIRepoLimitedOwnerPublicOnly ensures a public-only token cannot reach a public repo

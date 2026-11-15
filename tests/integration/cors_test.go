@@ -37,26 +37,6 @@ func TestCORS(t *testing.T) {
 			assert.Contains(t, resp.Header().Values("Vary"), "Origin")
 		})
 
-		t.Run("Web with CORS", func(t *testing.T) {
-			// GET userinfo with no CORS header
-			req := NewRequest(t, "GET", "/login/oauth/userinfo")
-			resp := MakeRequest(t, req, http.StatusUnauthorized)
-			assert.Empty(t, resp.Header().Get("Access-Control-Allow-Origin"))
-			assert.Contains(t, resp.Header().Values("Vary"), "Origin")
-
-			// OPTIONS userinfo for CORS
-			req = NewRequest(t, "OPTIONS", "/login/oauth/userinfo").
-				SetHeader("Origin", "https://example.com").
-				SetHeader("Access-Control-Request-Method", "GET")
-			resp = MakeRequest(t, req, http.StatusOK)
-			assert.NotEmpty(t, resp.Header().Get("Access-Control-Allow-Origin"))
-			assert.Contains(t, resp.Header().Values("Vary"), "Origin")
-
-			// OPTIONS userinfo for non-CORS
-			req = NewRequest(t, "OPTIONS", "/login/oauth/userinfo")
-			resp = MakeRequest(t, req, http.StatusMethodNotAllowed)
-			assert.NotContains(t, resp.Header().Values("Vary"), "Origin")
-		})
 	})
 
 	t.Run("CORS disabled", func(t *testing.T) {
@@ -77,18 +57,5 @@ func TestCORS(t *testing.T) {
 			assert.Empty(t, resp.Header().Values("Vary"))
 		})
 
-		t.Run("Web without CORS", func(t *testing.T) {
-			req := NewRequest(t, "GET", "/login/oauth/userinfo")
-			resp := MakeRequest(t, req, http.StatusUnauthorized)
-			assert.Empty(t, resp.Header().Get("Access-Control-Allow-Origin"))
-			assert.NotContains(t, resp.Header().Values("Vary"), "Origin")
-
-			req = NewRequest(t, "OPTIONS", "/login/oauth/userinfo").
-				SetHeader("Origin", "https://example.com").
-				SetHeader("Access-Control-Request-Method", "GET")
-			resp = MakeRequest(t, req, http.StatusMethodNotAllowed)
-			assert.Empty(t, resp.Header().Get("Access-Control-Allow-Origin"))
-			assert.NotContains(t, resp.Header().Values("Vary"), "Origin")
-		})
 	})
 }

@@ -144,10 +144,12 @@ func TestAPITeam(t *testing.T) {
 		AddTokenAuth(token)
 	resp = MakeRequest(t, req, http.StatusCreated)
 	apiTeam = DecodeJSON(t, resp, &api.Team{})
+	// repo.wiki no longer exists and is ignored
+	createdUnitsMap := map[string]string{"repo.code": "read", "repo.issues": "write"}
 	checkTeamResponse(t, "CreateTeam2", apiTeam, teamToCreate.Name, teamToCreate.Description, teamToCreate.IncludesAllRepositories,
-		api.AccessLevelNameNone, nil, teamToCreate.UnitsMap)
+		api.AccessLevelNameNone, nil, createdUnitsMap)
 	checkTeamBean(t, apiTeam.ID, teamToCreate.Name, teamToCreate.Description, teamToCreate.IncludesAllRepositories,
-		api.AccessLevelNameNone, nil, teamToCreate.UnitsMap)
+		api.AccessLevelNameNone, nil, createdUnitsMap)
 	teamID = apiTeam.ID
 
 	// Edit team.
@@ -211,9 +213,6 @@ func TestAPITeam(t *testing.T) {
 	apiTeam = DecodeJSON(t, resp, &api.Team{})
 	for _, ut := range unit.AllRepoUnitTypes {
 		up := perm.AccessModeAdmin
-		if ut == unit.TypeExternalTracker || ut == unit.TypeExternalWiki {
-			up = perm.AccessModeRead
-		}
 		unittest.AssertExistsAndLoadBean(t, &organization.TeamUnit{
 			OrgID:      org.ID,
 			TeamID:     apiTeam.ID,

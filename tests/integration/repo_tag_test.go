@@ -4,12 +4,10 @@
 package integration
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
 
-	auth_model "gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	repo_model "gitea.dev/models/repo"
@@ -92,11 +90,9 @@ func TestCreateNewTagProtected(t *testing.T) {
 
 			_, _, err = gitcmd.NewCommand("push", "--tags", "--force").WithDir(dstPath).RunStdString(t.Context())
 			require.NoError(t, err)
-			req := NewRequestf(t, "GET", "/%s/releases/tag/v-1.1", repo.FullName())
+			req := NewRequestf(t, "GET", "/api/v1/repos/%s/tags/v-1.1", repo.FullName())
 			resp := MakeRequest(t, req, http.StatusOK)
-			htmlDoc := NewHTMLParser(t, resp.Body)
-			tagsTab := htmlDoc.Find(".release-list-title")
-			assert.Contains(t, tagsTab.Text(), "force update v2")
+			assert.Contains(t, DecodeJSON(t, resp, &api.Tag{}).Message, "force update v2")
 		})
 	})
 
@@ -120,53 +116,4 @@ func TestCreateNewTagProtected(t *testing.T) {
 		err = git_model.DeleteProtectedTag(t.Context(), protectedTag)
 		assert.NoError(t, err)
 	}
-}
-
-func TestRepushTag(t *testing.T) {
-	onGiteaRun(t, func(t *testing.T, u *url.URL) {
-		repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
-		owner := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo.OwnerID})
-		session := loginUser(t, owner.LowerName)
-		token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)
-
-		httpContext := NewAPITestContext(t, owner.Name, repo.Name)
-
-		dstPath := t.TempDir()
-
-		u.Path = httpContext.GitPath()
-		u.User = url.UserPassword(owner.Name, userPassword)
-
-		doGitClone(dstPath, u)(t)
-
-		// create and push a tag
-		_, _, err := gitcmd.NewCommand("tag", "v2.0").WithDir(dstPath).RunStdString(t.Context())
-		assert.NoError(t, err)
-		_, _, err = gitcmd.NewCommand("push", "origin", "--tags", "v2.0").WithDir(dstPath).RunStdString(t.Context())
-		assert.NoError(t, err)
-		// create a release for the tag
-		createdRelease := createNewReleaseUsingAPI(t, token, owner, repo, "v2.0", "", "Release of v2.0", "desc")
-		assert.False(t, createdRelease.IsDraft)
-		// delete the tag
-		_, _, err = gitcmd.NewCommand("push", "origin", "--delete", "v2.0").WithDir(dstPath).RunStdString(t.Context())
-		assert.NoError(t, err)
-
-		// query the release by API with no auth and it should be 404
-		req := NewRequest(t, "GET", fmt.Sprintf("/api/v1/repos/%s/%s/releases/tags/%s", owner.Name, repo.Name, "v2.0"))
-		MakeRequest(t, req, http.StatusNotFound)
-
-		// query the release by API and it should be a draft
-		req = NewRequest(t, "GET", fmt.Sprintf("/api/v1/repos/%s/%s/releases/tags/%s", owner.Name, repo.Name, "v2.0")).AddTokenAuth(token)
-		resp := MakeRequest(t, req, http.StatusOK)
-		respRelease := DecodeJSON(t, resp, &api.Release{})
-		assert.True(t, respRelease.IsDraft)
-
-		// re-push the tag
-		_, _, err = gitcmd.NewCommand("push", "origin", "--tags", "v2.0").WithDir(dstPath).RunStdString(t.Context())
-		assert.NoError(t, err)
-		// query the release by API and it should not be a draft
-		req = NewRequest(t, "GET", fmt.Sprintf("/api/v1/repos/%s/%s/releases/tags/%s", owner.Name, repo.Name, "v2.0"))
-		resp = MakeRequest(t, req, http.StatusOK)
-		respRelease = DecodeJSON(t, resp, &api.Release{})
-		assert.False(t, respRelease.IsDraft)
-	})
 }

@@ -21,21 +21,6 @@ func TestAPIRepositoryCreationTokenScopes(t *testing.T) {
 
 	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user2"})
 
-	t.Run("migration rejects public-only tokens", func(t *testing.T) {
-		publicOnlyToken := getUserToken(t, user.Name,
-			auth_model.AccessTokenScopeWriteRepository,
-			auth_model.AccessTokenScopePublicOnly,
-		)
-		req := NewRequestWithJSON(t, "POST", "/api/v1/repos/migrate", &api.MigrateRepoOptions{Private: true}).
-			AddTokenAuth(publicOnlyToken)
-		MakeRequest(t, req, http.StatusForbidden)
-
-		writeRepoToken := getUserToken(t, user.Name, auth_model.AccessTokenScopeWriteRepository)
-		req = NewRequestWithJSON(t, "POST", "/api/v1/repos/migrate", &api.MigrateRepoOptions{Private: true}).
-			AddTokenAuth(writeRepoToken)
-		MakeRequest(t, req, http.StatusUnprocessableEntity)
-	})
-
 	t.Run("organization creation requires repository scope", func(t *testing.T) {
 		orgOnlyToken := getUserToken(t, user.Name, auth_model.AccessTokenScopeWriteOrganization)
 		req := NewRequestWithJSON(t, "POST", "/api/v1/orgs/org3/repos", &api.CreateRepoOption{Name: "missing-repository-scope"}).

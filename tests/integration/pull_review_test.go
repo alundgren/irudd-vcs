@@ -4,50 +4,28 @@
 package integration
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path"
 	"strings"
 	"testing"
 	"time"
 
-	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
-	"gitea.dev/modules/test"
+	api "gitea.dev/modules/structs"
 	issue_service "gitea.dev/services/issue"
 	repo_service "gitea.dev/services/repository"
 	files_service "gitea.dev/services/repository/files"
-	"gitea.dev/tests"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestPullView_ReviewerMissed(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	session := loginUser(t, "user1")
-
-	req := NewRequest(t, "GET", "/pulls")
-	resp := session.MakeRequest(t, req, http.StatusOK)
-	assert.True(t, test.IsNormalPageCompleted(resp.Body.String()))
-
-	req = NewRequest(t, "GET", "/user2/repo1/pulls/3")
-	resp = session.MakeRequest(t, req, http.StatusOK)
-	assert.True(t, test.IsNormalPageCompleted(resp.Body.String()))
-
-	// if some reviews are missing, the page shouldn't fail
-	err := db.TruncateBeans(t.Context(), &issues_model.Review{})
-	assert.NoError(t, err)
-	req = NewRequest(t, "GET", "/user2/repo1/pulls/2")
-	resp = session.MakeRequest(t, req, http.StatusOK)
-	assert.True(t, test.IsNormalPageCompleted(resp.Body.String()))
-}
 
 func TestPullView_CodeOwner(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, u *url.URL) {
@@ -245,7 +223,7 @@ func TestPullView_GivenApproveOrRejectReviewOnClosedPR(t *testing.T) {
 			// Create a merged PR (made by user1) in the upstream repo1.
 			testEditFile(t, user1Session, "user1", "repo1", "master", "README.md", "Hello, World (Edited)\n")
 			resp := testPullCreate(t, user1Session, "user1", "repo1", false, "master", "master", "This is a pull title")
-			elem := strings.Split(test.RedirectURL(resp), "/")
+			elem := strings.Split(testPullURL(t, resp), "/")
 			assert.Equal(t, "pulls", elem[3])
 			testPullMerge(t, user1Session, elem[1], elem[2], elem[4], MergeOptions{
 				Style:        repo_model.MergeStyleMerge,
@@ -263,7 +241,7 @@ func TestPullView_GivenApproveOrRejectReviewOnClosedPR(t *testing.T) {
 			// Created a closed PR (made by user1) in the upstream repo1.
 			testEditFileToNewBranch(t, user1Session, "user1", "repo1", "master", "a-test-branch", "README.md", "Hello, World (Edited...again)\n")
 			resp := testPullCreate(t, user1Session, "user1", "repo1", false, "master", "a-test-branch", "This is a pull title")
-			elem := strings.Split(test.RedirectURL(resp), "/")
+			elem := strings.Split(testPullURL(t, resp), "/")
 			assert.Equal(t, "pulls", elem[3])
 			testIssueClose(t, user1Session, elem[1], elem[2], elem[4])
 
@@ -277,24 +255,15 @@ func TestPullView_GivenApproveOrRejectReviewOnClosedPR(t *testing.T) {
 }
 
 func testSubmitReview(t *testing.T, session *TestSession, owner, repo, pullNumber, commitID, reviewType string, expectedSubmitStatus int) *httptest.ResponseRecorder {
-	options := map[string]string{
-		"commit_id": commitID,
-		"content":   "test",
-		"type":      reviewType,
-	}
-
-	submitURL := "/" + path.Join(owner, repo, "pulls", pullNumber, "files", "reviews", "submit")
-	req := NewRequestWithValues(t, "POST", submitURL, options)
+	event := map[string]api.ReviewStateType{
+		"approve": api.ReviewStateApproved,
+		"reject":  api.ReviewStateRequestChanges,
+		"comment": api.ReviewStateComment,
+	}[reviewType]
+	req := NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%s/reviews", owner, repo, pullNumber), &api.CreatePullReviewOptions{
+		CommitID: commitID,
+		Body:     "test",
+		Event:    event,
+	})
 	return session.MakeRequest(t, req, expectedSubmitStatus)
-}
-
-func testIssueClose(t *testing.T, session *TestSession, owner, repo, issueNumber string) *httptest.ResponseRecorder {
-	closeURL := "/" + path.Join(owner, repo, "issues", issueNumber, "comments")
-
-	options := map[string]string{
-		"status": "close",
-	}
-
-	req := NewRequestWithValues(t, "POST", closeURL, options)
-	return session.MakeRequest(t, req, http.StatusOK)
 }

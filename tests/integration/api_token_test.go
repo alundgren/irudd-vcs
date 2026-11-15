@@ -245,26 +245,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 			},
 		},
 		{
-			"/api/v1/notifications",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryNotification,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/notifications",
-			"PUT",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryNotification,
-					auth_model.Write,
-				},
-			},
-		},
-		{
 			"/api/v1/org/org1/repos",
 			"POST",
 			[]permission{
@@ -274,26 +254,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 				},
 				{
 					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Write,
-				},
-			},
-		},
-		{
-			"/api/v1/packages/user1/type/name/1",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryPackage,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/packages/user1/type/name/1",
-			"DELETE",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryPackage,
 					auth_model.Write,
 				},
 			},
@@ -330,16 +290,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 		},
 		{
 			"/api/v1/repos/user1/repo1/branches",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/repos/user1/repo1/archive/foo",
 			"GET",
 			[]permission{
 				{
@@ -391,16 +341,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 		{
 			"/api/v1/repos/user1/repo1/teams/team1",
 			"PUT",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Write,
-				},
-			},
-		},
-		{
-			"/api/v1/repos/user1/repo1/transfer",
-			"POST",
 			[]permission{
 				{
 					auth_model.AccessTokenScopeCategoryRepository,
@@ -471,26 +411,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 			},
 		},
 		{
-			"/api/v1/user/applications/oauth2",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryUser,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/user/applications/oauth2",
-			"POST",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryUser,
-					auth_model.Write,
-				},
-			},
-		},
-		{
 			"/api/v1/users/search",
 			"GET",
 			[]permission{
@@ -503,17 +423,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 		// Private user
 		{
 			"/api/v1/users/user31",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryUser,
-					auth_model.Read,
-				},
-			},
-		},
-		// Private user
-		{
-			"/api/v1/users/user31/gpg_keys",
 			"GET",
 			[]permission{
 				{

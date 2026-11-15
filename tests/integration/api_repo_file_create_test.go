@@ -68,7 +68,7 @@ func getExpectedFileResponseForCreate(info apiFileResponseInfo) *api.FileRespons
 	selfURL := setting.AppURL + "api/v1/repos/" + info.repoFullName + "/contents/" + info.treePath + "?ref=master"
 	htmlURL := setting.AppURL + info.repoFullName + "/src/branch/master/" + info.treePath
 	gitURL := setting.AppURL + "api/v1/repos/" + info.repoFullName + "/git/blobs/" + sha
-	downloadURL := setting.AppURL + info.repoFullName + "/raw/branch/master/" + info.treePath
+	downloadURL := setting.AppURL + "api/v1/repos/" + info.repoFullName + "/raw/" + info.treePath + "?ref=master"
 	ret := &api.FileResponse{
 		Content: &api.ContentsResponse{
 			Name:              path.Base(info.treePath),
@@ -190,7 +190,7 @@ func TestAPICreateFile(t *testing.T) {
 		fileResponse := DecodeJSON(t, resp, &api.FileResponse{})
 		expectedSHA := "a635aa942442ddfdba07468cf9661c08fbdf0ebf"
 		expectedHTMLURL := fmt.Sprintf(setting.AppURL+"user2/repo1/src/branch/new_branch/new/file%d.txt", fileID)
-		expectedDownloadURL := fmt.Sprintf(setting.AppURL+"user2/repo1/raw/branch/new_branch/new/file%d.txt", fileID)
+		expectedDownloadURL := fmt.Sprintf(setting.AppURL+"api/v1/repos/user2/repo1/raw/new/file%d.txt?ref=new_branch", fileID)
 		assert.Equal(t, expectedSHA, fileResponse.Content.SHA)
 		assert.Equal(t, expectedHTMLURL, *fileResponse.Content.HTMLURL)
 		assert.Equal(t, expectedDownloadURL, *fileResponse.Content.DownloadURL)

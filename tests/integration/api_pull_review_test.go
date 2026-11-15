@@ -382,7 +382,7 @@ func TestAPIPullReviewCommentResolveEndpoints(t *testing.T) {
 	latestCommitID, err := gitRepo.GetRefCommitID(pullIssue.PullRequest.GetGitHeadRefName())
 	require.NoError(t, err)
 
-	codeComment, err := pull_service.CreateCodeComment(ctx, doer, gitRepo, pullIssue, 1, "resolve comment", "README.md", false, 0, latestCommitID, nil)
+	codeComment, err := pull_service.CreateCodeComment(ctx, doer, gitRepo, pullIssue, 1, "resolve comment", "README.md", false, 0, latestCommitID)
 	require.NoError(t, err)
 	require.NotNil(t, codeComment)
 
@@ -420,7 +420,7 @@ func TestAPIPullReviewCommentResolveEndpoints(t *testing.T) {
 	MakeRequest(t, req, http.StatusNotFound)
 
 	// Non-code-comment
-	plainComment, err := issue_service.CreateIssueComment(ctx, doer, repo, pullIssue, "not a review comment", nil)
+	plainComment, err := issue_service.CreateIssueComment(ctx, doer, repo, pullIssue, "not a review comment")
 	require.NoError(t, err)
 	req = NewRequest(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/comments/%d/resolve", repo.OwnerName, repo.Name, plainComment.ID)).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusBadRequest)
@@ -543,7 +543,7 @@ func testAPIPullReviewCommentReply(t *testing.T) {
 	commitID, err := gitRepo.GetRefCommitID(pullIssue.PullRequest.GetGitHeadRefName())
 	require.NoError(t, err)
 
-	parent, err := pull_service.CreateCodeComment(t.Context(), doer, gitRepo, pullIssue, 1, "parent comment", "README.md", false, 0, commitID, nil)
+	parent, err := pull_service.CreateCodeComment(t.Context(), doer, gitRepo, pullIssue, 1, "parent comment", "README.md", false, 0, commitID)
 	require.NoError(t, err)
 	require.NotZero(t, parent.ReviewID)
 

@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
-	"time"
 
 	auth_model "gitea.dev/models/auth"
 	"gitea.dev/models/db"
@@ -31,7 +29,7 @@ func TestRepoMergeUpstream(t *testing.T) {
 		baseUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: baseRepo.OwnerID})
 
 		checkFileContent := func(branch, exp string) {
-			req := NewRequest(t, "GET", fmt.Sprintf("/%s/test-repo-fork/raw/branch/%s/new-file.txt", forkUser.Name, branch))
+			req := NewRequest(t, "GET", fmt.Sprintf("/api/v1/repos/%s/test-repo-fork/raw/new-file.txt?ref=%s", forkUser.Name, branch))
 			resp := MakeRequest(t, req, http.StatusOK)
 			require.Equal(t, exp, resp.Body.String())
 		}
@@ -47,62 +45,25 @@ func TestRepoMergeUpstream(t *testing.T) {
 		forkRepo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerID: forkUser.ID, Name: "test-repo-fork"})
 
 		// create fork-branch
-		req = NewRequestWithValues(t, "POST", fmt.Sprintf("/%s/test-repo-fork/branches/_new/branch/master", forkUser.Name), map[string]string{
-			"new_branch_name": "fork-branch",
-		})
-		session.MakeRequest(t, req, http.StatusSeeOther)
-
-		queryMergeUpstreamButtonLink := func(htmlDoc *HTMLDoc) string {
-			return htmlDoc.Find(`button[data-url*="merge-upstream"]`).AttrOr("data-url", "")
-		}
+		testCreateBranch(t, session, forkUser.Name, "test-repo-fork", "branch/master", "fork-branch", http.StatusCreated)
 
 		t.Run("HeadBeforeBase", func(t *testing.T) {
 			// add a file in base repo
 			sessionBaseUser := loginUser(t, baseUser.Name)
 			require.NoError(t, createOrReplaceFileInBranch(baseUser, baseRepo, "new-file.txt", "master", "test-content-1"))
 
-			var mergeUpstreamLink string
-			t.Run("DetectDefaultBranch", func(t *testing.T) {
-				// the repo shows a prompt to "sync fork" (defaults to the default branch)
-				require.Eventually(t, func() bool {
-					resp := session.MakeRequest(t, NewRequestf(t, "GET", "/%s/test-repo-fork/src/branch/fork-branch", forkUser.Name), http.StatusOK)
-					htmlDoc := NewHTMLParser(t, resp.Body)
-					mergeUpstreamLink = queryMergeUpstreamButtonLink(htmlDoc)
-					if mergeUpstreamLink == "" {
-						return false
-					}
-					respMsg, _ := htmlDoc.Find(".ui.message:not(.positive)").Html()
-					return strings.Contains(respMsg, `This branch is 1 commit behind <a href="/user2/repo1/src/branch/master">user2/repo1:master</a>`)
-				}, 5*time.Second, 100*time.Millisecond)
-			})
+			// if the fork-branch name also exists in the base repo, then that branch is used instead of the default branch
+			testCreateBranch(t, sessionBaseUser, baseUser.Name, baseRepo.Name, "branch/master", "fork-branch", http.StatusCreated)
 
-			t.Run("DetectSameBranch", func(t *testing.T) {
-				// if the fork-branch name also exists in the base repo, then use that branch instead
-				req = NewRequestWithValues(t, "POST", "/user2/repo1/branches/_new/branch/master", map[string]string{
-					"new_branch_name": "fork-branch",
-				})
-				sessionBaseUser.MakeRequest(t, req, http.StatusSeeOther)
-
-				require.Eventually(t, func() bool {
-					resp := session.MakeRequest(t, NewRequestf(t, "GET", "/%s/test-repo-fork/src/branch/fork-branch", forkUser.Name), http.StatusOK)
-					htmlDoc := NewHTMLParser(t, resp.Body)
-					mergeUpstreamLink = queryMergeUpstreamButtonLink(htmlDoc)
-					if mergeUpstreamLink == "" {
-						return false
-					}
-					respMsg, _ := htmlDoc.Find(".ui.message:not(.positive)").Html()
-					return strings.Contains(respMsg, `This branch is 1 commit behind <a href="/user2/repo1/src/branch/fork-branch">user2/repo1:fork-branch</a>`)
-				}, 5*time.Second, 100*time.Millisecond)
-			})
-
-			// click the "sync fork" button
-			req = NewRequest(t, "POST", mergeUpstreamLink)
-			session.MakeRequest(t, req, http.StatusOK)
+			// sync the fork
+			req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/test-repo-fork/merge-upstream", forkUser.Name), &api.MergeUpstreamRequest{
+				Branch: "fork-branch",
+			}).AddTokenAuth(token)
+			MakeRequest(t, req, http.StatusOK)
 			checkFileContent("fork-branch", "test-content-1")
 
 			// delete the "fork-branch" from the base repo
-			req = NewRequest(t, "POST", "/user2/repo1/branches/delete?name=fork-branch")
-			sessionBaseUser.MakeRequest(t, req, http.StatusOK)
+			testDeleteBranch(t, sessionBaseUser, baseUser.Name, baseRepo.Name, "fork-branch")
 		})
 
 		t.Run("BaseChangeAfterHeadChange", func(t *testing.T) {
@@ -116,14 +77,6 @@ func TestRepoMergeUpstream(t *testing.T) {
 			_, err := db.GetEngine(t.Context()).ID(forkBranch.ID).Update(&git_model.Branch{UpdatedUnix: baseBranch.UpdatedUnix + 1})
 			require.NoError(t, err)
 
-			// the repo shows a prompt to "sync fork"
-			require.Eventually(t, func() bool {
-				resp := session.MakeRequest(t, NewRequestf(t, "GET", "/%s/test-repo-fork/src/branch/fork-branch", forkUser.Name), http.StatusOK)
-				htmlDoc := NewHTMLParser(t, resp.Body)
-				respMsg, _ := htmlDoc.Find(".ui.message:not(.positive)").Html()
-				return strings.Contains(respMsg, `The base branch <a href="/user2/repo1/src/branch/master">user2/repo1:master</a> has new changes`)
-			}, 5*time.Second, 100*time.Millisecond)
-
 			// and do the merge-upstream by API
 			req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/test-repo-fork/merge-upstream", forkUser.Name), &api.MergeUpstreamRequest{
 				Branch: "fork-branch",
@@ -133,21 +86,11 @@ func TestRepoMergeUpstream(t *testing.T) {
 
 			mergeResp := DecodeJSON(t, resp, &api.MergeUpstreamResponse{})
 			assert.Equal(t, "merge", mergeResp.MergeStyle)
-
-			// after merge, there should be no "sync fork" button anymore
-			require.Eventually(t, func() bool {
-				resp := session.MakeRequest(t, NewRequestf(t, "GET", "/%s/test-repo-fork/src/branch/fork-branch", forkUser.Name), http.StatusOK)
-				htmlDoc := NewHTMLParser(t, resp.Body)
-				return queryMergeUpstreamButtonLink(htmlDoc) == ""
-			}, 5*time.Second, 100*time.Millisecond)
 		})
 
 		t.Run("FastForwardOnly", func(t *testing.T) {
 			// Create a clean branch for fast-forward testing
-			req = NewRequestWithValues(t, "POST", fmt.Sprintf("/%s/test-repo-fork/branches/_new/branch/master", forkUser.Name), map[string]string{
-				"new_branch_name": "ff-test-branch",
-			})
-			session.MakeRequest(t, req, http.StatusSeeOther)
+			testCreateBranch(t, session, forkUser.Name, "test-repo-fork", "branch/master", "ff-test-branch", http.StatusCreated)
 
 			// Add content to base repository that can be fast-forwarded
 			require.NoError(t, createOrReplaceFileInBranch(baseUser, baseRepo, "ff-test.txt", "master", "ff-content-1"))

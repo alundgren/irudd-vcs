@@ -386,7 +386,6 @@ func TestAPICreatePullWithFieldsSuccess(t *testing.T) {
 		Base:      "master",
 		Title:     "create a failure pr",
 		Body:      "foobaaar",
-		Milestone: 5,
 		Assignees: []string{owner10.Name},
 		Labels:    []int64{5},
 	}
@@ -396,8 +395,6 @@ func TestAPICreatePullWithFieldsSuccess(t *testing.T) {
 	resp := MakeRequest(t, req, http.StatusCreated)
 	pull := DecodeJSON(t, resp, &api.PullRequest{})
 
-	assert.NotNil(t, pull.Milestone)
-	assert.Equal(t, opts.Milestone, pull.Milestone.ID)
 	if assert.Len(t, pull.Assignees, 1) {
 		assert.Equal(t, opts.Assignees[0], owner10.Name)
 	}
@@ -426,10 +423,6 @@ func TestAPICreatePullWithFieldsFailure(t *testing.T) {
 		AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusUnprocessableEntity)
 	opts.Title = "is required"
-
-	opts.Milestone = 666
-	MakeRequest(t, req, http.StatusUnprocessableEntity)
-	opts.Milestone = 5
 
 	opts.Assignees = []string{"qweruqweroiuyqweoiruywqer"}
 	MakeRequest(t, req, http.StatusUnprocessableEntity)

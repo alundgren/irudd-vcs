@@ -52,7 +52,7 @@ func getExpectedFileResponseForUpdate(info apiFileResponseInfo) *api.FileRespons
 	selfURL := setting.AppURL + "api/v1/repos/user2/repo1/contents/" + info.treePath + "?ref=master"
 	htmlURL := setting.AppURL + "user2/repo1/src/branch/master/" + info.treePath
 	gitURL := setting.AppURL + "api/v1/repos/user2/repo1/git/blobs/" + sha
-	downloadURL := setting.AppURL + "user2/repo1/raw/branch/master/" + info.treePath
+	downloadURL := setting.AppURL + "api/v1/repos/user2/repo1/raw/" + info.treePath + "?ref=master"
 	ret := &api.FileResponse{
 		Content: &api.ContentsResponse{
 			Name:              path.Base(info.treePath),
@@ -169,7 +169,7 @@ func TestAPIUpdateFile(t *testing.T) {
 		fileResponse := DecodeJSON(t, resp, &api.FileResponse{})
 		expectedSHA := "08bd14b2e2852529157324de9c226b3364e76136"
 		expectedHTMLURL := fmt.Sprintf(setting.AppURL+"user2/repo1/src/branch/new_branch/update/file%d.txt", fileID)
-		expectedDownloadURL := fmt.Sprintf(setting.AppURL+"user2/repo1/raw/branch/new_branch/update/file%d.txt", fileID)
+		expectedDownloadURL := fmt.Sprintf(setting.AppURL+"api/v1/repos/user2/repo1/raw/update/file%d.txt?ref=new_branch", fileID)
 		assert.Equal(t, expectedSHA, fileResponse.Content.SHA)
 		assert.Equal(t, expectedHTMLURL, *fileResponse.Content.HTMLURL)
 		assert.Equal(t, expectedDownloadURL, *fileResponse.Content.DownloadURL)
@@ -182,7 +182,7 @@ func TestAPIUpdateFile(t *testing.T) {
 		resp = MakeRequest(t, req, http.StatusCreated)
 		fileResponse = DecodeJSON(t, resp, &api.FileResponse{})
 		assert.Equal(t, "08bd14b2e2852529157324de9c226b3364e76136", fileResponse.Content.SHA)
-		assert.Equal(t, setting.AppURL+"user2/repo1/raw/branch/master/update-create.txt", *fileResponse.Content.DownloadURL)
+		assert.Equal(t, setting.AppURL+"api/v1/repos/user2/repo1/raw/update-create.txt?ref=master", *fileResponse.Content.DownloadURL)
 
 		// Test updating a file and renaming it
 		updateFileOptions = getUpdateFileOptions()
@@ -198,7 +198,7 @@ func TestAPIUpdateFile(t *testing.T) {
 		fileResponse = DecodeJSON(t, resp, &api.FileResponse{})
 		expectedSHA = "08bd14b2e2852529157324de9c226b3364e76136"
 		expectedHTMLURL = fmt.Sprintf(setting.AppURL+"user2/repo1/src/branch/master/rename/update/file%d.txt", fileID)
-		expectedDownloadURL = fmt.Sprintf(setting.AppURL+"user2/repo1/raw/branch/master/rename/update/file%d.txt", fileID)
+		expectedDownloadURL = fmt.Sprintf(setting.AppURL+"api/v1/repos/user2/repo1/raw/rename/update/file%d.txt?ref=master", fileID)
 		assert.Equal(t, expectedSHA, fileResponse.Content.SHA)
 		assert.Equal(t, expectedHTMLURL, *fileResponse.Content.HTMLURL)
 		assert.Equal(t, expectedDownloadURL, *fileResponse.Content.DownloadURL)
