@@ -129,18 +129,6 @@ func (m *webhookNotifier) DeleteRepository(ctx context.Context, doer *user_model
 	}
 }
 
-func (m *webhookNotifier) MigrateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository) {
-	// Add to hook queue for created repo after session commit.
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventRepository, &api.RepositoryPayload{
-		Action:       api.HookRepoCreated,
-		Repository:   convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Organization: convert.ToUser(ctx, u, nil),
-		Sender:       convert.ToUser(ctx, doer, nil),
-	}); err != nil {
-		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
-	}
-}
-
 func (m *webhookNotifier) IssueChangeAssignee(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, assignee *user_model.User, removed bool, comment *issues_model.Comment) {
 	if issue.IsPull {
 		permission, _ := access_model.GetDoerRepoPermission(ctx, issue.Repo, doer)
@@ -786,40 +774,12 @@ func sendReleaseHook(ctx context.Context, doer *user_model.User, rel *repo_model
 	}
 }
 
-func (m *webhookNotifier) NewRelease(ctx context.Context, rel *repo_model.Release) {
-	sendReleaseHook(ctx, rel.Publisher, rel, api.HookReleasePublished)
-}
-
 func (m *webhookNotifier) UpdateRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
 	sendReleaseHook(ctx, doer, rel, api.HookReleaseUpdated)
 }
 
 func (m *webhookNotifier) DeleteRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
 	sendReleaseHook(ctx, doer, rel, api.HookReleaseDeleted)
-}
-
-func (m *webhookNotifier) SyncPushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits) {
-	apiPusher := convert.ToUser(ctx, pusher, nil)
-	apiCommits, apiHeadCommit, err := commits.ToAPIPayloadCommits(ctx, repo)
-	if err != nil {
-		log.Error("commits.ToAPIPayloadCommits failed: %v", err)
-		return
-	}
-
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventPush, &api.PushPayload{
-		Ref:          opts.RefFullName.String(),
-		Before:       opts.OldCommitID,
-		After:        opts.NewCommitID,
-		CompareURL:   setting.AppURL + commits.CompareURL,
-		Commits:      apiCommits,
-		TotalCommits: commits.Len,
-		HeadCommit:   apiHeadCommit,
-		Repo:         convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Pusher:       apiPusher,
-		Sender:       apiPusher,
-	}); err != nil {
-		log.Error("PrepareWebhooks: %v", err)
-	}
 }
 
 func (m *webhookNotifier) CreateCommitStatus(ctx context.Context, repo *repo_model.Repository, commit *repository.PushCommit, sender *user_model.User, status *git_model.CommitStatus) {
@@ -855,12 +815,4 @@ func (m *webhookNotifier) CreateCommitStatus(ctx context.Context, repo *repo_mod
 	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventStatus, &payload); err != nil {
 		log.Error("PrepareWebhooks: %v", err)
 	}
-}
-
-func (m *webhookNotifier) SyncCreateRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string) {
-	m.CreateRef(ctx, pusher, repo, refFullName, refID)
-}
-
-func (m *webhookNotifier) SyncDeleteRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, refFullName git.RefName) {
-	m.DeleteRef(ctx, pusher, repo, refFullName)
 }

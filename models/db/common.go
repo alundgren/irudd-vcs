@@ -16,13 +16,3 @@ func BuildCaseInsensitiveLike(key, value string) builder.Cond {
 	// ToLowerASCII is about 7% faster than ToUpperASCII (according to Golang's benchmark)
 	return builder.Like{"LOWER(" + key + ")", util.ToLowerASCII(value)}
 }
-
-// BuildCaseInsensitiveIn returns a condition to check if the given value is in the given values case-insensitively.
-// See BuildCaseInsensitiveLike for more details
-func BuildCaseInsensitiveIn(key string, values []string) builder.Cond {
-	incaseValues := make([]string, len(values))
-	for i, value := range values {
-		incaseValues[i] = util.ToLowerASCII(value)
-	}
-	return builder.In("LOWER("+key+")", incaseValues)
-}

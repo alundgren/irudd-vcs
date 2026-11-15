@@ -110,16 +110,6 @@ func AccessibleReposEnv(ctx context.Context, org *org_model.Organization, userID
 	}, nil
 }
 
-// AccessibleTeamReposEnv an AccessibleReposEnvironment for the repositories in `org`
-// that are accessible to the specified team.
-func AccessibleTeamReposEnv(org *org_model.Organization, team *org_model.Team) AccessibleReposEnvironment {
-	return &accessibleReposEnv{
-		org:     org,
-		team:    team,
-		orderBy: db.SearchOrderByRecentUpdated,
-	}
-}
-
 func (env *accessibleReposEnv) cond() builder.Cond {
 	cond := builder.NewCond()
 	if env.team != nil {

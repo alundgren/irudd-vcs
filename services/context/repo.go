@@ -202,18 +202,4 @@ func getRefName(ctx *Base, repo *Repository, path string, refType git.RefType) s
 	return ""
 }
 
-func repoRefFullName(typ git.RefType, shortName string) git.RefName {
-	switch typ {
-	case git.RefTypeBranch:
-		return git.RefNameFromBranch(shortName)
-	case git.RefTypeTag:
-		return git.RefNameFromTag(shortName)
-	case git.RefTypeCommit:
-		return git.RefNameFromCommit(shortName)
-	default:
-		setting.PanicInDevOrTesting("Unknown RepoRefType: %v", typ)
-		return git.RefNameFromBranch("main") // just a dummy result, it shouldn't happen
-	}
-}
-
 const headRefName = "HEAD"

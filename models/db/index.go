@@ -16,8 +16,6 @@ type ResourceIndex struct {
 	MaxIndex int64 `xorm:"index"`
 }
 
-var ErrGetResourceIndexFailed = errors.New("get resource index failed")
-
 // SyncMaxResourceIndex sync the max index with the resource
 func SyncMaxResourceIndex(ctx context.Context, tableName string, groupID, maxIndex int64) (err error) {
 	e := GetEngine(ctx)

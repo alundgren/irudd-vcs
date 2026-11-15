@@ -5,8 +5,6 @@ package issue
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
@@ -14,38 +12,7 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/timeutil"
 	notify_service "gitea.dev/services/notify"
-
-	"xorm.io/builder"
 )
-
-// CreateRefComment creates a commit reference comment to issue.
-func CreateRefComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content, commitSHA string) error {
-	if len(commitSHA) == 0 {
-		return errors.New("cannot create reference with empty commit SHA")
-	}
-
-	// Check if same reference from same commit has already existed.
-	has, err := db.Exist[issues_model.Comment](ctx, builder.Eq{
-		"`type`":     issues_model.CommentTypeCommitRef,
-		"issue_id":   issue.ID,
-		"commit_sha": commitSHA,
-	})
-	if err != nil {
-		return fmt.Errorf("check reference comment: %w", err)
-	} else if has {
-		return nil
-	}
-
-	_, err = issues_model.CreateComment(ctx, &issues_model.CreateCommentOptions{
-		Type:      issues_model.CommentTypeCommitRef,
-		Doer:      doer,
-		Repo:      repo,
-		Issue:     issue,
-		CommitSHA: commitSHA,
-		Content:   content,
-	})
-	return err
-}
 
 // CreateIssueComment creates a plain issue comment.
 func CreateIssueComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content string) (*issues_model.Comment, error) {

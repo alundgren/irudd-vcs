@@ -239,13 +239,3 @@ func PrepareWebhooks(ctx context.Context, source EventSource, event webhook_modu
 	}
 	return nil
 }
-
-// ReplayHookTask replays a webhook task
-func ReplayHookTask(ctx context.Context, w *webhook_model.Webhook, uuid string) error {
-	task, err := webhook_model.ReplayHookTask(ctx, w.ID, uuid)
-	if err != nil {
-		return err
-	}
-
-	return enqueueHookTask(task.ID)
-}

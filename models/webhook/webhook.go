@@ -48,12 +48,6 @@ type ErrHookTaskNotExist struct {
 	UUID   string
 }
 
-// IsErrHookTaskNotExist checks if an error is a ErrHookTaskNotExist.
-func IsErrHookTaskNotExist(err error) bool {
-	_, ok := err.(ErrHookTaskNotExist)
-	return ok
-}
-
 func (err ErrHookTaskNotExist) Error() string {
 	return fmt.Sprintf("hook task does not exist [task: %d, hook: %d, uuid: %s]", err.TaskID, err.HookID, err.UUID)
 }
@@ -91,16 +85,6 @@ const (
 	// PerWebhook hook_task rows will be cleaned up by leaving the most recent deliveries for each webhook
 	PerWebhook
 )
-
-var hookTaskCleanupTypes = map[string]HookTaskCleanupType{
-	"OlderThan":  OlderThan,
-	"PerWebhook": PerWebhook,
-}
-
-// ToHookTaskCleanupType returns HookTaskCleanupType by given name.
-func ToHookTaskCleanupType(name string) HookTaskCleanupType {
-	return hookTaskCleanupTypes[name]
-}
 
 // Name returns the name of a given web hook's content type
 func (t HookContentType) Name() string {

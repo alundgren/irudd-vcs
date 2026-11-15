@@ -5,7 +5,6 @@
 package context
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
@@ -50,28 +49,6 @@ func init() {
 type webContextKeyType struct{}
 
 var WebContextKey = webContextKeyType{}
-
-func GetWebContext(ctx context.Context) *Context {
-	webCtx, _ := ctx.Value(WebContextKey).(*Context)
-	return webCtx
-}
-
-// ValidateContext is a special context for form validation middleware. It may be different from other contexts.
-type ValidateContext struct {
-	*Base
-}
-
-// GetValidateContext gets a context for middleware form validation
-func GetValidateContext(req *http.Request) (ctx *ValidateContext) {
-	if ctxAPI, ok := req.Context().Value(apiContextKey).(*APIContext); ok {
-		ctx = &ValidateContext{Base: ctxAPI.Base}
-	} else if ctxWeb, ok := req.Context().Value(WebContextKey).(*Context); ok {
-		ctx = &ValidateContext{Base: ctxWeb.Base}
-	} else {
-		panic("invalid context, expect either APIContext or Context")
-	}
-	return ctx
-}
 
 func NewWebContext(base *Base) *Context {
 	ctx := &Context{

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/perm"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/structs"
 
@@ -93,20 +92,6 @@ func DoerViewOtherVisibility(doer, other *user_model.User) structs.VisibleType {
 		return structs.VisibleTypePublic
 	}
 	return structs.VisibleTypeLimited
-}
-
-// GetOrgsCanCreateRepoByUserID returns a list of organizations where given user ID
-// are allowed to create repos.
-func GetOrgsCanCreateRepoByUserID(ctx context.Context, userID int64) ([]*Organization, error) {
-	orgs := make([]*Organization, 0, 10)
-
-	return orgs, db.GetEngine(ctx).Where(builder.In("id", builder.Select("`user`.id").From("`user`").
-		Join("INNER", "`team_user`", "`team_user`.org_id = `user`.id").
-		Join("INNER", "`team`", "`team`.id = `team_user`.team_id").
-		Where(builder.Eq{"`team_user`.uid": userID}).
-		And(builder.Eq{"`team`.authorize": perm.AccessModeOwner}.Or(builder.Eq{"`team`.can_create_org_repo": true})))).
-		Asc("`user`.name").
-		Find(&orgs)
 }
 
 // MinimalOrg represents a simple organization with only the needed columns

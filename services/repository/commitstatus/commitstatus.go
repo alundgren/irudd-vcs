@@ -7,17 +7,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"slices"
 
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/cache"
-	"gitea.dev/modules/commitstatus"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
-	"gitea.dev/modules/json"
 	"gitea.dev/modules/log"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/services/notify"
@@ -26,38 +23,6 @@ import (
 func getCacheKey(repoID int64, brancheName string) string {
 	hashBytes := sha256.Sum256(fmt.Appendf(nil, "%d:%s", repoID, brancheName))
 	return fmt.Sprintf("commit_status:%x", hashBytes)
-}
-
-type commitStatusCacheValue struct {
-	State     string `json:"state"`
-	TargetURL string `json:"target_url"`
-}
-
-func getCommitStatusCache(repoID int64, branchName string) *commitStatusCacheValue {
-	c := cache.GetCache()
-	statusStr, ok := c.Get(getCacheKey(repoID, branchName))
-	if ok && statusStr != "" {
-		var cv commitStatusCacheValue
-		err := json.Unmarshal([]byte(statusStr), &cv)
-		if err == nil {
-			return &cv
-		}
-		log.Warn("getCommitStatusCache: json.Unmarshal failed: %v", err)
-	}
-	return nil
-}
-
-func updateCommitStatusCache(repoID int64, branchName string, state commitstatus.CommitStatusState, targetURL string) error {
-	c := cache.GetCache()
-	bs, err := json.Marshal(commitStatusCacheValue{
-		State:     state.String(),
-		TargetURL: targetURL,
-	})
-	if err != nil {
-		log.Warn("updateCommitStatusCache: json.Marshal failed: %v", err)
-		return nil
-	}
-	return c.Put(getCacheKey(repoID, branchName), string(bs), 3*24*60)
 }
 
 func deleteCommitStatusCache(repoID int64, branchName string) error {
@@ -116,87 +81,4 @@ func CreateCommitStatus(ctx context.Context, repo *repo_model.Repository, creato
 	}
 
 	return nil
-}
-
-// FindReposLatestCommitStatuses loading repository default branch latest combined commit status with cache
-func FindReposLatestCommitStatuses(ctx context.Context, repos []*repo_model.Repository) ([]*git_model.CommitStatus, error) {
-	results := make([]*git_model.CommitStatus, len(repos))
-	allCached := true
-	for i, repo := range repos {
-		if cv := getCommitStatusCache(repo.ID, repo.DefaultBranch); cv != nil {
-			results[i] = &git_model.CommitStatus{
-				State:     commitstatus.CommitStatusState(cv.State),
-				TargetURL: cv.TargetURL,
-			}
-		} else {
-			allCached = false
-		}
-	}
-
-	if allCached {
-		return results, nil
-	}
-
-	// collect the latest commit of each repo
-	// at most there are dozens of repos (limited by MaxResponseItems), so it's not a big problem at the moment
-	repoBranchNames := make(map[int64]string, len(repos))
-	for i, repo := range repos {
-		if results[i] == nil {
-			repoBranchNames[repo.ID] = repo.DefaultBranch
-		}
-	}
-
-	repoIDsToLatestCommitSHAs, err := git_model.FindBranchesByRepoAndBranchName(ctx, repoBranchNames)
-	if err != nil {
-		return nil, fmt.Errorf("FindBranchesByRepoAndBranchName: %v", err)
-	}
-
-	var repoSHAs []git_model.RepoSHA
-	for id, sha := range repoIDsToLatestCommitSHAs {
-		repoSHAs = append(repoSHAs, git_model.RepoSHA{RepoID: id, SHA: sha})
-	}
-
-	summaryResults, err := git_model.GetLatestCommitStatusForRepoAndSHAs(ctx, repoSHAs)
-	if err != nil {
-		return nil, fmt.Errorf("GetLatestCommitStatusForRepoAndSHAs: %v", err)
-	}
-
-	for _, summary := range summaryResults {
-		for i, repo := range repos {
-			if repo.ID == summary.RepoID {
-				results[i] = summary
-				repoSHAs = slices.DeleteFunc(repoSHAs, func(repoSHA git_model.RepoSHA) bool {
-					return repoSHA.RepoID == repo.ID
-				})
-				if results[i] != nil {
-					if err := updateCommitStatusCache(repo.ID, repo.DefaultBranch, results[i].State, results[i].TargetURL); err != nil {
-						log.Error("updateCommitStatusCache[%d:%s] failed: %v", repo.ID, repo.DefaultBranch, err)
-					}
-				}
-				break
-			}
-		}
-	}
-	if len(repoSHAs) == 0 {
-		return results, nil
-	}
-
-	// call the database O(1) times to get the commit statuses for all repos
-	repoToItsLatestCommitStatuses, err := git_model.GetLatestCommitStatusForPairs(ctx, repoSHAs)
-	if err != nil {
-		return nil, fmt.Errorf("GetLatestCommitStatusForPairs: %v", err)
-	}
-
-	for i, repo := range repos {
-		if results[i] == nil {
-			results[i] = git_model.CalcCommitStatus(repoToItsLatestCommitStatuses[repo.ID])
-			if results[i] != nil {
-				if err := updateCommitStatusCache(repo.ID, repo.DefaultBranch, results[i].State, results[i].TargetURL); err != nil {
-					log.Error("updateCommitStatusCache[%d:%s] failed: %v", repo.ID, repo.DefaultBranch, err)
-				}
-			}
-		}
-	}
-
-	return results, nil
 }

@@ -22,7 +22,6 @@ var (
 // complexity contains information about a particular kind of password complexity
 type complexity struct {
 	ValidChars string
-	TrNameOne  string
 }
 
 var (
@@ -33,19 +32,15 @@ var (
 	charComplexities = map[string]complexity{
 		"lower": {
 			`abcdefghijklmnopqrstuvwxyz`,
-			"form.password_lowercase_one",
 		},
 		"upper": {
 			`ABCDEFGHIJKLMNOPQRSTUVWXYZ`,
-			"form.password_uppercase_one",
 		},
 		"digit": {
 			`0123456789`,
-			"form.password_digit_one",
 		},
 		"spec": {
 			` !"#$%&'()*+,-./:;<=>?@[\]^_{|}~` + "`",
-			"form.password_special_one",
 		},
 	}
 )

@@ -17,7 +17,6 @@ import (
 	access_model "gitea.dev/models/perm/access"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/structs"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 
@@ -459,12 +458,6 @@ func (ContentEmptyErr) Error() string {
 	return "Review content is empty"
 }
 
-// IsContentEmptyErr returns true if err is a ContentEmptyErr
-func IsContentEmptyErr(err error) bool {
-	_, ok := err.(ContentEmptyErr)
-	return ok
-}
-
 // SubmitReview creates a review out of the existing pending review or creates a new one if no pending review exist
 func SubmitReview(ctx context.Context, doer *user_model.User, issue *Issue, reviewType ReviewType, content, commitID string, stale bool) (*Review, *Comment, error) {
 	ctx, committer, err := db.TxContext(ctx)
@@ -650,48 +643,6 @@ func DismissReview(ctx context.Context, review *Review, isDismiss bool) (err err
 	_, err = db.GetEngine(ctx).ID(review.ID).Cols("dismissed").Update(review)
 
 	return err
-}
-
-// InsertReviews inserts review and review comments
-func InsertReviews(ctx context.Context, reviews []*Review) error {
-	return db.WithTx(ctx, func(ctx context.Context) error {
-		sess := db.GetEngine(ctx)
-
-		for _, review := range reviews {
-			if _, err := sess.NoAutoTime().Insert(review); err != nil {
-				return err
-			}
-
-			if _, err := sess.NoAutoTime().Insert(&Comment{
-				Type:             CommentTypeReview,
-				Content:          review.Content,
-				PosterID:         review.ReviewerID,
-				OriginalAuthor:   review.OriginalAuthor,
-				OriginalAuthorID: review.OriginalAuthorID,
-				IssueID:          review.IssueID,
-				ReviewID:         review.ID,
-				CreatedUnix:      review.CreatedUnix,
-				UpdatedUnix:      review.UpdatedUnix,
-			}); err != nil {
-				return err
-			}
-
-			for _, c := range review.Comments {
-				c.ReviewID = review.ID
-			}
-
-			if len(review.Comments) > 0 {
-				if _, err := sess.NoAutoTime().Insert(review.Comments); err != nil {
-					return err
-				}
-			}
-
-			if err := UpdateIssueNumComments(ctx, review.IssueID); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
 }
 
 // AddReviewRequest add a review request from one reviewer
@@ -1099,16 +1050,3 @@ func (r *Review) GetExternalName() string { return r.OriginalAuthor }
 
 // GetExternalID ExternalUserRemappable interface
 func (r *Review) GetExternalID() int64 { return r.OriginalAuthorID }
-
-// UpdateReviewsMigrationsByType updates reviews' migrations information via given git service type and original id and poster id
-func UpdateReviewsMigrationsByType(ctx context.Context, tp structs.GitServiceType, originalAuthorID string, posterID int64) error {
-	_, err := db.GetEngine(ctx).Table("review").
-		Where("original_author_id = ?", originalAuthorID).
-		And(migratedIssueCond(tp)).
-		Update(map[string]any{
-			"reviewer_id":        posterID,
-			"original_author":    "",
-			"original_author_id": 0,
-		})
-	return err
-}

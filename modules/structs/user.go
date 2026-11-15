@@ -122,14 +122,6 @@ type Badge struct {
 	ImageURL    string `json:"image_url"`
 }
 
-// UserBadge represents a user badge
-// swagger:model
-type UserBadge struct {
-	ID      int64 `json:"id"`
-	BadgeID int64 `json:"badge_id"`
-	UserID  int64 `json:"user_id"`
-}
-
 // UserBadgeOption options for link between users and badges
 type UserBadgeOption struct {
 	// example: ["badge1","badge2"]

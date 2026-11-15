@@ -58,27 +58,6 @@ type HookPostReceiveBranchResult struct {
 	URL     string
 }
 
-// HookProcReceiveResult represents an individual result from ProcReceive
-type HookProcReceiveResult struct {
-	Results []HookProcReceiveRefResult
-	Err     string
-}
-
-// HookProcReceiveRefResult represents an individual result from ProcReceive
-type HookProcReceiveRefResult struct {
-	OldOID            string
-	NewOID            string
-	Ref               string
-	OriginalRef       git.RefName
-	IsForcePush       bool
-	IsNotMatched      bool
-	Err               string
-	IsCreatePR        bool
-	URL               string
-	ShouldShowMessage bool
-	HeadBranch        string
-}
-
 func newInternalRequestAPIForHooks(ctx context.Context, hookName, ownerName, repoName string, opts HookOptions) *httplib.Request {
 	reqURL := setting.LocalURL + fmt.Sprintf("api/internal/hook/%s/%s/%s", hookName, url.PathEscape(ownerName), url.PathEscape(repoName))
 	req := newInternalRequestAPI(ctx, reqURL, "POST", opts)

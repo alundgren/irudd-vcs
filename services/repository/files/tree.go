@@ -88,19 +88,3 @@ func GetTreeBySHA(ctx context.Context, repo *repo_model.Repository, gitRepo *git
 	}
 	return tree, nil
 }
-
-func entryModeString(entryMode git.EntryMode) string {
-	switch entryMode {
-	case git.EntryModeBlob:
-		return "blob"
-	case git.EntryModeExec:
-		return "exec"
-	case git.EntryModeSymlink:
-		return "symlink"
-	case git.EntryModeCommit:
-		return "commit" // submodule
-	case git.EntryModeTree:
-		return "tree"
-	}
-	return "unknown"
-}

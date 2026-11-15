@@ -28,12 +28,6 @@ type ErrInvalidTagName struct {
 	TagName string
 }
 
-// IsErrInvalidTagName checks if an error is a ErrInvalidTagName.
-func IsErrInvalidTagName(err error) bool {
-	_, ok := err.(ErrInvalidTagName)
-	return ok
-}
-
 func (err ErrInvalidTagName) Error() string {
 	return fmt.Sprintf("release tag name is not valid [tag_name: %s]", err.TagName)
 }

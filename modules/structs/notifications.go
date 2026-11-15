@@ -43,12 +43,6 @@ type NotificationSubject struct {
 	State NotifySubjectStateType `json:"state"`
 }
 
-// NotificationCount number of unread notifications
-type NotificationCount struct {
-	// New is the number of unread notifications
-	New int64 `json:"new"`
-}
-
 // NotifySubjectStateType represents the state of a notification subject
 // swagger:enum NotifySubjectStateType
 type NotifySubjectStateType string

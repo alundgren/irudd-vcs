@@ -201,17 +201,6 @@ func Get[T any](ctx context.Context, cond builder.Cond) (object *T, exist bool, 
 	return &bean, true, nil
 }
 
-func GetByID[T any](ctx context.Context, id int64) (object *T, exist bool, err error) {
-	var bean T
-	has, err := GetEngine(ctx).ID(id).NoAutoCondition().Get(&bean)
-	if err != nil {
-		return nil, false, err
-	} else if !has {
-		return nil, false, nil
-	}
-	return &bean, true, nil
-}
-
 func Exist[T any](ctx context.Context, cond builder.Cond) (bool, error) {
 	if !cond.IsValid() {
 		panic("cond is invalid in db.Exist(ctx, cond). This should not be possible.")
@@ -254,29 +243,6 @@ func Delete[T any](ctx context.Context, opts FindOptions) (int64, error) {
 // DeleteByBean deletes all records according non-empty fields of the bean as conditions.
 func DeleteByBean(ctx context.Context, bean any) (int64, error) {
 	return GetEngine(ctx).Delete(bean)
-}
-
-// FindIDs finds the IDs for the given table name satisfying the given condition
-// By passing a different value than "id" for "idCol", you can query for foreign IDs, i.e. the repo IDs which satisfy the condition
-func FindIDs(ctx context.Context, tableName, idCol string, cond builder.Cond) ([]int64, error) {
-	ids := make([]int64, 0, 10)
-	if err := GetEngine(ctx).Table(tableName).
-		Cols(idCol).
-		Where(cond).
-		Find(&ids); err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
-// DecrByIDs decreases the given column for entities of the "bean" type with one of the given ids by one
-// Timestamps of the entities won't be updated
-func DecrByIDs(ctx context.Context, ids []int64, decrCol string, bean any) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	_, err := GetEngine(ctx).Decr(decrCol).In("id", ids).NoAutoCondition().NoAutoTime().Update(bean)
-	return err
 }
 
 // DeleteBeans deletes all given beans, beans must contain delete conditions.

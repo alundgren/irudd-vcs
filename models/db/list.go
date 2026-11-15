@@ -79,38 +79,6 @@ func (opts ListOptions) ToConds() builder.Cond {
 	return builder.NewCond()
 }
 
-// AbsoluteListOptions absolute options to paginate results
-type AbsoluteListOptions struct {
-	skip int
-	take int
-}
-
-var _ Paginator = &AbsoluteListOptions{}
-
-// NewAbsoluteListOptions creates a list option with applied limits
-func NewAbsoluteListOptions(skip, take int) *AbsoluteListOptions {
-	if skip < 0 {
-		skip = 0
-	}
-	if take <= 0 {
-		take = setting.API.DefaultPagingNum
-	}
-	if take > setting.API.MaxResponseItems {
-		take = setting.API.MaxResponseItems
-	}
-	return &AbsoluteListOptions{skip, take}
-}
-
-// IsListAll will always return false
-func (opts *AbsoluteListOptions) IsListAll() bool {
-	return false
-}
-
-// GetSkipTake returns the skip and take values
-func (opts *AbsoluteListOptions) GetSkipTake() (skip, take int) {
-	return opts.skip, opts.take
-}
-
 // FindOptions represents a find options
 type FindOptions interface {
 	GetPage() int

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/modules/container"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/structs"
 
@@ -47,8 +46,6 @@ type SearchUserOptions struct {
 	Visible       []structs.VisibleType
 	Actor         *User // The user doing the search
 	SearchByEmail bool  // Search by email as well as username/full name
-
-	SupportedSortOrders container.Set[string] // if not nil, only allow to use the sort orders in this set
 
 	IsActive        optional.Option[bool]
 	IsAdmin         optional.Option[bool]

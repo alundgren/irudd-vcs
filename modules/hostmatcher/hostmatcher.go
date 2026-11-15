@@ -125,11 +125,6 @@ func ParseSimpleMatchList(settingKeyHint, matchList string) *HostMatchList {
 	return hl
 }
 
-// AppendBuiltin appends more builtins to match
-func (hl *HostMatchList) AppendBuiltin(builtin string) {
-	hl.builtins = append(hl.builtins, builtin)
-}
-
 // IsEmpty checks if the checklist is empty
 func (hl *HostMatchList) IsEmpty() bool {
 	return hl == nil || (len(hl.builtins) == 0 && len(hl.patterns) == 0 && len(hl.ipNets) == 0)

@@ -105,14 +105,6 @@ type PRBranchInfo struct {
 	Repository *Repository `json:"repo"`
 }
 
-// ListPullRequestsOptions options for listing pull requests
-type ListPullRequestsOptions struct {
-	// The page number for pagination
-	Page int `json:"page"`
-	// The state filter for pull requests
-	State string `json:"state"`
-}
-
 // CreatePullRequestOption options when creating a pull request
 type CreatePullRequestOption struct {
 	// The head branch for the pull request, it could be a branch name on the base repository or

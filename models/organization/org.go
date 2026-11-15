@@ -464,20 +464,6 @@ func HasOrgOrUserVisible(ctx context.Context, owner, doer *user_model.User) bool
 		(doer != nil && OrgFromUser(owner).HasMemberWithUserID(ctx, doer.ID))
 }
 
-// HasOrgsVisible tells if the given user can see at least one of the orgs provided
-func HasOrgsVisible(ctx context.Context, orgs []*Organization, user *user_model.User) bool {
-	if len(orgs) == 0 {
-		return false
-	}
-
-	for _, org := range orgs {
-		if HasOrgOrUserVisible(ctx, org.AsUser(), user) {
-			return true
-		}
-	}
-	return false
-}
-
 // GetOrgUsersByOrgID returns all organization-user relations by organization ID.
 func GetOrgUsersByOrgID(ctx context.Context, opts *FindOrgMembersOpts) ([]*OrgUser, error) {
 	sess := db.GetEngine(ctx).Where("org_id=?", opts.OrgID)

@@ -35,8 +35,7 @@ func AuthShared(ctx *context.Base, authMethod auth_service.Method) (ar AuthResul
 
 // VerifyOptions contains required or check options
 type VerifyOptions struct {
-	SignInRequired               bool
-	SignOutRequired              bool
-	AdminRequired                bool
-	DisableCrossOriginProtection bool
+	SignInRequired  bool
+	SignOutRequired bool
+	AdminRequired   bool
 }

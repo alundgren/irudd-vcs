@@ -12,7 +12,6 @@ import (
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/container"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/optional"
@@ -84,12 +83,6 @@ func (err ErrBranchNameConflict) Unwrap() error {
 type ErrBranchesEqual struct {
 	BaseBranchName string
 	HeadBranchName string
-}
-
-// IsErrBranchesEqual checks if an error is an ErrBranchesEqual.
-func IsErrBranchesEqual(err error) bool {
-	_, ok := err.(ErrBranchesEqual)
-	return ok
 }
 
 func (err ErrBranchesEqual) Error() string {
@@ -195,14 +188,6 @@ func GetBranches(ctx context.Context, repoID int64, branchNames []string, includ
 	return branches, sess.Find(&branches)
 }
 
-func BranchesToNamesSet(branches []*Branch) container.Set[string] {
-	names := make(container.Set[string], len(branches))
-	for _, branch := range branches {
-		names.Add(branch.Name)
-	}
-	return names
-}
-
 func AddBranches(ctx context.Context, branches []*Branch) error {
 	for _, branch := range branches {
 		if _, err := db.GetEngine(ctx).Insert(branch); err != nil {
@@ -297,18 +282,6 @@ func MarkBranchAsDeleted(ctx context.Context, repoID int64, branchName string, d
 func RemoveDeletedBranchByID(ctx context.Context, repoID, branchID int64) error {
 	_, err := db.GetEngine(ctx).Where("repo_id=? AND id=? AND is_deleted = ?", repoID, branchID, true).Delete(new(Branch))
 	return err
-}
-
-// RemoveOldDeletedBranches removes old deleted branches
-func RemoveOldDeletedBranches(ctx context.Context, olderThan time.Duration) {
-	// Nothing to do for shutdown or terminate
-	log.Trace("Doing: DeletedBranchesCleanup")
-
-	deleteBefore := time.Now().Add(-olderThan)
-	_, err := db.GetEngine(ctx).Where("is_deleted=? AND deleted_unix < ?", true, deleteBefore.Unix()).Delete(new(Branch))
-	if err != nil {
-		log.Error("DeletedBranchesCleanup: %v", err)
-	}
 }
 
 // RenamedBranch provide renamed branch log

@@ -168,17 +168,6 @@ func DeleteComment(ctx context.Context, doer *user_model.User, c *issues_model.C
 	}
 }
 
-// NewRelease notifies new release to notifiers
-func NewRelease(ctx context.Context, rel *repo_model.Release) {
-	if err := rel.LoadAttributes(ctx); err != nil {
-		log.Error("LoadPublisher: %v", err)
-		return
-	}
-	for _, notifier := range notifiers {
-		notifier.NewRelease(ctx, rel)
-	}
-}
-
 // UpdateRelease notifies update release to notifiers
 func UpdateRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
 	for _, notifier := range notifiers {
@@ -258,20 +247,6 @@ func AdoptRepository(ctx context.Context, doer, u *user_model.User, repo *repo_m
 	}
 }
 
-// MigrateRepository notifies create repository to notifiers
-func MigrateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository) {
-	for _, notifier := range notifiers {
-		notifier.MigrateRepository(ctx, doer, u, repo)
-	}
-}
-
-// TransferRepository notifies create repository to notifiers
-func TransferRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldOwnerName string) {
-	for _, notifier := range notifiers {
-		notifier.TransferRepository(ctx, doer, repo, oldOwnerName)
-	}
-}
-
 // DeleteRepository notifies delete repository to notifiers
 func DeleteRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository) {
 	for _, notifier := range notifiers {
@@ -311,41 +286,6 @@ func CreateRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Re
 func DeleteRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, refFullName git.RefName) {
 	for _, notifier := range notifiers {
 		notifier.DeleteRef(ctx, pusher, repo, refFullName)
-	}
-}
-
-// SyncPushCommits notifies commits pushed to notifiers
-func SyncPushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits) {
-	for _, notifier := range notifiers {
-		notifier.SyncPushCommits(ctx, pusher, repo, opts, commits)
-	}
-}
-
-// SyncCreateRef notifies branch or tag creation to notifiers
-func SyncCreateRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string) {
-	for _, notifier := range notifiers {
-		notifier.SyncCreateRef(ctx, pusher, repo, refFullName, refID)
-	}
-}
-
-// SyncDeleteRef notifies branch or tag deletion to notifiers
-func SyncDeleteRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, refFullName git.RefName) {
-	for _, notifier := range notifiers {
-		notifier.SyncDeleteRef(ctx, pusher, repo, refFullName)
-	}
-}
-
-// RepoPendingTransfer notifies creation of pending transfer to notifiers
-func RepoPendingTransfer(ctx context.Context, doer, newOwner *user_model.User, repo *repo_model.Repository) {
-	for _, notifier := range notifiers {
-		notifier.RepoPendingTransfer(ctx, doer, newOwner, repo)
-	}
-}
-
-// ChangeDefaultBranch notifies change default branch to notifiers
-func ChangeDefaultBranch(ctx context.Context, repo *repo_model.Repository) {
-	for _, notifier := range notifiers {
-		notifier.ChangeDefaultBranch(ctx, repo)
 	}
 }
 

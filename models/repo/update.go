@@ -91,12 +91,6 @@ type ErrRepoFilesAlreadyExist struct {
 	Name  string
 }
 
-// IsErrRepoFilesAlreadyExist checks if an error is a ErrRepoAlreadyExist.
-func IsErrRepoFilesAlreadyExist(err error) bool {
-	_, ok := err.(ErrRepoFilesAlreadyExist)
-	return ok
-}
-
 func (err ErrRepoFilesAlreadyExist) Error() string {
 	return fmt.Sprintf("repository files already exist [uname: %s, name: %s]", err.Uname, err.Name)
 }

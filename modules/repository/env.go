@@ -20,7 +20,6 @@ const (
 	EnvPusherName    = "GITEA_PUSHER_NAME"
 	EnvPusherEmail   = "GITEA_PUSHER_EMAIL"
 	EnvPusherID      = "GITEA_PUSHER_ID"
-	EnvKeyID         = "GITEA_KEY_ID" // public key ID
 	EnvDeployKeyID   = "GITEA_DEPLOY_KEY_ID"
 	EnvPRID          = "GITEA_PR_ID"
 	EnvPRIndex       = "GITEA_PR_INDEX" // not used by Gitea at the moment, it is for custom git hooks

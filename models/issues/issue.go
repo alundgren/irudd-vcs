@@ -16,7 +16,6 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/optional"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
@@ -398,45 +397,6 @@ func GetIssueByIndex(ctx context.Context, repoID, index int64) (*Issue, error) {
 	return issue, nil
 }
 
-func isPullToCond(isPull optional.Option[bool]) builder.Cond {
-	if isPull.Has() {
-		return builder.Eq{"is_pull": isPull.Value()}
-	}
-	return builder.NewCond()
-}
-
-func FindLatestUpdatedIssues(ctx context.Context, repoID int64, isPull optional.Option[bool], pageSize int) (IssueList, error) {
-	issues := make([]*Issue, 0, pageSize)
-	err := db.GetEngine(ctx).Where("repo_id = ?", repoID).
-		And(isPullToCond(isPull)).
-		OrderBy("updated_unix DESC").
-		Limit(pageSize).
-		Find(&issues)
-	return issues, err
-}
-
-func FindIssuesSuggestionByKeyword(ctx context.Context, repoID int64, keyword string, isPull optional.Option[bool], excludedID int64, pageSize int) (IssueList, error) {
-	cond := builder.NewCond()
-	if excludedID > 0 {
-		cond = cond.And(builder.Neq{"`id`": excludedID})
-	}
-
-	// It seems that GitHub searches both title and content (maybe sorting by the search engine's ranking system?)
-	// The first PR (https://github.com/go-gitea/gitea/pull/32327) uses "search indexer" to search "name(title) +  content"
-	// But it seems that searching "content" (especially LIKE by DB engine) generates worse (unusable) results.
-	// So now (https://github.com/go-gitea/gitea/pull/33538) it only searches "name(title)", leave the improvements to the future.
-	cond = cond.And(db.BuildCaseInsensitiveLike("`name`", keyword))
-
-	issues := make([]*Issue, 0, pageSize)
-	err := db.GetEngine(ctx).Where("repo_id = ?", repoID).
-		And(isPullToCond(isPull)).
-		And(cond).
-		OrderBy("updated_unix DESC, `index` DESC").
-		Limit(pageSize).
-		Find(&issues)
-	return issues, err
-}
-
 // GetIssueWithAttrsByIndex returns issue by index in a repository.
 func GetIssueWithAttrsByIndex(ctx context.Context, repoID, index int64) (*Issue, error) {
 	issue, err := GetIssueByIndex(ctx, repoID, index)
@@ -454,17 +414,6 @@ func GetIssueByID(ctx context.Context, id int64) (*Issue, error) {
 		return nil, err
 	} else if !has {
 		return nil, ErrIssueNotExist{id, 0, 0}
-	}
-	return issue, nil
-}
-
-func GetIssueByRepoID(ctx context.Context, repoID, issueID int64) (*Issue, error) {
-	issue := new(Issue)
-	has, err := db.GetEngine(ctx).ID(issueID).Where("repo_id=?", repoID).Get(issue)
-	if err != nil {
-		return nil, err
-	} else if !has {
-		return nil, ErrIssueNotExist{issueID, repoID, 0}
 	}
 	return issue, nil
 }
@@ -499,30 +448,6 @@ func GetIssuesByIDs(ctx context.Context, issueIDs []int64, keepOrder ...bool) (I
 	return issues, nil
 }
 
-// GetParticipantsIDsByIssueID returns the IDs of all users who participated in comments of an issue,
-// but skips joining with `user` for performance reasons.
-// User permissions must be verified elsewhere if required.
-func GetParticipantsIDsByIssueID(ctx context.Context, issueID int64) ([]int64, error) {
-	userIDs := make([]int64, 0, 5)
-	return userIDs, db.GetEngine(ctx).
-		Table("comment").
-		Cols("poster_id").
-		Where("issue_id = ?", issueID).
-		And("type in (?,?,?)", CommentTypeComment, CommentTypeCode, CommentTypeReview).
-		Distinct("poster_id").
-		Find(&userIDs)
-}
-
-// IsUserParticipantsOfIssue return true if user is participants of an issue
-func IsUserParticipantsOfIssue(ctx context.Context, user *user_model.User, issue *Issue) bool {
-	userIDs, err := issue.GetParticipantIDsByIssue(ctx)
-	if err != nil {
-		log.Error(err.Error())
-		return false
-	}
-	return slices.Contains(userIDs, user.ID)
-}
-
 // GetParticipantIDsByIssue returns all userIDs who are participated in comments of an issue and issue author
 func (issue *Issue) GetParticipantIDsByIssue(ctx context.Context) ([]int64, error) {
 	if issue == nil {
@@ -543,17 +468,6 @@ func (issue *Issue) GetParticipantIDsByIssue(ctx context.Context) ([]int64, erro
 		return append(userIDs, issue.PosterID), nil
 	}
 	return userIDs, nil
-}
-
-func migratedIssueCond(tp api.GitServiceType) builder.Cond {
-	return builder.In("issue_id",
-		builder.Select("issue.id").
-			From("issue").
-			InnerJoin("repository", "issue.repo_id = repository.id").
-			Where(builder.Eq{
-				"repository.original_service_type": tp,
-			}),
-	)
 }
 
 // RemapExternalUser ExternalUserRemappable interface

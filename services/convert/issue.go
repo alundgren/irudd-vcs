@@ -12,7 +12,6 @@ import (
 	issues_model "gitea.dev/models/issues"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/label"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
@@ -145,27 +144,6 @@ func ToLabelList(labels []*issues_model.Label, repo *repo_model.Repository, org 
 	result := make([]*api.Label, len(labels))
 	for i := range labels {
 		result[i] = ToLabel(labels[i], repo, org)
-	}
-	return result
-}
-
-// ToLabelTemplate converts Label to API format
-func ToLabelTemplate(label *label.Label) *api.LabelTemplate {
-	result := &api.LabelTemplate{
-		Name:        label.Name,
-		Exclusive:   label.Exclusive,
-		Color:       strings.TrimLeft(label.Color, "#"),
-		Description: label.Description,
-	}
-
-	return result
-}
-
-// ToLabelTemplateList converts list of Label to API format
-func ToLabelTemplateList(labels []*label.Label) []*api.LabelTemplate {
-	result := make([]*api.LabelTemplate, len(labels))
-	for i := range labels {
-		result[i] = ToLabelTemplate(labels[i])
 	}
 	return result
 }

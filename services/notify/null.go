@@ -84,10 +84,6 @@ func (*NullNotifier) UpdateComment(ctx context.Context, doer *user_model.User, c
 func (*NullNotifier) DeleteComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment) {
 }
 
-// NewRelease places a place holder function
-func (*NullNotifier) NewRelease(ctx context.Context, rel *repo_model.Release) {
-}
-
 // UpdateRelease places a place holder function
 func (*NullNotifier) UpdateRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
 }
@@ -141,10 +137,6 @@ func (*NullNotifier) DeleteRepository(ctx context.Context, doer *user_model.User
 func (*NullNotifier) ForkRepository(ctx context.Context, doer *user_model.User, oldRepo, repo *repo_model.Repository) {
 }
 
-// MigrateRepository places a place holder function
-func (*NullNotifier) MigrateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository) {
-}
-
 // PushCommits notifies commits pushed to notifiers
 func (*NullNotifier) PushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits) {
 }
@@ -159,30 +151,6 @@ func (*NullNotifier) DeleteRef(ctx context.Context, doer *user_model.User, repo 
 
 // RenameRepository places a place holder function
 func (*NullNotifier) RenameRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldRepoName string) {
-}
-
-// TransferRepository places a place holder function
-func (*NullNotifier) TransferRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldOwnerName string) {
-}
-
-// SyncPushCommits places a place holder function
-func (*NullNotifier) SyncPushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits) {
-}
-
-// SyncCreateRef places a place holder function
-func (*NullNotifier) SyncCreateRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string) {
-}
-
-// SyncDeleteRef places a place holder function
-func (*NullNotifier) SyncDeleteRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName) {
-}
-
-// RepoPendingTransfer places a place holder function
-func (*NullNotifier) RepoPendingTransfer(ctx context.Context, doer, newOwner *user_model.User, repo *repo_model.Repository) {
-}
-
-// ChangeDefaultBranch places a place holder function
-func (*NullNotifier) ChangeDefaultBranch(ctx context.Context, repo *repo_model.Repository) {
 }
 
 func (*NullNotifier) CreateCommitStatus(ctx context.Context, repo *repo_model.Repository, commit *repository.PushCommit, sender *user_model.User, status *git_model.CommitStatus) {

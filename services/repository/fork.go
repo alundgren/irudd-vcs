@@ -198,29 +198,6 @@ func ForkRepository(ctx context.Context, doer, owner *user_model.User, opts Fork
 	return repo, nil
 }
 
-// ConvertForkToNormalRepository convert the provided repo from a forked repo to normal repo
-func ConvertForkToNormalRepository(ctx context.Context, repo *repo_model.Repository) error {
-	return db.WithTx(ctx, func(ctx context.Context) error {
-		repo, err := repo_model.GetRepositoryByID(ctx, repo.ID)
-		if err != nil {
-			return err
-		}
-
-		if !repo.IsFork {
-			return nil
-		}
-
-		if err := repo_model.DecrementRepoForkNum(ctx, repo.ForkID); err != nil {
-			log.Error("Unable to decrement repo fork num for old root repo %d of repository %-v whilst converting from fork. Error: %v", repo.ForkID, repo, err)
-			return err
-		}
-
-		repo.IsFork = false
-		repo.ForkID = 0
-		return repo_model.UpdateRepositoryColsNoAutoTime(ctx, repo, "is_fork", "fork_id")
-	})
-}
-
 type findForksOptions struct {
 	db.ListOptions
 	RepoID int64

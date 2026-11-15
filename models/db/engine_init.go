@@ -69,17 +69,6 @@ func SetDefaultEngine(ctx context.Context, eng *xorm.Engine) {
 	xormEngine.SetDefaultContext(ctx)
 }
 
-// UnsetDefaultEngine closes and unsets the default engine
-// We hope the SetDefaultEngine and UnsetDefaultEngine can be paired, but it's impossible now,
-// there are many calls to InitEngine -> SetDefaultEngine directly to overwrite the `xormEngine` and `xormContext` without close
-// Global database engine related functions are all racy and there is no graceful close right now.
-func UnsetDefaultEngine() {
-	if xormEngine != nil {
-		_ = xormEngine.Close()
-		xormEngine = nil
-	}
-}
-
 // InitEngineWithMigration initializes a new xorm.Engine and sets it as the XORM's default context
 // This function must never call .Sync() if the provided migration function fails.
 // When called from the "doctor" command, the migration function is a version check

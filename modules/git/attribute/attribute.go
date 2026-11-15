@@ -10,9 +10,8 @@ import (
 type Attribute string
 
 const (
-	Lockable = "lockable"
-	Filter   = "filter"
-	Diff     = "diff"
+	Filter = "filter"
+	Diff   = "diff"
 )
 
 func (a Attribute) IsUnspecified() bool {

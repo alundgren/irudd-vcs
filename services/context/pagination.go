@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 	"math"
-	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -48,10 +47,6 @@ func (p *Pagination) AddParamFromQuery(q url.Values) {
 			p.urlParams = append(p.urlParams, urlParam)
 		}
 	}
-}
-
-func (p *Pagination) AddParamFromRequest(req *http.Request) {
-	p.AddParamFromQuery(req.URL.Query())
 }
 
 func (p *Pagination) RemoveParam(keys container.Set[string]) {

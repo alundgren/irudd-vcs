@@ -71,18 +71,8 @@ func labelStatsCorrectNumIssues(ctx context.Context, id int64) error {
 	return StatsCorrectSQL(ctx, "UPDATE `label` SET num_issues=(SELECT COUNT(*) FROM `issue_label` WHERE label_id=?) WHERE id=?", id, id)
 }
 
-func labelStatsCorrectNumIssuesRepo(ctx context.Context, id int64) error {
-	_, err := db.GetEngine(ctx).Exec("UPDATE `label` SET num_issues=(SELECT COUNT(*) FROM `issue_label` WHERE label_id=id) WHERE repo_id=?", id)
-	return err
-}
-
 func labelStatsCorrectNumClosedIssues(ctx context.Context, id int64) error {
 	_, err := db.GetEngine(ctx).Exec("UPDATE `label` SET num_closed_issues=(SELECT COUNT(*) FROM `issue_label`,`issue` WHERE `issue_label`.label_id=`label`.id AND `issue_label`.issue_id=`issue`.id AND `issue`.is_closed=?) WHERE `label`.id=?", true, id)
-	return err
-}
-
-func labelStatsCorrectNumClosedIssuesRepo(ctx context.Context, id int64) error {
-	_, err := db.GetEngine(ctx).Exec("UPDATE `label` SET num_closed_issues=(SELECT COUNT(*) FROM `issue_label`,`issue` WHERE `issue_label`.label_id=`label`.id AND `issue_label`.issue_id=`issue`.id AND `issue`.is_closed=?) WHERE `label`.repo_id=?", true, id)
 	return err
 }
 
@@ -240,27 +230,6 @@ func CheckRepoStats(ctx context.Context) error {
 		}
 	}
 	// ***** END: Repository.NumForks *****
-	return nil
-}
-
-func UpdateRepoStats(ctx context.Context, id int64) error {
-	var err error
-
-	for _, f := range []func(ctx context.Context, id int64) error{
-		repoStatsCorrectNumWatches,
-		repoStatsCorrectNumStars,
-		repoStatsCorrectNumIssues,
-		repoStatsCorrectNumPulls,
-		repoStatsCorrectNumClosedIssues,
-		repoStatsCorrectNumClosedPulls,
-		labelStatsCorrectNumIssuesRepo,
-		labelStatsCorrectNumClosedIssuesRepo,
-	} {
-		err = f(ctx, id)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 

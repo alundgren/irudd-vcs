@@ -80,13 +80,6 @@ func (r *Request) Header(key, value string) *Request {
 	return r
 }
 
-// Param adds query param in to request.
-// params build query string as ?key1=value1&key2=value2...
-func (r *Request) Param(key, value string) *Request {
-	r.params[key] = value
-	return r
-}
-
 // Body adds request raw body. It supports string, []byte and io.Reader as body.
 func (r *Request) Body(data any) *Request {
 	if r == nil {

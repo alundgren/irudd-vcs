@@ -50,16 +50,6 @@ func (a AllowedVisibility) IsAllowedVisibility(t structs.VisibleType) bool {
 	return a[t]
 }
 
-// ToVisibleTypeSlice convert a AllowedVisibility into a VisibleType slice
-func (a AllowedVisibility) ToVisibleTypeSlice() (result []structs.VisibleType) {
-	for i, v := range a {
-		if v {
-			result = append(result, structs.VisibleType(i))
-		}
-	}
-	return result
-}
-
 func CompileEmailGlobList(sec ConfigSection, keys ...string) (globs []glob.Glob) {
 	for _, key := range keys {
 		list := sec.Key(key).Strings(",")

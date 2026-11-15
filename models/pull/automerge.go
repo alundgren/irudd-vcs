@@ -43,12 +43,6 @@ func (err ErrAlreadyScheduledToAutoMerge) Error() string {
 	return fmt.Sprintf("pull request is already scheduled to auto merge when checks succeed [pull_id: %d]", err.PullID)
 }
 
-// IsErrAlreadyScheduledToAutoMerge checks if an error is a ErrAlreadyScheduledToAutoMerge.
-func IsErrAlreadyScheduledToAutoMerge(err error) bool {
-	_, ok := err.(ErrAlreadyScheduledToAutoMerge)
-	return ok
-}
-
 // ScheduleAutoMerge schedules a pull request to be merged when all checks succeed
 func ScheduleAutoMerge(ctx context.Context, doer *user_model.User, pullID int64, style repo_model.MergeStyle, message string, deleteBranchAfterMerge bool) error {
 	// Check if we already have a merge scheduled for that pull request

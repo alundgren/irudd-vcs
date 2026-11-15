@@ -13,9 +13,7 @@ type Organization struct {
 	IsOwner          bool
 	IsMember         bool
 	IsTeamMember     bool // Is member of team.
-	IsTeamAdmin      bool // In owner team or team that has admin permission level.
 	Organization     *organization.Organization
-	OrgLink          string
 	CanCreateOrgRepo bool
 
 	Team  *organization.Team

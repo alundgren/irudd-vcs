@@ -110,14 +110,3 @@ func findCodeComments(ctx context.Context, opts FindCommentsOptions, issue *Issu
 	}
 	return comments[:n], nil
 }
-
-// FetchCodeCommentsByLine fetches the code comments for a given treePath and line number
-func FetchCodeCommentsByLine(ctx context.Context, issue *Issue, currentUser *user_model.User, treePath string, line int64, showOutdatedComments bool) (CommentList, error) {
-	opts := FindCommentsOptions{
-		Type:     CommentTypeCode,
-		IssueID:  issue.ID,
-		TreePath: treePath,
-		Line:     line,
-	}
-	return findCodeComments(ctx, opts, issue, currentUser, nil, showOutdatedComments)
-}

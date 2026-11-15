@@ -11,7 +11,6 @@ import (
 	"io"
 	"slices"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -23,7 +22,6 @@ import (
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/base"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
@@ -34,7 +32,6 @@ import (
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
-	git_service "gitea.dev/services/git"
 	issue_service "gitea.dev/services/issue"
 	notify_service "gitea.dev/services/notify"
 )
@@ -915,64 +912,6 @@ func formatSquashMergeCommitMessages(commits []*git.Commit) string {
 	return util.UnsafeBytesToString(buf)
 }
 
-// GetIssuesAllCommitStatus returns a map of issue ID to a list of all statuses for the most recent commit as well as a map of issue ID to only the commit's latest status
-func GetIssuesAllCommitStatus(ctx context.Context, issues issues_model.IssueList) (map[int64][]*git_model.CommitStatus, map[int64]*git_model.CommitStatus, error) {
-	if err := issues.LoadPullRequests(ctx); err != nil {
-		return nil, nil, err
-	}
-	if _, err := issues.LoadRepositories(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	var (
-		gitRepos = make(map[int64]*git.Repository)
-		res      = make(map[int64][]*git_model.CommitStatus)
-		lastRes  = make(map[int64]*git_model.CommitStatus)
-		err      error
-	)
-	defer func() {
-		for _, gitRepo := range gitRepos {
-			gitRepo.Close()
-		}
-	}()
-
-	for _, issue := range issues {
-		if !issue.IsPull {
-			continue
-		}
-		gitRepo, ok := gitRepos[issue.RepoID]
-		if !ok {
-			gitRepo, err = gitrepo.OpenRepository(ctx, issue.Repo)
-			if err != nil {
-				log.Error("Cannot open git repository %-v for issue #%d[%d]. Error: %v", issue.Repo, issue.Index, issue.ID, err)
-				continue
-			}
-			gitRepos[issue.RepoID] = gitRepo
-		}
-
-		statuses, lastStatus, err := getAllCommitStatus(ctx, gitRepo, issue.PullRequest)
-		if err != nil {
-			log.Error("getAllCommitStatus: cant get commit statuses of pull [%d]: %v", issue.PullRequest.ID, err)
-			continue
-		}
-		res[issue.PullRequest.ID] = statuses
-		lastRes[issue.PullRequest.ID] = lastStatus
-	}
-	return res, lastRes, nil
-}
-
-// getAllCommitStatus get pr's commit statuses.
-func getAllCommitStatus(ctx context.Context, gitRepo *git.Repository, pr *issues_model.PullRequest) (statuses []*git_model.CommitStatus, lastStatus *git_model.CommitStatus, err error) {
-	sha, shaErr := gitRepo.GetRefCommitID(pr.GetGitHeadRefName())
-	if shaErr != nil {
-		return nil, nil, shaErr
-	}
-
-	statuses, err = git_model.GetLatestCommitStatus(ctx, pr.BaseRepo.ID, sha, db.ListOptionsAll)
-	lastStatus = git_model.CalcCommitStatus(statuses)
-	return statuses, lastStatus, err
-}
-
 // IsHeadEqualWithBranch returns if the commits of branchName are available in pull request head
 func IsHeadEqualWithBranch(ctx context.Context, pr *issues_model.PullRequest, branchName string) (bool, error) {
 	var err error
@@ -1030,68 +969,4 @@ type CommitInfo struct {
 	ID                    string `json:"id"`
 	ShortSha              string `json:"short_sha"`
 	Time                  string `json:"time"`
-}
-
-// GetPullCommits returns all commits on given pull request and the last review commit sha
-// Attention: The last review commit sha must be from the latest review whose commit id is not empty.
-// So the type of the latest review cannot be "ReviewTypeRequest".
-func GetPullCommits(ctx context.Context, baseGitRepo *git.Repository, doer *user_model.User, issue *issues_model.Issue) ([]CommitInfo, string, error) {
-	pull := issue.PullRequest
-
-	if err := pull.LoadBaseRepo(ctx); err != nil {
-		return nil, "", err
-	}
-	baseBranch := pull.BaseBranch
-	if pull.HasMerged {
-		baseBranch = pull.MergeBase
-	}
-	compareInfo, err := git_service.GetCompareInfo(ctx, pull.BaseRepo, pull.BaseRepo, baseGitRepo, git.RefNameFromBranch(baseBranch), git.RefName(pull.GetGitHeadRefName()), false, false)
-	if err != nil {
-		return nil, "", err
-	}
-
-	commits := make([]CommitInfo, 0, len(compareInfo.Commits))
-
-	for _, commit := range compareInfo.Commits {
-		var committerOrAuthorName string
-		var commitTime time.Time
-		if commit.Author != nil {
-			committerOrAuthorName = commit.Author.Name
-			commitTime = commit.Author.When
-		} else {
-			committerOrAuthorName = commit.Committer.Name
-			commitTime = commit.Committer.When
-		}
-
-		commits = append(commits, CommitInfo{
-			Summary:               commit.MessageTitle(),
-			CommitterOrAuthorName: committerOrAuthorName,
-			ID:                    commit.ID.String(),
-			ShortSha:              base.ShortSha(commit.ID.String()),
-			Time:                  commitTime.Format(time.RFC3339),
-		})
-	}
-
-	var lastReviewCommitID string
-	if doer != nil {
-		// get last review of current user and store information in context (if available)
-		lastreview, err := issues_model.FindLatestReviews(ctx, issues_model.FindReviewOptions{
-			IssueID:    issue.ID,
-			ReviewerID: doer.ID,
-			Types: []issues_model.ReviewType{
-				issues_model.ReviewTypeApprove,
-				issues_model.ReviewTypeComment,
-				issues_model.ReviewTypeReject,
-			},
-		})
-
-		if err != nil && !issues_model.IsErrReviewNotExist(err) {
-			return nil, "", err
-		}
-		if len(lastreview) > 0 {
-			lastReviewCommitID = lastreview[0].CommitID
-		}
-	}
-
-	return commits, lastReviewCommitID, nil
 }

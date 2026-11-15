@@ -313,50 +313,6 @@ func (u *User) OrganisationLink() string {
 	return setting.AppSubURL + "/org/" + url.PathEscape(u.Name)
 }
 
-// GetUserFollowers returns range of user's followers.
-func GetUserFollowers(ctx context.Context, u, viewer *User, listOptions db.ListOptions) ([]*User, int64, error) {
-	sess := db.GetEngine(ctx).
-		Select("`user`.*").
-		Join("LEFT", "follow", "`user`.id=follow.user_id").
-		Where("follow.follow_id=?", u.ID).
-		And("`user`.type=?", UserTypeIndividual).
-		And(isUserVisibleToViewerCond(viewer))
-
-	if listOptions.Page > 0 {
-		db.SetSessionPagination(sess, &listOptions)
-
-		users := make([]*User, 0, listOptions.PageSize)
-		count, err := sess.FindAndCount(&users)
-		return users, count, err
-	}
-
-	users := make([]*User, 0, 8)
-	count, err := sess.FindAndCount(&users)
-	return users, count, err
-}
-
-// GetUserFollowing returns range of user's following.
-func GetUserFollowing(ctx context.Context, u, viewer *User, listOptions db.ListOptions) ([]*User, int64, error) {
-	sess := db.GetEngine(ctx).
-		Select("`user`.*").
-		Join("LEFT", "follow", "`user`.id=follow.follow_id").
-		Where("follow.user_id=?", u.ID).
-		And("`user`.type IN (?, ?)", UserTypeIndividual, UserTypeOrganization).
-		And(isUserVisibleToViewerCond(viewer))
-
-	if listOptions.Page > 0 {
-		db.SetSessionPagination(sess, &listOptions)
-
-		users := make([]*User, 0, listOptions.PageSize)
-		count, err := sess.FindAndCount(&users)
-		return users, count, err
-	}
-
-	users := make([]*User, 0, 8)
-	count, err := sess.FindAndCount(&users)
-	return users, count, err
-}
-
 // NewGitSig generates and returns the signature of given user.
 func (u *User) NewGitSig() *git.Signature {
 	return &git.Signature{
@@ -821,20 +777,6 @@ type CountUserFilter struct {
 	IsActive       optional.Option[bool]
 }
 
-// HasUsers checks whether there are any users in the database, or only one user exists.
-func HasUsers(ctx context.Context) (ret struct {
-	HasAnyUser, HasOnlyOneUser bool
-}, err error,
-) {
-	res, err := db.GetEngine(ctx).Table(&User{}).Cols("id").Limit(2).Query()
-	if err != nil {
-		return ret, fmt.Errorf("error checking user existence: %w", err)
-	}
-	ret.HasAnyUser = len(res) != 0
-	ret.HasOnlyOneUser = len(res) == 1
-	return ret, nil
-}
-
 // CountUsers returns number of users.
 func CountUsers(ctx context.Context, opts *CountUserFilter) int64 {
 	return countUsers(ctx, opts)
@@ -1066,24 +1008,6 @@ func GetUserIDsByNames(ctx context.Context, names []string, ignoreNonExistent bo
 	return ids, nil
 }
 
-// GetUsersBySource returns a list of Users for a login source
-func GetUsersBySource(ctx context.Context, s *auth.Source) ([]*User, error) {
-	var users []*User
-	err := db.GetEngine(ctx).Where("login_type = ? AND login_source = ?", s.Type, s.ID).Find(&users)
-	return users, err
-}
-
-func GetUserByGitAuthor(ctx context.Context, c *git.Commit) *User {
-	if c.Author == nil {
-		return nil
-	}
-	u, err := GetUserByEmail(ctx, c.Author.Email)
-	if err != nil {
-		return nil
-	}
-	return u
-}
-
 type EmailUserMap struct {
 	m map[string]*User
 }
@@ -1219,84 +1143,6 @@ func GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	}
 
 	return nil, ErrUserNotExist{Name: email}
-}
-
-func GetIndividualUserByPrimaryEmail(ctx context.Context, email string) (*User, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if len(email) == 0 {
-		return nil, ErrUserNotExist{Name: email}
-	}
-
-	user, has, err := db.Get[User](ctx, builder.Eq{"email": email, "type": UserTypeIndividual})
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, ErrUserNotExist{Name: email}
-	}
-	return user, nil
-}
-
-func GetIndividualUserByLoginSource(ctx context.Context, loginType auth.Type, loginSource int64, loginName string) (*User, bool, error) {
-	user, has, err := db.Get[User](ctx, builder.Eq{"login_type": loginType, "login_source": loginSource, "login_name": loginName})
-	if has && user.Type != UserTypeIndividual {
-		has = false
-		user = nil
-	}
-	return user, has, err
-}
-
-// GetAdminUser returns the first administrator
-func GetAdminUser(ctx context.Context) (*User, error) {
-	var admin User
-	has, err := db.GetEngine(ctx).
-		Where("is_admin=?", true).
-		Asc("id"). // Reliably get the admin with the lowest ID.
-		Get(&admin)
-	if err != nil {
-		return nil, err
-	} else if !has {
-		return nil, ErrUserNotExist{}
-	}
-
-	return &admin, nil
-}
-
-func isUserVisibleToViewerCond(viewer *User) builder.Cond {
-	if viewer != nil && viewer.IsAdmin {
-		return builder.NewCond()
-	}
-
-	if viewer == nil || viewer.IsRestricted {
-		return builder.Eq{
-			"`user`.visibility": structs.VisibleTypePublic,
-		}
-	}
-
-	return builder.Neq{
-		"`user`.visibility": structs.VisibleTypePrivate,
-	}.Or(
-		// viewer self
-		builder.Eq{"`user`.id": viewer.ID},
-		// viewer's following
-		builder.In("`user`.id",
-			builder.
-				Select("`follow`.user_id").
-				From("follow").
-				Where(builder.Eq{"`follow`.follow_id": viewer.ID})),
-		// viewer's org user
-		builder.In("`user`.id",
-			builder.
-				Select("`team_user`.uid").
-				From("team_user").
-				Join("INNER", "`team_user` AS t2", "`team_user`.org_id = `t2`.org_id").
-				Where(builder.Eq{"`t2`.uid": viewer.ID})),
-		// viewer's org
-		builder.In("`user`.id",
-			builder.
-				Select("`team_user`.org_id").
-				From("team_user").
-				Where(builder.Eq{"`team_user`.uid": viewer.ID})))
 }
 
 // IsUserVisibleToViewer check if viewer is able to see user profile

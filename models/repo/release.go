@@ -14,31 +14,11 @@ import (
 	"gitea.dev/models/db"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/optional"
-	"gitea.dev/modules/structs"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 
 	"xorm.io/builder"
 )
-
-// ErrReleaseAlreadyExist represents a "ReleaseAlreadyExist" kind of error.
-type ErrReleaseAlreadyExist struct {
-	TagName string
-}
-
-// IsErrReleaseAlreadyExist checks if an error is a ErrReleaseAlreadyExist.
-func IsErrReleaseAlreadyExist(err error) bool {
-	_, ok := err.(ErrReleaseAlreadyExist)
-	return ok
-}
-
-func (err ErrReleaseAlreadyExist) Error() string {
-	return fmt.Sprintf("release tag already exist [tag_name: %s]", err.TagName)
-}
-
-func (err ErrReleaseAlreadyExist) Unwrap() error {
-	return util.ErrAlreadyExist
-}
 
 // ErrReleaseNotExist represents a "ReleaseNotExist" kind of error.
 type ErrReleaseNotExist struct {
@@ -148,11 +128,6 @@ func UpdateRelease(ctx context.Context, rel *Release) error {
 	return err
 }
 
-func UpdateReleaseNumCommits(ctx context.Context, rel *Release) error {
-	_, err := db.GetEngine(ctx).ID(rel.ID).Cols("num_commits").Update(rel)
-	return err
-}
-
 // GetRelease returns release by given ID.
 func GetRelease(ctx context.Context, repoID int64, tagName string) (*Release, error) {
 	rel, has, err := db.Get[Release](ctx, builder.Eq{"repo_id": repoID, "lower_tag_name": strings.ToLower(tagName)})
@@ -169,21 +144,6 @@ func GetReleaseByID(ctx context.Context, id int64) (*Release, error) {
 	rel := new(Release)
 	has, err := db.GetEngine(ctx).
 		ID(id).
-		Get(rel)
-	if err != nil {
-		return nil, err
-	} else if !has {
-		return nil, ErrReleaseNotExist{id, ""}
-	}
-
-	return rel, nil
-}
-
-// GetReleaseForRepoByID returns release with given ID.
-func GetReleaseForRepoByID(ctx context.Context, repoID, id int64) (*Release, error) {
-	rel := new(Release)
-	has, err := db.GetEngine(ctx).
-		Where("id=? AND repo_id=?", id, repoID).
 		Get(rel)
 	if err != nil {
 		return nil, err
@@ -242,61 +202,6 @@ func (opts FindReleasesOptions) ToConds() builder.Cond {
 
 func (opts FindReleasesOptions) ToOrders() string {
 	return "created_unix DESC, id DESC"
-}
-
-// GetTagNamesByRepoID returns a list of release tag names of repository.
-func GetTagNamesByRepoID(ctx context.Context, repoID int64) ([]string, error) {
-	opts := FindReleasesOptions{
-		ListOptions:   db.ListOptionsAll,
-		IncludeDrafts: true,
-		IncludeTags:   true,
-		HasSha1:       optional.Some(true),
-		RepoID:        repoID,
-	}
-
-	tags := make([]string, 0)
-	sess := db.GetEngine(ctx).
-		Table("release").
-		Desc("created_unix", "id").
-		Where(opts.ToConds()).
-		Cols("tag_name")
-
-	return tags, sess.Find(&tags)
-}
-
-// GetLatestReleaseByRepoID returns the latest release for a repository
-func GetLatestReleaseByRepoID(ctx context.Context, repoID int64) (*Release, error) {
-	cond := builder.NewCond().
-		And(builder.Eq{"repo_id": repoID}).
-		And(builder.Eq{"is_draft": false}).
-		And(builder.Eq{"is_prerelease": false}).
-		And(builder.Eq{"is_tag": false})
-
-	rel := new(Release)
-	has, err := db.GetEngine(ctx).
-		Desc("created_unix", "id").
-		Where(cond).
-		Get(rel)
-	if err != nil {
-		return nil, err
-	} else if !has {
-		return nil, ErrReleaseNotExist{0, "latest"}
-	}
-
-	return rel, nil
-}
-
-// UpdateReleasesMigrationsByType updates all migrated repositories' releases from gitServiceType to replace originalAuthorID to posterID
-func UpdateReleasesMigrationsByType(ctx context.Context, gitServiceType structs.GitServiceType, originalAuthorID string, posterID int64) error {
-	_, err := db.GetEngine(ctx).Table("release").
-		Where("repo_id IN (SELECT id FROM repository WHERE original_service_type = ?)", gitServiceType).
-		And("original_author_id = ?", originalAuthorID).
-		Update(map[string]any{
-			"publisher_id":       posterID,
-			"original_author":    "",
-			"original_author_id": 0,
-		})
-	return err
 }
 
 // PushUpdateDeleteTags updates a number of delete tags with context

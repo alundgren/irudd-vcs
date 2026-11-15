@@ -6,7 +6,6 @@ package structs
 import (
 	"fmt"
 	"path"
-	"slices"
 	"strings"
 	"time"
 
@@ -152,21 +151,6 @@ type IssueFormField struct {
 	Attributes  map[string]any          `json:"attributes" yaml:"attributes"`
 	Validations map[string]any          `json:"validations" yaml:"validations"`
 	Visible     []IssueFormFieldVisible `json:"visible,omitempty"`
-}
-
-func (iff IssueFormField) VisibleOnForm() bool {
-	if len(iff.Visible) == 0 {
-		return true
-	}
-	return slices.Contains(iff.Visible, IssueFormFieldVisibleForm)
-}
-
-func (iff IssueFormField) VisibleInContent() bool {
-	if len(iff.Visible) == 0 {
-		// we have our markdown exception
-		return iff.Type != IssueFormFieldTypeMarkdown
-	}
-	return slices.Contains(iff.Visible, IssueFormFieldVisibleContent)
 }
 
 // IssueFormFieldVisible defines issue form field visible

@@ -6,7 +6,6 @@ package system
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"gitea.dev/models/db"
 	"gitea.dev/modules/graceful"
@@ -99,15 +98,5 @@ func DeleteNotices(ctx context.Context, start, end int64) error {
 		sess.And("id <= ?", end)
 	}
 	_, err := sess.Delete(new(Notice))
-	return err
-}
-
-// DeleteOldSystemNotices deletes all old system notices from database.
-func DeleteOldSystemNotices(ctx context.Context, olderThan time.Duration) (err error) {
-	if olderThan <= 0 {
-		return nil
-	}
-
-	_, err = db.GetEngine(ctx).Where("created_unix < ?", time.Now().Add(-olderThan).Unix()).Delete(&Notice{})
 	return err
 }

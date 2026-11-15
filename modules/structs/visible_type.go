@@ -49,14 +49,6 @@ func (vt VisibleType) String() string {
 	return ""
 }
 
-// ExtractKeysFromMapString provides a slice of keys from map
-func ExtractKeysFromMapString(in map[string]VisibleType) (keys []string) {
-	for k := range in {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 // UserVisibility defines the visibility level of a user or organization as
 // rendered in API payloads. The DB representation is VisibleType (int).
 // swagger:enum UserVisibility

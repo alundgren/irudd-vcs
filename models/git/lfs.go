@@ -9,8 +9,6 @@ import (
 
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
-	"gitea.dev/models/unit"
-	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/lfs"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
@@ -61,21 +59,6 @@ func (err ErrLFSLockAlreadyExist) Unwrap() error {
 	return util.ErrAlreadyExist
 }
 
-// ErrLFSFileLocked represents a "LFSFileLocked" kind of error.
-type ErrLFSFileLocked struct {
-	RepoID   int64
-	Path     string
-	UserName string
-}
-
-func (err ErrLFSFileLocked) Error() string {
-	return fmt.Sprintf("File is lfs locked [repo: %d, locked by: %s, path: %s]", err.RepoID, err.UserName, err.Path)
-}
-
-func (err ErrLFSFileLocked) Unwrap() error {
-	return util.ErrPermissionDenied
-}
-
 // LFSMetaObject stores metadata for LFS tracked files.
 type LFSMetaObject struct {
 	ID           int64 `xorm:"pk autoincr"`
@@ -87,14 +70,6 @@ type LFSMetaObject struct {
 
 func init() {
 	db.RegisterModel(new(LFSMetaObject))
-}
-
-// LFSTokenResponse defines the JSON structure in which the JWT token is stored.
-// This structure is fetched via SSH and passed by the Git LFS client to the server
-// endpoint for authorization.
-type LFSTokenResponse struct {
-	Header map[string]string `json:"header"`
-	Href   string            `json:"href"`
 }
 
 // ErrLFSObjectNotExist is returned from lfs models functions in order
@@ -169,87 +144,9 @@ func RemoveLFSMetaObjectByOidFn(ctx context.Context, repoID int64, oid string, f
 	})
 }
 
-// GetLFSMetaObjects returns all LFSMetaObjects associated with a repository
-func GetLFSMetaObjects(ctx context.Context, repoID int64, page, pageSize int) ([]*LFSMetaObject, error) {
-	sess := db.GetEngine(ctx)
-
-	if page >= 0 && pageSize > 0 {
-		start := 0
-		if page > 0 {
-			start = (page - 1) * pageSize
-		}
-		sess.Limit(pageSize, start)
-	}
-	lfsObjects := make([]*LFSMetaObject, 0, pageSize)
-	return lfsObjects, sess.Find(&lfsObjects, &LFSMetaObject{RepositoryID: repoID})
-}
-
-// CountLFSMetaObjects returns a count of all LFSMetaObjects associated with a repository
-func CountLFSMetaObjects(ctx context.Context, repoID int64) (int64, error) {
-	return db.GetEngine(ctx).Count(&LFSMetaObject{RepositoryID: repoID})
-}
-
-// LFSObjectAccessible checks if a provided Oid is accessible to the user
-func LFSObjectAccessible(ctx context.Context, user *user_model.User, oid string) (bool, error) {
-	if user.IsAdmin {
-		count, err := db.GetEngine(ctx).Count(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})
-		return count > 0, err
-	}
-	// LFS objects are repository code content, so authorization must require
-	// Code-unit access; other unit accesses (e.g. Issues) must not authorize
-	// reuse of an existing LFS object across repositories.
-	cond := repo_model.AccessibleRepositoryCondition(user, unit.TypeCode)
-	count, err := db.GetEngine(ctx).Where(cond).Join("INNER", "repository", "`lfs_meta_object`.repository_id = `repository`.id").Count(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})
-	return count > 0, err
-}
-
 // ExistsLFSObject checks if a provided Oid exists within the DB
 func ExistsLFSObject(ctx context.Context, oid string) (bool, error) {
 	return db.GetEngine(ctx).Exist(&LFSMetaObject{Pointer: lfs.Pointer{Oid: oid}})
-}
-
-// LFSAutoAssociate auto associates accessible LFSMetaObjects
-func LFSAutoAssociate(ctx context.Context, metas []*LFSMetaObject, user *user_model.User, repoID int64) error {
-	return db.WithTx(ctx, func(ctx context.Context) error {
-		oids := make([]any, len(metas))
-		oidMap := make(map[string]*LFSMetaObject, len(metas))
-		for i, meta := range metas {
-			oids[i] = meta.Oid
-			oidMap[meta.Oid] = meta
-		}
-
-		if !user.IsAdmin {
-			newMetas := make([]*LFSMetaObject, 0, len(metas))
-			cond := builder.In(
-				"`lfs_meta_object`.repository_id",
-				builder.Select("`repository`.id").From("repository").Where(repo_model.AccessibleRepositoryCondition(user, unit.TypeCode)),
-			)
-			if err := db.GetEngine(ctx).Cols("oid").Where(cond).In("oid", oids...).GroupBy("oid").Find(&newMetas); err != nil {
-				return err
-			}
-			if len(newMetas) != len(oidMap) {
-				return fmt.Errorf("unable collect all LFS objects from database, expected %d, actually %d", len(oidMap), len(newMetas))
-			}
-			for i := range newMetas {
-				newMetas[i].Size = oidMap[newMetas[i].Oid].Size
-				newMetas[i].RepositoryID = repoID
-			}
-			return db.Insert(ctx, newMetas)
-		}
-
-		// admin can associate any LFS object to any repository, and we do not care about errors (eg: duplicated unique key),
-		// even if error occurs, it won't hurt users and won't make things worse
-		for i := range metas {
-			p := lfs.Pointer{Oid: metas[i].Oid, Size: metas[i].Size}
-			if err := db.Insert(ctx, &LFSMetaObject{
-				Pointer:      p,
-				RepositoryID: repoID,
-			}); err != nil {
-				log.Warn("failed to insert LFS meta object %-v for repo_id: %d into database, err=%v", p, repoID, err)
-			}
-		}
-		return nil
-	})
 }
 
 // CopyLFS copies LFS data from one repo to another

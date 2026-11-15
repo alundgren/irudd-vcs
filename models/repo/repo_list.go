@@ -655,51 +655,6 @@ func SearchRepositoryByName(ctx context.Context, opts SearchRepoOptions) (Reposi
 	return SearchRepository(ctx, opts)
 }
 
-// SearchRepositoryIDs takes keyword and part of repository name to search,
-// it returns results in given range and number of total results.
-func SearchRepositoryIDs(ctx context.Context, opts SearchRepoOptions) ([]int64, int64, error) {
-	opts.IncludeDescription = false
-
-	cond := SearchRepositoryCondition(opts)
-
-	sess, count, err := searchRepositoryByCondition(ctx, opts, cond)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	defaultSize := 50
-	if opts.PageSize > 0 {
-		defaultSize = opts.PageSize
-	}
-
-	ids := make([]int64, 0, defaultSize)
-	err = sess.Select("id").Table("repository").Find(&ids)
-	if opts.PageSize <= 0 {
-		count = int64(len(ids))
-	}
-
-	return ids, count, err
-}
-
-// AccessibleRepoIDsQuery queries accessible repository ids. Usable as a subquery wherever repo ids need to be filtered.
-func AccessibleRepoIDsQuery(user *user_model.User) *builder.Builder {
-	// NB: Please note this code needs to still work if user is nil
-	return builder.Select("id").From("repository").Where(AccessibleRepositoryCondition(user, unit.TypeInvalid))
-}
-
-// FindUserCodeAccessibleRepoIDs finds all at Code level accessible repositories' ID by the user's id
-func FindUserCodeAccessibleRepoIDs(ctx context.Context, user *user_model.User) ([]int64, error) {
-	return SearchRepositoryIDsByCondition(ctx, AccessibleRepositoryCondition(user, unit.TypeCode))
-}
-
-// FindUserCodeAccessibleOwnerRepoIDs finds all repository IDs for the given owner whose code the user can see.
-func FindUserCodeAccessibleOwnerRepoIDs(ctx context.Context, ownerID int64, user *user_model.User) ([]int64, error) {
-	return SearchRepositoryIDsByCondition(ctx, builder.NewCond().And(
-		builder.Eq{"owner_id": ownerID},
-		AccessibleRepositoryCondition(user, unit.TypeCode),
-	))
-}
-
 // PublicRepoUnderPublicOwnerCond restricts to public repos whose owner is publicly visible: the
 // "genuinely public" set a public-only token or an anonymous caller may see (a public repo under a
 // limited/private owner is not publicly reachable and must be excluded).
@@ -749,12 +704,4 @@ func GetUserRepositories(ctx context.Context, opts SearchRepoOptions) (Repositor
 	repos := make(RepositoryList, 0, opts.PageSize)
 	db.SetSessionPagination(sess, &opts)
 	return repos, count, sess.Find(&repos)
-}
-
-func GetOwnerRepositoriesByIDs(ctx context.Context, ownerID int64, repoIDs []int64) (RepositoryList, error) {
-	if len(repoIDs) == 0 {
-		return RepositoryList{}, nil
-	}
-	repos := make(RepositoryList, 0, len(repoIDs))
-	return repos, db.GetEngine(ctx).Where(builder.Eq{"owner_id": ownerID}).In("id", repoIDs).Find(&repos)
 }

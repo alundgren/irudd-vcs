@@ -56,14 +56,6 @@ func (s *baseToLogger) Critical(format string, v ...any) {
 	s.base.Log(1, &Event{Level: CRITICAL}, format, v...)
 }
 
-type PrintfLogger struct {
-	Logf func(format string, args ...any)
-}
-
-func (p *PrintfLogger) Printf(format string, args ...any) {
-	p.Logf(format, args...)
-}
-
 type loggerToWriter struct {
 	logf func(format string, args ...any)
 }

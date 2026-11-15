@@ -12,22 +12,10 @@ import (
 	"gitea.dev/modules/htmlutil"
 	"gitea.dev/modules/reqctx"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/web/middleware"
 	"gitea.dev/modules/web/types"
 
-	"gitea.com/go-chi/binding"
 	"github.com/go-chi/chi/v5"
 )
-
-// Bind binding an obj to a handler's context data
-func Bind[T any](_ T) http.HandlerFunc {
-	return func(resp http.ResponseWriter, req *http.Request) {
-		theObj := new(T) // create a new form obj for every request but not use obj directly
-		data := middleware.GetContextData(req.Context())
-		binding.Bind(req, theObj)
-		SetForm(data, theObj)
-	}
-}
 
 // SetForm set the form object
 func SetForm(dataStore reqctx.ContextDataProvider, obj any) {

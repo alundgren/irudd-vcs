@@ -56,12 +56,6 @@ type ErrUserProhibitLogin struct {
 	Name string
 }
 
-// IsErrUserProhibitLogin checks if an error is a ErrUserProhibitLogin
-func IsErrUserProhibitLogin(err error) bool {
-	_, ok := err.(ErrUserProhibitLogin)
-	return ok
-}
-
 func (err ErrUserProhibitLogin) Error() string {
 	return fmt.Sprintf("user is not allowed login [uid: %d, name: %s]", err.UID, err.Name)
 }

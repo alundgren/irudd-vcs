@@ -13,8 +13,6 @@ import (
 	"gitea.dev/models/organization"
 	"gitea.dev/modules/glob"
 	"gitea.dev/modules/timeutil"
-
-	"xorm.io/builder"
 )
 
 // ProtectedTag struct
@@ -57,18 +55,6 @@ func (pt *ProtectedTag) matchString(name string) bool {
 	return pt.GlobPattern.Match(name)
 }
 
-// InsertProtectedTag inserts a protected tag to database
-func InsertProtectedTag(ctx context.Context, pt *ProtectedTag) error {
-	_, err := db.GetEngine(ctx).Insert(pt)
-	return err
-}
-
-// UpdateProtectedTag updates the protected tag
-func UpdateProtectedTag(ctx context.Context, pt *ProtectedTag) error {
-	_, err := db.GetEngine(ctx).ID(pt.ID).AllCols().Update(pt)
-	return err
-}
-
 // DeleteProtectedTag deletes a protected tag by ID
 func DeleteProtectedTag(ctx context.Context, pt *ProtectedTag) error {
 	_, err := db.GetEngine(ctx).ID(pt.ID).Delete(&ProtectedTag{})
@@ -96,31 +82,6 @@ func IsUserAllowedModifyTag(ctx context.Context, pt *ProtectedTag, userID int64)
 func GetProtectedTags(ctx context.Context, repoID int64) ([]*ProtectedTag, error) {
 	tags := make([]*ProtectedTag, 0)
 	return tags, db.GetEngine(ctx).Find(&tags, &ProtectedTag{RepoID: repoID})
-}
-
-// GetProtectedTagByID gets the protected tag with the specific id
-func GetProtectedTagByID(ctx context.Context, id int64) (*ProtectedTag, error) {
-	tag := new(ProtectedTag)
-	has, err := db.GetEngine(ctx).ID(id).Get(tag)
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, nil //nolint:nilnil // return nil to indicate that the object does not exist
-	}
-	return tag, nil
-}
-
-// GetProtectedTagByNamePattern gets protected tag by name_pattern
-func GetProtectedTagByNamePattern(ctx context.Context, repoID int64, pattern string) (*ProtectedTag, error) {
-	tag, has, err := db.Get[ProtectedTag](ctx, builder.Eq{"name_pattern": pattern, "repo_id": repoID})
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, nil //nolint:nilnil // return nil to indicate that the object does not exist
-	}
-	return tag, nil
 }
 
 // IsUserAllowedToControlTag checks if a user can control the specific tag.

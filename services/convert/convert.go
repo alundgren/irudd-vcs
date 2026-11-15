@@ -313,32 +313,6 @@ func ToAnnotatedTagObject(repo *repo_model.Repository, commit *git.Commit) *api.
 	}
 }
 
-// ToTagProtection convert a git.ProtectedTag to an api.TagProtection
-func ToTagProtection(ctx context.Context, pt *git_model.ProtectedTag, repo *repo_model.Repository) *api.TagProtection {
-	readers, err := access_model.GetUsersWithAnyUnitAccess(ctx, repo, perm.AccessModeRead, unit.TypeCode, unit.TypePullRequests)
-	if err != nil {
-		log.Error("GetRepoReaders: %v", err)
-	}
-
-	whitelistUsernames := getWhitelistEntities(readers, pt.AllowlistUserIDs)
-
-	teamReaders, err := organization.GetTeamsWithAccessToAnyRepoUnit(ctx, repo.Owner.ID, repo.ID, perm.AccessModeRead, unit.TypeCode, unit.TypePullRequests)
-	if err != nil {
-		log.Error("Repo.Owner.TeamsWithAccessToRepo: %v", err)
-	}
-
-	whitelistTeams := getWhitelistEntities(teamReaders, pt.AllowlistTeamIDs)
-
-	return &api.TagProtection{
-		ID:                 pt.ID,
-		NamePattern:        pt.NamePattern,
-		WhitelistUsernames: whitelistUsernames,
-		WhitelistTeams:     whitelistTeams,
-		Created:            pt.CreatedUnix.AsTime(),
-		Updated:            pt.UpdatedUnix.AsTime(),
-	}
-}
-
 // ToLFSLock convert a LFSLock to api.LFSLock
 func ToLFSLock(ctx context.Context, l *git_model.LFSLock) *api.LFSLock {
 	_, u, err := user_model.GetPossibleUserByID(ctx, l.OwnerID)

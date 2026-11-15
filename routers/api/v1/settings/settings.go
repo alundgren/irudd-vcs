@@ -11,21 +11,6 @@ import (
 	"gitea.dev/services/context"
 )
 
-// GetGeneralUISettings returns instance's global settings for ui
-func GetGeneralUISettings(ctx *context.APIContext) {
-	// swagger:operation GET /settings/ui settings getGeneralUISettings
-	// ---
-	// summary: Get instance's global settings for ui
-	// produces:
-	// - application/json
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/GeneralUISettings"
-	ctx.JSON(http.StatusOK, api.GeneralUISettings{
-		AllowedReactions: setting.UI.Reactions,
-	})
-}
-
 // GetGeneralAPISettings returns instance's global settings for api
 func GetGeneralAPISettings(ctx *context.APIContext) {
 	// swagger:operation GET /settings/api settings getGeneralAPISettings

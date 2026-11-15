@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/git"
 	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
@@ -24,19 +23,6 @@ import (
 	notify_service "gitea.dev/services/notify"
 	pull_service "gitea.dev/services/pull"
 )
-
-// WebSearchRepository represents a repository returned by web search
-type WebSearchRepository struct {
-	Repository               *structs.Repository `json:"repository"`
-	LatestCommitStatus       *git.CommitStatus   `json:"latest_commit_status"`
-	LocaleLatestCommitStatus string              `json:"locale_latest_commit_status"`
-}
-
-// WebSearchResults results of a successful web search
-type WebSearchResults struct {
-	OK   bool                   `json:"ok"`
-	Data []*WebSearchRepository `json:"data"`
-}
 
 // CreateRepository creates a repository for the user/organization.
 func CreateRepository(ctx context.Context, doer, owner *user_model.User, opts CreateRepoOptions) (*repo_model.Repository, error) {
@@ -226,33 +212,5 @@ func updateRepository(ctx context.Context, repo *repo_model.Repository, visibili
 
 	}
 
-	return nil
-}
-
-// CheckCreateRepository check if doer could create a repository in new owner
-func CheckCreateRepository(ctx context.Context, doer, owner *user_model.User, name string, overwriteOrAdopt bool) error {
-	if !doer.CanCreateRepoIn(owner) {
-		return repo_model.ErrReachLimitOfRepo{Limit: owner.MaxRepoCreation}
-	}
-
-	if err := repo_model.IsUsableRepoName(name); err != nil {
-		return err
-	}
-
-	has, err := repo_model.IsRepositoryModelExist(ctx, owner, name)
-	if err != nil {
-		return err
-	} else if has {
-		return repo_model.ErrRepoAlreadyExist{Uname: owner.Name, Name: name}
-	}
-	repo := repo_model.StorageRepo(repo_model.RelativePath(owner.Name, name))
-	isExist, err := gitrepo.IsRepositoryExist(ctx, repo)
-	if err != nil {
-		log.Error("Unable to check if %s exists. Error: %v", repo.RelativePath(), err)
-		return err
-	}
-	if !overwriteOrAdopt && isExist {
-		return repo_model.ErrRepoFilesAlreadyExist{Uname: owner.Name, Name: name}
-	}
 	return nil
 }

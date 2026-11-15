@@ -35,20 +35,6 @@ func CheckRepoScopedToken(ctx *Context, repo *repo_model.Repository, level auth_
 	CheckTokenScopes(ctx, repo, auth_model.GetRequiredScopes(level, auth_model.AccessTokenScopeCategoryRepository)...)
 }
 
-// TokenIsPublicOnly reports whether the request is authenticated by a public-only API token. A
-// non-token request, or a token with no recorded scope, is not public-only.
-func TokenIsPublicOnly(ctx *Context) bool {
-	if ctx.Data["IsApiToken"] != true {
-		return false
-	}
-	scope, ok := ctx.Data["ApiTokenScope"].(auth_model.AccessTokenScope)
-	if !ok {
-		return false
-	}
-	publicOnly, _ := scope.PublicOnly()
-	return publicOnly
-}
-
 // CheckTokenScopes checks whether the authenticated API token contains any of the given scopes.
 func CheckTokenScopes(ctx *Context, repo *repo_model.Repository, scopes ...auth_model.AccessTokenScope) {
 	if ctx.Data["IsApiToken"] != true {

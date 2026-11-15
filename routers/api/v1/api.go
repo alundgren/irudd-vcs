@@ -654,29 +654,6 @@ func orgAssignment(args ...bool) func(ctx *context.APIContext) {
 	}
 }
 
-func mustEnableIssues(ctx *context.APIContext) {
-	if !ctx.Repo.Permission.CanRead(unit.TypeIssues) {
-		if log.IsTrace() {
-			if ctx.IsSigned {
-				log.Trace("Permission Denied: User %-v cannot read %-v in Repo %-v\n"+
-					"User in Repo has Permissions: %-+v",
-					ctx.Doer,
-					unit.TypeIssues,
-					ctx.Repo.Repository,
-					ctx.Repo.Permission)
-			} else {
-				log.Trace("Permission Denied: Anonymous user cannot read %-v in Repo %-v\n"+
-					"Anonymous user in Repo has Permissions: %-+v",
-					unit.TypeIssues,
-					ctx.Repo.Repository,
-					ctx.Repo.Permission)
-			}
-		}
-		ctx.APIErrorNotFound()
-		return
-	}
-}
-
 func mustAllowPulls(ctx *context.APIContext) {
 	if !(ctx.Repo.Repository.CanEnablePulls() && ctx.Repo.Permission.CanRead(unit.TypePullRequests)) {
 		if ctx.Repo.Repository.CanEnablePulls() && log.IsTrace() {

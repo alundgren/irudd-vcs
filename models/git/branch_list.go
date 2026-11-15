@@ -37,28 +37,6 @@ func (branches BranchList) LoadDeletedBy(ctx context.Context) error {
 	return nil
 }
 
-func (branches BranchList) LoadPusher(ctx context.Context) error {
-	ids := container.FilterSlice(branches, func(branch *Branch) (int64, bool) {
-		// pusher_id maybe zero because some branches are sync by backend with no pusher
-		return branch.PusherID, branch.PusherID > 0
-	})
-
-	usersMap := make(map[int64]*user_model.User, len(ids))
-	if err := db.GetEngine(ctx).In("id", ids).Find(&usersMap); err != nil {
-		return err
-	}
-	for _, branch := range branches {
-		if branch.PusherID <= 0 {
-			continue
-		}
-		branch.Pusher = usersMap[branch.PusherID]
-		if branch.Pusher == nil {
-			branch.Pusher = user_model.NewGhostUser()
-		}
-	}
-	return nil
-}
-
 type FindBranchOptions struct {
 	db.ListOptions
 	RepoID             int64
@@ -109,21 +87,4 @@ func FindBranchNames(ctx context.Context, opts FindBranchOptions) ([]string, err
 		return nil, err
 	}
 	return branches, nil
-}
-
-func FindBranchesByRepoAndBranchName(ctx context.Context, repoBranches map[int64]string) (map[int64]string, error) {
-	cond := builder.NewCond()
-	for repoID, branchName := range repoBranches {
-		cond = cond.Or(builder.And(builder.Eq{"repo_id": repoID}, builder.Eq{"name": branchName}))
-	}
-	var branches []*Branch
-	if err := db.GetEngine(ctx).
-		Where(cond).Find(&branches); err != nil {
-		return nil, err
-	}
-	branchMap := make(map[int64]string, len(branches))
-	for _, branch := range branches {
-		branchMap[branch.RepoID] = branch.CommitID
-	}
-	return branchMap, nil
 }

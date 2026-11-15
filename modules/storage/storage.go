@@ -125,21 +125,6 @@ func Clean(storage ObjectStorage) error {
 	})
 }
 
-// SaveFrom saves data to the ObjectStorage with path p from the callback
-func SaveFrom(objStorage ObjectStorage, path string, callback func(w io.Writer) error) error {
-	pr, pw := io.Pipe()
-	defer pr.Close()
-	go func() {
-		defer pw.Close()
-		if err := callback(pw); err != nil {
-			_ = pw.CloseWithError(err)
-		}
-	}()
-
-	_, err := objStorage.Save(path, pr, -1)
-	return err
-}
-
 func buildObjectStorePath(base, p string) string {
 	p = strings.TrimPrefix(util.PathJoinRelX(base, p), "/") // object store doesn't use slash for root path
 	if p == "." {

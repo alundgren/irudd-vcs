@@ -35,20 +35,6 @@ type CompareInfo struct {
 	NumFiles int
 }
 
-func (ci *CompareInfo) IsSameRepository() bool {
-	return ci.BaseRepo.ID == ci.HeadRepo.ID
-}
-
-func (ci *CompareInfo) IsSameRef() bool {
-	return ci.IsSameRepository() && ci.BaseRef == ci.HeadRef
-}
-
-func (ci *CompareInfo) DirectComparison() bool {
-	// FIXME: the design of "DirectComparison" is wrong, it loses the information of `^`
-	// To correctly handle the comparison, developers should use `ci.CompareSeparator` directly, all "DirectComparison" related code should be rewritten.
-	return ci.CompareSeparator == ".."
-}
-
 // GetCompareInfo generates and returns compare information between base and head branches of repositories.
 // It does its best to fill the fields as many as it can.
 // MergeBase can be empty if the base and head are unrelated.

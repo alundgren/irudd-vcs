@@ -20,12 +20,9 @@ type Notifier interface {
 
 	AdoptRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository)
 	CreateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository)
-	MigrateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository)
 	DeleteRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository)
 	ForkRepository(ctx context.Context, doer *user_model.User, oldRepo, repo *repo_model.Repository)
 	RenameRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldRepoName string)
-	TransferRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldOwnerName string)
-	RepoPendingTransfer(ctx context.Context, doer, newOwner *user_model.User, repo *repo_model.Repository)
 
 	NewIssue(ctx context.Context, issue *issues_model.Issue, mentions []*user_model.User)
 	IssueChangeStatus(ctx context.Context, doer *user_model.User, commitID string, issue *issues_model.Issue, actionComment *issues_model.Comment, closeOrReopen bool)
@@ -54,18 +51,12 @@ type Notifier interface {
 	UpdateComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment, oldContent string)
 	DeleteComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment)
 
-	NewRelease(ctx context.Context, rel *repo_model.Release)
 	UpdateRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release)
 	DeleteRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release)
 
 	PushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits)
 	CreateRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string)
 	DeleteRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName)
-	SyncPushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits)
-	SyncCreateRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string)
-	SyncDeleteRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName)
-
-	ChangeDefaultBranch(ctx context.Context, repo *repo_model.Repository)
 
 	CreateCommitStatus(ctx context.Context, repo *repo_model.Repository, commit *repository.PushCommit, sender *user_model.User, status *git_model.CommitStatus)
 }

@@ -6,7 +6,6 @@ package issue
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	issues_model "gitea.dev/models/issues"
@@ -30,10 +29,6 @@ var codeOwnerFiles = []string{"CODEOWNERS", "docs/CODEOWNERS", ".gitea/CODEOWNER
 // codeOwnerMatchBudget caps the total wall-clock time spent evaluating all
 // CODEOWNERS rules against all changed files for a single PR.
 const codeOwnerMatchBudget = 2 * time.Second
-
-func IsCodeOwnerFile(f string) bool {
-	return slices.Contains(codeOwnerFiles, f)
-}
 
 func PullRequestCodeOwnersReview(ctx context.Context, pr *issues_model.PullRequest) ([]*ReviewRequestNotifier, error) {
 	if err := pr.LoadIssue(ctx); err != nil {

@@ -10,12 +10,9 @@ import (
 	"fmt"
 	"math/big"
 	rand2 "math/rand/v2"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
-
-	"gitea.dev/modules/container"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -24,11 +21,6 @@ import (
 // IsEmptyString checks if the provided string is empty
 func IsEmptyString(s string) bool {
 	return len(strings.TrimSpace(s)) == 0
-}
-
-// ParseYamlBool parses YAML 1.2 boolean values into bool
-func ParseYamlBool(s string) bool {
-	return s == "true" || s == "True" || s == "TRUE"
 }
 
 // NormalizeEOL will convert Windows (CRLF) and Mac (CR) EOLs to UNIX (LF)
@@ -141,12 +133,6 @@ func ToTitleCase(s string) string {
 	return cases.Title(language.English).String(s)
 }
 
-// ToTitleCaseNoLower returns s with all english words capitalized without lower-casing
-func ToTitleCaseNoLower(s string) string {
-	// `cases.Title` is not thread-safe, do not use global shared variable for it
-	return cases.Title(language.English, cases.NoLower).String(s)
-}
-
 // ToInt64 transform a given int into int64.
 func ToInt64(number any) (int64, error) {
 	var value int64
@@ -248,13 +234,6 @@ func IfZero[T comparable](v, def T) T {
 	return v
 }
 
-func IfEmpty[T any](v, def []T) []T {
-	if len(v) == 0 {
-		return def
-	}
-	return v
-}
-
 // OptionalArg helps the "optional argument" in Golang:
 //
 //	func foo(optArg ...int) { return OptionalArg(optArg) }
@@ -274,20 +253,6 @@ func OptionalArg[T any](optArg []T, defaultValue ...T) (ret T) {
 	return ret
 }
 
-type EnumConst[T comparable] interface {
-	EnumValues() []T
-}
-
-// EnumValue returns the value if it's in the enum const's values,
-// otherwise returns the first item of enums as default value.
-func EnumValue[T comparable](val EnumConst[T]) (ret T, valid bool) {
-	enums := val.EnumValues()
-	if slices.Contains(enums, val.(T)) {
-		return val.(T), true
-	}
-	return enums[0], false
-}
-
 func NormalizeStringEOL(input string) string {
 	// Since the content is from a form which is a textarea, the line endings are \r\n.
 	// It's a standard behavior of HTML.
@@ -297,28 +262,4 @@ func NormalizeStringEOL(input string) string {
 	// And users are unlikely to really need the "\r".
 	// Other than this, we should respect the original content, even leading or trailing spaces.
 	return UnsafeBytesToString(NormalizeEOL(UnsafeStringToBytes(input)))
-}
-
-func DiffSlice[T comparable](oldSlice, newSlice []T) (added, removed []T) {
-	oldSet := container.SetOf(oldSlice...)
-	newSet := container.SetOf(newSlice...)
-
-	addedSet, removedSet := container.Set[T]{}, container.Set[T]{}
-	for _, v := range newSlice {
-		if !oldSet.Contains(v) && addedSet.Add(v) {
-			added = append(added, v)
-		}
-	}
-	for _, v := range oldSlice {
-		if !newSet.Contains(v) && removedSet.Add(v) {
-			removed = append(removed, v)
-		}
-	}
-	return added, removed
-}
-
-func MustNoError(err error) {
-	if err != nil {
-		panic(err)
-	}
 }

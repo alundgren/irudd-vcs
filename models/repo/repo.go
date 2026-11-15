@@ -668,15 +668,6 @@ func GetRepositoryByID(ctx context.Context, id int64) (*Repository, error) {
 	return repo, nil
 }
 
-// GetRepositoriesMapByIDs returns the repositories by given id slice.
-func GetRepositoriesMapByIDs(ctx context.Context, ids []int64) (map[int64]*Repository, error) {
-	repos := make(map[int64]*Repository, len(ids))
-	if len(ids) == 0 {
-		return repos, nil
-	}
-	return repos, db.GetEngine(ctx).In("id", ids).Find(&repos)
-}
-
 func IsRepositoryModelExist(ctx context.Context, u *user_model.User, repoName string) (bool, error) {
 	return db.Exist[Repository](ctx, builder.Eq{
 		"owner_id":   u.ID,

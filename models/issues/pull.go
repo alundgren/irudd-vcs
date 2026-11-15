@@ -515,20 +515,6 @@ func GetUnmergedPullRequest(ctx context.Context, headRepoID, baseRepoID int64, h
 	return pr, nil
 }
 
-// GetLatestPullRequestByHeadInfo returns the latest pull request (regardless of its status)
-// by given head information (repo and branch).
-func GetLatestPullRequestByHeadInfo(ctx context.Context, repoID int64, branch string) (*PullRequest, error) {
-	pr := new(PullRequest)
-	has, err := db.GetEngine(ctx).
-		Where("head_repo_id = ? AND head_branch = ? AND flow = ?", repoID, branch, PullRequestFlowGithub).
-		OrderBy("id DESC").
-		Get(pr)
-	if !has {
-		return nil, err
-	}
-	return pr, err
-}
-
 // GetPullRequestByIndex returns a pull request by the given index
 func GetPullRequestByIndex(ctx context.Context, repoID, index int64) (*PullRequest, error) {
 	if index < 1 {
@@ -562,19 +548,6 @@ func GetPullRequestByID(ctx context.Context, id int64) (*PullRequest, error) {
 		return nil, ErrPullRequestNotExist{id, 0, 0, 0, "", ""}
 	}
 	return pr, pr.LoadAttributes(ctx)
-}
-
-// GetPullRequestByIssueIDWithNoAttributes returns pull request with no attributes loaded by given issue ID.
-func GetPullRequestByIssueIDWithNoAttributes(ctx context.Context, issueID int64) (*PullRequest, error) {
-	var pr PullRequest
-	has, err := db.GetEngine(ctx).Where("issue_id = ?", issueID).Get(&pr)
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, ErrPullRequestNotExist{0, issueID, 0, 0, "", ""}
-	}
-	return &pr, nil
 }
 
 // GetPullRequestByIssueID returns pull request by given issue ID.
@@ -615,20 +588,6 @@ func GetPullRequestByBaseHeadInfo(ctx context.Context, baseID, headID int64, bas
 	}
 
 	return pr, nil
-}
-
-// GetAllUnmergedAgitPullRequestByPoster get all unmerged agit flow pull request
-// By poster id.
-func GetAllUnmergedAgitPullRequestByPoster(ctx context.Context, uid int64) ([]*PullRequest, error) {
-	pulls := make([]*PullRequest, 0, 10)
-
-	err := db.GetEngine(ctx).
-		Where("has_merged=? AND flow = ? AND issue.is_closed=? AND issue.poster_id=?",
-			false, PullRequestFlowAGit, false, uid).
-		Join("INNER", "issue", "issue.id=pull_request.issue_id").
-		Find(&pulls)
-
-	return pulls, err
 }
 
 // UpdateCols updates specific fields of pull request.

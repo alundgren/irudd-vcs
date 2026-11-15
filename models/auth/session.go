@@ -24,15 +24,6 @@ func init() {
 	db.RegisterModel(new(Session))
 }
 
-// UpdateSession updates the session with provided id
-func UpdateSession(ctx context.Context, key string, data []byte) error {
-	_, err := db.GetEngine(ctx).ID(key).Update(&Session{
-		Data:   data,
-		Expiry: timeutil.TimeStampNow(),
-	})
-	return err
-}
-
 // ReadSession reads the data for the provided session
 func ReadSession(ctx context.Context, key string) (*Session, error) {
 	return db.WithTx2(ctx, func(ctx context.Context) (*Session, error) {
@@ -56,14 +47,6 @@ func ReadSession(ctx context.Context, key string) (*Session, error) {
 // ExistSession checks if a session exists
 func ExistSession(ctx context.Context, key string) (bool, error) {
 	return db.Exist[Session](ctx, builder.Eq{"`key`": key})
-}
-
-// DestroySession destroys a session
-func DestroySession(ctx context.Context, key string) error {
-	_, err := db.GetEngine(ctx).Delete(&Session{
-		Key: key,
-	})
-	return err
 }
 
 // RegenerateSession regenerates a session from the old id
@@ -98,15 +81,4 @@ func RegenerateSession(ctx context.Context, oldKey, newKey string) (*Session, er
 
 		return s, nil
 	})
-}
-
-// CountSessions returns the number of sessions
-func CountSessions(ctx context.Context) (int64, error) {
-	return db.GetEngine(ctx).Count(&Session{})
-}
-
-// CleanupSessions cleans up expired sessions
-func CleanupSessions(ctx context.Context, maxLifetime int64) error {
-	_, err := db.GetEngine(ctx).Where("expiry <= ?", timeutil.TimeStampNow().Add(-maxLifetime)).Delete(&Session{})
-	return err
 }

@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path"
 	"strings"
 
 	"gitea.dev/models/db"
@@ -114,14 +113,6 @@ func (d *DiffLine) GetCommentSide() string {
 	return d.Comments[0].DiffSide()
 }
 
-// GetLineTypeMarker returns the line type marker
-func (d *DiffLine) GetLineTypeMarker() string {
-	if strings.IndexByte(" +-", d.Content[0]) > -1 {
-		return d.Content[0:1]
-	}
-	return ""
-}
-
 func newDiffLineSectionInfo(curFile *DiffFile, line string, lastLeftIdx, lastRightIdx int) *DiffLineSectionInfo {
 	leftLine, leftHunk, rightLine, rightHunk := git.ParseDiffHunkString(line)
 
@@ -140,13 +131,6 @@ func newDiffLineSectionInfo(curFile *DiffFile, line string, lastLeftIdx, lastRig
 type DiffSection struct {
 	FileName string
 	Lines    []*DiffLine
-}
-
-func (diffSection *DiffSection) GetLine(idx int) *DiffLine {
-	if idx <= 0 {
-		return nil
-	}
-	return diffSection.Lines[idx]
 }
 
 // DiffFile represents a file diff.
@@ -176,11 +160,7 @@ type DiffFile struct {
 
 	// will be filled by the extra loop in GitDiffForRender
 	IsGenerated       bool
-	IsVendored        bool
 	SubmoduleDiffInfo *SubmoduleDiffInfo // IsSubmodule==true, then there must be a SubmoduleDiffInfo
-
-	// will be filled by route handler
-	IsProtected bool
 }
 
 // GetType returns type of diff file.
@@ -194,18 +174,6 @@ func (diffFile *DiffFile) GetDiffFileName() string {
 		return diffFile.OldName
 	}
 	return diffFile.Name
-}
-
-// GetDiffFileBaseName returns the short name of the diff file, or its short old name in case it was deleted
-func (diffFile *DiffFile) GetDiffFileBaseName() string {
-	if diffFile.Name == "" {
-		return path.Base(diffFile.OldName)
-	}
-	return path.Base(diffFile.Name)
-}
-
-func (diffFile *DiffFile) ShouldBeHidden() bool {
-	return diffFile.IsGenerated
 }
 
 // Diff represents a difference between two git trees.

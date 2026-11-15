@@ -367,24 +367,6 @@ func GetIndividualUserRepoPermission(ctx context.Context, repo *repo_model.Repos
 	return perm, err
 }
 
-// IsUserRealRepoAdmin check if this user is real repo admin
-func IsUserRealRepoAdmin(ctx context.Context, repo *repo_model.Repository, user *user_model.User) (bool, error) {
-	if repo.OwnerID == user.ID {
-		return true, nil
-	}
-
-	if err := repo.LoadOwner(ctx); err != nil {
-		return false, err
-	}
-
-	accessMode, err := accessLevel(ctx, user, repo)
-	if err != nil {
-		return false, err
-	}
-
-	return accessMode >= perm_model.AccessModeAdmin, nil
-}
-
 // IsUserRepoAdmin return true if user has admin right of a repo
 func IsUserRepoAdmin(ctx context.Context, repo *repo_model.Repository, user *user_model.User) (bool, error) {
 	if user == nil || repo == nil {
@@ -508,23 +490,4 @@ func GetUserIDsWithAnyUnitAccess(ctx context.Context, repo *repo_model.Repositor
 		userIDs.AddMultiple(teamUserIDs...)
 	}
 	return userIDs, nil
-}
-
-// CheckRepoUnitUser check whether user could visit the unit of this repository
-// This helper only supports explicit user identities and does not resolve Actions task users.
-func CheckRepoUnitUser(ctx context.Context, repo *repo_model.Repository, user *user_model.User, unitType unit.Type) bool {
-	if user != nil && user.IsAdmin {
-		return true
-	}
-	perm, err := GetIndividualUserRepoPermission(ctx, repo, user)
-	if err != nil {
-		log.Error("GetIndividualUserRepoPermission: %w", err)
-		return false
-	}
-
-	return perm.CanRead(unitType)
-}
-
-func PermissionNoAccess() Permission {
-	return Permission{AccessMode: perm_model.AccessModeNone}
 }

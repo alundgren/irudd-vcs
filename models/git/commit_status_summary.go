@@ -9,8 +9,6 @@ import (
 	"gitea.dev/models/db"
 	"gitea.dev/modules/commitstatus"
 	"gitea.dev/modules/setting"
-
-	"xorm.io/builder"
 )
 
 // CommitStatusSummary holds the latest commit Status of a single Commit
@@ -24,34 +22,6 @@ type CommitStatusSummary struct {
 
 func init() {
 	db.RegisterModel(new(CommitStatusSummary))
-}
-
-type RepoSHA struct {
-	RepoID int64
-	SHA    string
-}
-
-func GetLatestCommitStatusForRepoAndSHAs(ctx context.Context, repoSHAs []RepoSHA) ([]*CommitStatus, error) {
-	cond := builder.NewCond()
-	for _, rs := range repoSHAs {
-		cond = cond.Or(builder.Eq{"repo_id": rs.RepoID, "sha": rs.SHA})
-	}
-
-	var summaries []CommitStatusSummary
-	if err := db.GetEngine(ctx).Where(cond).Find(&summaries); err != nil {
-		return nil, err
-	}
-
-	commitStatuses := make([]*CommitStatus, 0, len(repoSHAs))
-	for _, summary := range summaries {
-		commitStatuses = append(commitStatuses, &CommitStatus{
-			RepoID:    summary.RepoID,
-			SHA:       summary.SHA,
-			State:     summary.State,
-			TargetURL: summary.TargetURL,
-		})
-	}
-	return commitStatuses, nil
 }
 
 func UpdateCommitStatusSummary(ctx context.Context, repoID int64, sha string) error {

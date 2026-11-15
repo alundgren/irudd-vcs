@@ -26,8 +26,6 @@ var (
 const (
 	BasicMethodName       = "basic"
 	AccessTokenMethodName = "access_token"
-	OAuth2TokenMethodName = "oauth2_token"
-	ActionTokenMethodName = "action_token"
 )
 
 // Basic implements the Auth interface and authenticates requests (API requests
@@ -126,20 +124,4 @@ func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore
 	log.Trace("Basic Authorization: Logged in user %-v", u)
 
 	return u, nil
-}
-
-func GetAccessScope(store DataStore) auth_model.AccessTokenScope {
-	if v, ok := store.GetData()["ApiTokenScope"]; ok {
-		return v.(auth_model.AccessTokenScope)
-	}
-	switch store.GetData()["LoginMethod"] {
-	case OAuth2TokenMethodName:
-		fallthrough
-	case BasicMethodName, AccessTokenMethodName:
-		return auth_model.AccessTokenScopeAll
-	case ActionTokenMethodName:
-		fallthrough
-	default:
-		return ""
-	}
 }

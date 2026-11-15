@@ -22,18 +22,6 @@ func (td *TempDir) JoinPath(elems ...string) string {
 	return filepath.Join(append([]string{td.base, td.sub}, filepath.Join(elems...))...)
 }
 
-// MkdirAllSub works like os.MkdirAll, but the base directory must exist
-func (td *TempDir) MkdirAllSub(dir string) (string, error) {
-	if _, err := os.Stat(td.base); err != nil {
-		return "", err
-	}
-	full := filepath.Join(td.base, td.sub, dir)
-	if err := os.MkdirAll(full, os.ModePerm); err != nil {
-		return "", err
-	}
-	return full, nil
-}
-
 func (td *TempDir) prepareDirWithPattern(elems ...string) (dir, pattern string, err error) {
 	if _, err = os.Stat(td.base); err != nil {
 		return "", "", err

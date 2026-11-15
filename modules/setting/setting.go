@@ -59,10 +59,6 @@ func IsRunUserMatchCurrentUser(runUser string) (string, bool) {
 	return currentUser, runUser == currentUser
 }
 
-func IsInE2eTesting() bool {
-	return os.Getenv("GITEA_TEST_E2E") == "true"
-}
-
 // PrepareAppDataPath creates app data directory if necessary
 func PrepareAppDataPath() error {
 	// FIXME: There are too many calls to MkdirAll in old code. It is incorrect.

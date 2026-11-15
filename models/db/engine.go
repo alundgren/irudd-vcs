@@ -169,12 +169,6 @@ func DeleteAllRecords(tableName string) error {
 	return err
 }
 
-// GetMaxID will return max id of the table
-func GetMaxID(beanOrTableName any) (maxID int64, err error) {
-	_, err = xormEngine.Select("MAX(id)").Table(beanOrTableName).Get(&maxID)
-	return maxID, err
-}
-
 func SetLogSQL(ctx context.Context, on bool) {
 	e := GetEngine(ctx)
 	if x, ok := e.(*xorm.Engine); ok {

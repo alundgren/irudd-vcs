@@ -23,17 +23,6 @@ type IssueStats struct {
 	ReviewedCount          int64
 }
 
-// Filter modes.
-const (
-	FilterModeAll = iota
-	FilterModeAssign
-	FilterModeCreate
-	FilterModeMention
-	FilterModeReviewRequested
-	FilterModeReviewed
-	FilterModeYourRepositories
-)
-
 // MaxQueryParameters represents the max query parameters
 // When queries are broken down in parts because of the number
 // of parameters, attempt to break by this amount
