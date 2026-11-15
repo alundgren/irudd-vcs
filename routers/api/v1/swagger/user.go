@@ -4,7 +4,6 @@
 package swagger
 
 import (
-	activities_model "gitea.dev/models/activities"
 	api "gitea.dev/modules/structs"
 )
 
@@ -33,13 +32,6 @@ type swaggerResponseEmailList struct {
 type swaggerModelEditUserOption struct {
 	// in:body
 	Options api.EditUserOption
-}
-
-// UserHeatmapData
-// swagger:response UserHeatmapData
-type swaggerResponseUserHeatmapData struct {
-	// in:body
-	Body []activities_model.UserHeatmapData `json:"body"`
 }
 
 // UserSettings

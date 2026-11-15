@@ -11,7 +11,6 @@ import (
 
 	"gitea.dev/models/git"
 	"gitea.dev/models/repo"
-	"gitea.dev/models/user"
 	"gitea.dev/modules/base"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
@@ -81,8 +80,6 @@ type checkStorageOptions struct {
 	All          bool
 	Attachments  bool
 	LFS          bool
-	Avatars      bool
-	RepoAvatars  bool
 	RepoArchives bool
 }
 
@@ -123,34 +120,6 @@ func checkStorage(opts *checkStorageOptions) func(ctx context.Context, logger lo
 						return !exists, err
 					},
 					name: "LFS file",
-				}); err != nil {
-				return err
-			}
-		}
-
-		if opts.Avatars || opts.All {
-			if err := commonCheckStorage(logger, autofix,
-				&commonStorageCheckOptions{
-					storer: storage.Avatars,
-					isOrphaned: func(path string, obj storage.Object, stat fs.FileInfo) (bool, error) {
-						exists, err := user.ExistsWithAvatarAtStoragePath(ctx, path)
-						return !exists, err
-					},
-					name: "avatar",
-				}); err != nil {
-				return err
-			}
-		}
-
-		if opts.RepoAvatars || opts.All {
-			if err := commonCheckStorage(logger, autofix,
-				&commonStorageCheckOptions{
-					storer: storage.RepoAvatars,
-					isOrphaned: func(path string, obj storage.Object, stat fs.FileInfo) (bool, error) {
-						exists, err := repo.ExistsWithAvatarAtStoragePath(ctx, path)
-						return !exists, err
-					},
-					name: "repo avatar",
 				}); err != nil {
 				return err
 			}
@@ -210,16 +179,6 @@ func init() {
 	})
 
 	Register(&Check{
-		Title:                      "Check if there are orphaned avatars in storage",
-		Name:                       "storage-avatars",
-		IsDefault:                  false,
-		Run:                        checkStorage(&checkStorageOptions{Avatars: true, RepoAvatars: true}),
-		AbortIfFailed:              false,
-		SkipDatabaseInitialization: false,
-		Priority:                   1,
-	})
-
-	Register(&Check{
 		Title:                      "Check if there are orphaned archives in storage",
 		Name:                       "storage-archives",
 		IsDefault:                  false,
@@ -228,5 +187,4 @@ func init() {
 		SkipDatabaseInitialization: false,
 		Priority:                   1,
 	})
-
 }

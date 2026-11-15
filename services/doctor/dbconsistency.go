@@ -6,7 +6,6 @@ package doctor
 import (
 	"context"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/migrations"
@@ -141,12 +140,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 			FixedMessage: "Removed",
 		},
 		{
-			Name:         "Action with created_unix set as an empty string",
-			Counter:      activities_model.CountActionCreatedUnixString,
-			Fixer:        activities_model.FixActionCreatedUnixString,
-			FixedMessage: "Set to zero",
-		},
-		{
 			Name:         "Topics with empty repository count",
 			Counter:      repo_model.CountOrphanedTopics,
 			Fixer:        repo_model.DeleteOrphanedTopics,
@@ -187,12 +180,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 		// find access without repository
 		genericOrphanCheck("Access entries without existing repository",
 			"access", "repository", "access.repo_id=repository.id"),
-		// find action without repository
-		genericOrphanCheck("Action entries without existing repository",
-			"action", "repository", "action.repo_id=repository.id"),
-		// find action without user
-		genericOrphanCheck("Action entries without existing user",
-			"action", "user", "action.act_user_id=`user`.id"),
 		// find stopwatches without existing user
 		genericOrphanCheck("Orphaned Stopwatches without existing User",
 			"stopwatch", "user", "stopwatch.user_id=`user`.id"),

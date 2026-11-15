@@ -287,11 +287,6 @@ func (org *Organization) DisplayName() string {
 	return org.AsUser().DisplayName()
 }
 
-// CustomAvatarRelativePath returns user custom avatar relative path.
-func (org *Organization) CustomAvatarRelativePath() string {
-	return org.Avatar
-}
-
 // UnitPermission returns unit permission
 func (org *Organization) UnitPermission(ctx context.Context, doer *user_model.User, unitType unit.Type) perm.AccessMode {
 	if doer != nil {
@@ -342,7 +337,6 @@ func CreateOrganization(ctx context.Context, org *Organization, owner *user_mode
 	if org.Salt, err = user_model.GetUserSalt(); err != nil {
 		return err
 	}
-	org.UseCustomAvatar = true
 	org.MaxRepoCreation = -1
 	org.NumTeams = 1
 	org.NumMembers = 1
@@ -355,9 +349,6 @@ func CreateOrganization(ctx context.Context, org *Organization, owner *user_mode
 
 		if err = db.Insert(ctx, org); err != nil {
 			return fmt.Errorf("insert organization: %w", err)
-		}
-		if err = user_model.GenerateRandomAvatar(ctx, org.AsUser()); err != nil {
-			return fmt.Errorf("generate random avatar: %w", err)
 		}
 
 		// Add initial creator to organization and owner team.

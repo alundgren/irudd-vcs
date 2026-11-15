@@ -16,7 +16,6 @@ import (
 	system_model "gitea.dev/models/system"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/storage"
 	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	org_service "gitea.dev/services/org"
@@ -220,14 +219,6 @@ func DeleteUser(ctx context.Context, u *user_model.User, purge bool) error {
 	if err := util.RemoveAll(path); err != nil {
 		err = fmt.Errorf("failed to RemoveAll %s: %w", path, err)
 		_ = system_model.CreateNotice(ctx, system_model.NoticeTask, fmt.Sprintf("delete user '%s': %v", u.Name, err))
-	}
-
-	if u.Avatar != "" {
-		avatarPath := u.CustomAvatarRelativePath()
-		if err := storage.Avatars.Delete(avatarPath); err != nil {
-			err = fmt.Errorf("failed to remove %s: %w", avatarPath, err)
-			_ = system_model.CreateNotice(ctx, system_model.NoticeTask, fmt.Sprintf("delete user '%s': %v", u.Name, err))
-		}
 	}
 
 	return nil

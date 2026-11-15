@@ -8,7 +8,6 @@ import (
 	"errors"
 	"net/http"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/organization"
 	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
@@ -22,7 +21,6 @@ import (
 	"gitea.dev/routers/api/v1/utils"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
-	feed_service "gitea.dev/services/feed"
 	org_service "gitea.dev/services/org"
 	repo_service "gitea.dev/services/repository"
 )
@@ -883,58 +881,4 @@ func SearchTeam(ctx *context.APIContext) {
 		"ok":   true,
 		"data": apiTeams,
 	})
-}
-
-func ListTeamActivityFeeds(ctx *context.APIContext) {
-	// swagger:operation GET /teams/{id}/activities/feeds organization orgListTeamActivityFeeds
-	// ---
-	// summary: List a team's activity feeds
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: id
-	//   in: path
-	//   description: id of the team
-	//   type: integer
-	//   format: int64
-	//   required: true
-	// - name: date
-	//   in: query
-	//   description: the date of the activities to be found
-	//   type: string
-	//   format: date
-	// - name: page
-	//   in: query
-	//   description: page number of results to return (1-based)
-	//   type: integer
-	// - name: limit
-	//   in: query
-	//   description: page size of results
-	//   type: integer
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/ActivityFeedsList"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-
-	listOptions := utils.GetListOptions(ctx)
-
-	opts := activities_model.GetFeedsOptions{
-		RequestedTeam:  ctx.Org.Team,
-		Actor:          ctx.Doer,
-		IncludePrivate: true,
-		Date:           ctx.FormString("date"),
-		ListOptions:    listOptions,
-	}
-	// A public-only token must not receive private activity entries.
-	opts.ApplyPublicOnly(ctx.PublicOnly)
-
-	feeds, count, err := feed_service.GetFeeds(ctx, opts)
-	if err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
-	ctx.SetLinkHeader(count, listOptions.PageSize)
-	ctx.SetTotalCountHeader(count)
-	ctx.JSON(http.StatusOK, convert.ToActivities(ctx, feeds, ctx.Doer))
 }

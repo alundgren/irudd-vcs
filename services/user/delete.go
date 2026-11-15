@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	activities_model "gitea.dev/models/activities"
 	auth_model "gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
@@ -77,7 +76,6 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 		&repo_model.Star{UID: u.ID},
 		&user_model.Follow{UserID: u.ID},
 		&user_model.Follow{FollowID: u.ID},
-		&activities_model.Action{UserID: u.ID},
 		&issues_model.IssueUser{UID: u.ID},
 		&user_model.EmailAddress{UID: u.ID},
 		&issues_model.Reaction{UserID: u.ID},
@@ -90,7 +88,6 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 		&user_model.Redirect{RedirectUserID: u.ID},
 		&user_model.Blocking{BlockerID: u.ID},
 		&user_model.Blocking{BlockeeID: u.ID},
-		&activities_model.Notification{UserID: u.ID},
 		&issues_model.IssueWatch{UserID: u.ID},
 	); err != nil {
 		return fmt.Errorf("deleteBeans: %w", err)

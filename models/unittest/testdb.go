@@ -69,7 +69,6 @@ func mainTest(m *testing.M, testOptsArg ...*TestOptions) int {
 	setting.SSH.Domain = "try.gitea.io"
 	setting.Database.Type = "sqlite3"
 	setting.Repository.DefaultBranch = "master" // many test code still assume that default branch is called "master"
-	setting.GravatarSource = "https://secure.gravatar.com/avatar/"
 	setting.IncomingEmail.ReplyToAddress = "incoming+%{token}@localhost"
 
 	config.SetDynGetter(system.NewDatabaseDynKeyGetter())

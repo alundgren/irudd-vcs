@@ -11,11 +11,6 @@ import (
 	"gitea.dev/modules/setting/config"
 )
 
-type PictureStruct struct {
-	DisableGravatar       *config.Option[bool]
-	EnableFederatedAvatar *config.Option[bool]
-}
-
 type OpenWithEditorApp struct {
 	DisplayName string
 	OpenURL     string
@@ -57,7 +52,6 @@ type RepositoryStruct struct {
 }
 
 type ConfigStruct struct {
-	Picture    *PictureStruct
 	Repository *RepositoryStruct
 	Instance   *InstanceStruct
 }
@@ -70,10 +64,6 @@ var (
 func initDefaultConfig() {
 	config.SetCfgSecKeyGetter(&cfgSecKeyGetter{})
 	defaultConfig = &ConfigStruct{
-		Picture: &PictureStruct{
-			DisableGravatar:       config.NewOption[bool]("picture.disable_gravatar").WithDefaultSimple(true).WithFileConfig(config.CfgSecKey{Sec: "picture", Key: "DISABLE_GRAVATAR"}),
-			EnableFederatedAvatar: config.NewOption[bool]("picture.enable_federated_avatar").WithFileConfig(config.CfgSecKey{Sec: "picture", Key: "ENABLE_FEDERATED_AVATAR"}),
-		},
 		Repository: &RepositoryStruct{
 			OpenWithEditorApps: config.NewOption[OpenWithEditorAppsType]("repository.open-with.editor-apps").WithEmptyAsDefault().WithDefaultFunc(openWithEditorAppsDefaultValue),
 			GitGuideRemoteName: config.NewOption[string]("repository.git-guide-remote-name").WithEmptyAsDefault().WithDefaultSimple("origin"),

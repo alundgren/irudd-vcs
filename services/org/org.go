@@ -7,14 +7,12 @@ import (
 	"context"
 	"fmt"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	org_model "gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	issue_indexer "gitea.dev/modules/indexer/issues"
-	"gitea.dev/modules/storage"
 	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	repo_service "gitea.dev/services/repository"
@@ -79,13 +77,6 @@ func DeleteOrganization(ctx context.Context, org *org_model.Organization, purge 
 		return fmt.Errorf("failed to RemoveAll %s: %w", path, err)
 	}
 
-	if len(org.Avatar) > 0 {
-		avatarPath := org.CustomAvatarRelativePath()
-		if err := storage.Avatars.Delete(avatarPath); err != nil {
-			return fmt.Errorf("failed to remove %s: %w", avatarPath, err)
-		}
-	}
-
 	return nil
 }
 
@@ -100,12 +91,6 @@ func updateRepoForVisibilityChanged(ctx context.Context, repo *repo_model.Reposi
 	}
 
 	if makePrivate {
-		if _, err := db.GetEngine(ctx).Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{
-			IsPrivate: true,
-		}); err != nil {
-			return err
-		}
-
 		// the repo is no longer publicly visible, so drop stars and watches from users who can no longer
 		// see it, matching the direct repository-private transition (see services/repository)
 		if err := repo_model.ClearRepoStars(ctx, repo.ID); err != nil {

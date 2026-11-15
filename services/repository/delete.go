@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
@@ -112,7 +111,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 
 	if err := db.DeleteBeans(ctx,
 		&access_model.Access{RepoID: repo.ID},
-		&activities_model.Action{RepoID: repo.ID},
 		&repo_model.Collaboration{RepoID: repoID},
 		&issues_model.Comment{RefRepoID: repoID},
 		&git_model.CommitStatus{RepoID: repoID},
@@ -125,7 +123,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		&repo_model.RepoLicense{RepoID: repoID},
 		&issues_model.Milestone{RepoID: repoID},
 		&repo_model.Mirror{RepoID: repoID},
-		&activities_model.Notification{RepoID: repoID},
 		&git_model.ProtectedBranch{RepoID: repoID},
 		&git_model.ProtectedTag{RepoID: repoID},
 		&repo_model.PushMirror{RepoID: repoID},
@@ -295,13 +292,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 	// Remove attachment with no issue_id and release_id.
 	for _, newAttachment := range newAttachmentPaths {
 		system_model.RemoveStorageWithNotice(ctx, storage.Attachments, "Delete issue attachment", newAttachment)
-	}
-
-	if len(repo.Avatar) > 0 {
-		if err := storage.RepoAvatars.Delete(repo.CustomAvatarRelativePath()); err != nil {
-			log.Error("remove avatar file %q: %v", repo.CustomAvatarRelativePath(), err)
-			// go on
-		}
 	}
 
 	return nil

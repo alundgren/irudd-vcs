@@ -164,11 +164,6 @@ var (
 	// LFS represents lfs storage
 	LFS ObjectStorage = uninitializedStorage
 
-	// Avatars represents user avatars storage
-	Avatars ObjectStorage = uninitializedStorage
-	// RepoAvatars represents repository avatars storage
-	RepoAvatars ObjectStorage = uninitializedStorage
-
 	// RepoArchives represents repository archives storage
 	RepoArchives ObjectStorage = uninitializedStorage
 
@@ -185,8 +180,6 @@ var (
 func Init() error {
 	for _, f := range []func() error{
 		initAttachments,
-		initAvatars,
-		initRepoAvatars,
 		initLFS,
 		initRepoArchives,
 		initPackages,
@@ -212,12 +205,6 @@ func NewStorage(typStr Type, cfg *setting.Storage) (ObjectStorage, error) {
 	return fn(context.Background(), cfg)
 }
 
-func initAvatars() (err error) {
-	log.Info("Initialising Avatar storage with type: %s", setting.Avatar.Storage.Type)
-	Avatars, err = NewStorage(setting.Avatar.Storage.Type, setting.Avatar.Storage)
-	return err
-}
-
 func initAttachments() (err error) {
 	if !setting.Attachment.Enabled {
 		Attachments = discardStorage("Attachment isn't enabled")
@@ -235,12 +222,6 @@ func initLFS() (err error) {
 	}
 	log.Info("Initialising LFS storage with type: %s", setting.LFS.Storage.Type)
 	LFS, err = NewStorage(setting.LFS.Storage.Type, setting.LFS.Storage)
-	return err
-}
-
-func initRepoAvatars() (err error) {
-	log.Info("Initialising Repository Avatar storage with type: %s", setting.RepoAvatar.Storage.Type)
-	RepoAvatars, err = NewStorage(setting.RepoAvatar.Storage.Type, setting.RepoAvatar.Storage)
 	return err
 }
 

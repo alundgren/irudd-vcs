@@ -162,13 +162,6 @@ func GenerateRepository(ctx context.Context, doer, owner *user_model.User, templ
 		}
 	}
 
-	// Avatar
-	if opts.Avatar && len(templateRepo.Avatar) > 0 {
-		if err = generateAvatar(ctx, templateRepo, generateRepo); err != nil {
-			return nil, err
-		}
-	}
-
 	// Issue Labels
 	if opts.IssueLabels {
 		if err = GenerateIssueLabels(ctx, templateRepo, generateRepo); err != nil {

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
@@ -212,10 +211,6 @@ func deleteIssue(ctx context.Context, issue *issues_model.Issue) ([]string, erro
 				issue.MilestoneID, err)
 		}
 
-		if err := activities_model.DeleteIssueActions(ctx, issue.RepoID, issue.ID, issue.Index); err != nil {
-			return nil, err
-		}
-
 		// find attachments related to this issue and remove them
 		if err := issue.LoadAttachments(ctx); err != nil {
 			return nil, err
@@ -234,7 +229,6 @@ func deleteIssue(ctx context.Context, issue *issues_model.Issue) ([]string, erro
 			&issues_model.IssueDependency{IssueID: issue.ID},
 			&issues_model.IssueAssignees{IssueID: issue.ID},
 			&issues_model.IssueUser{IssueID: issue.ID},
-			&activities_model.Notification{IssueID: issue.ID},
 			&issues_model.Reaction{IssueID: issue.ID},
 			&issues_model.IssueWatch{IssueID: issue.ID},
 			&issues_model.Stopwatch{IssueID: issue.ID},

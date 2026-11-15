@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	activities_model "gitea.dev/models/activities"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
@@ -937,14 +936,6 @@ func MergePullRequest(ctx *context.APIContext) {
 		return
 	}
 	pr.Issue.Repo = ctx.Repo.Repository
-
-	if ctx.IsSigned {
-		// Update issue-user.
-		if err = activities_model.SetIssueReadBy(ctx, pr.Issue.ID, ctx.Doer.ID); err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		}
-	}
 
 	if form.MergeWhenChecksSucceed {
 		ctx.APIError(http.StatusUnprocessableEntity, "merging when checks succeed is not supported")

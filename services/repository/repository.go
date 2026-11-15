@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	"gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
@@ -146,11 +145,6 @@ func MakeRepoPrivate(ctx context.Context, repo *repo_model.Repository, private b
 
 		// If repo has become private, we need to set its actions to private, and clear stars and watches.
 		if private {
-			_, err = db.GetEngine(ctx).
-				Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{IsPrivate: true})
-			if err != nil {
-				return err
-			}
 			if err = repo_model.ClearRepoStars(ctx, repo.ID); err != nil {
 				return err
 			}
@@ -263,13 +257,6 @@ func updateRepository(ctx context.Context, repo *repo_model.Repository, visibili
 
 		// If repo has become private, we need to set its actions to private.
 		if repo.IsPrivate {
-			_, err = e.Where("repo_id = ?", repo.ID).Cols("is_private").Update(&activities_model.Action{
-				IsPrivate: true,
-			})
-			if err != nil {
-				return err
-			}
-
 			if err = repo_model.ClearRepoStars(ctx, repo.ID); err != nil {
 				return err
 			}
