@@ -18,6 +18,7 @@ import (
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/system"
 	"gitea.dev/modules/util"
+	"gitea.dev/modules/validation"
 	"gitea.dev/modules/web"
 	"gitea.dev/modules/web/routing"
 	apiv1 "gitea.dev/routers/api/v1"
@@ -108,6 +109,8 @@ func InitWebInstalled(ctx context.Context) {
 
 // NormalRoutes represents non install routes
 func NormalRoutes() *web.Router {
+	validation.AddBindingRules() // custom binding rules used by API option structs, e.g. GitRefName
+
 	r := web.NewRouter()
 	r.BeforeRouting(common.ProtocolMiddlewares()...)
 
