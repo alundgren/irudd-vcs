@@ -14,7 +14,6 @@ import (
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
-	pull_model "gitea.dev/models/pull"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/setting"
@@ -35,7 +34,6 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 		&issues_model.Reaction{UserID: u.ID},
 		&organization.TeamUser{UID: u.ID},
 		&user_model.Setting{UserID: u.ID},
-		&pull_model.ReviewState{UserID: u.ID},
 		&user_model.Redirect{RedirectUserID: u.ID},
 	); err != nil {
 		return fmt.Errorf("deleteBeans: %w", err)
@@ -95,10 +93,6 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 	// Clear assignee.
 	if _, err = db.DeleteByBean(ctx, &issues_model.IssueAssignees{AssigneeID: u.ID}); err != nil {
 		return fmt.Errorf("clear assignee: %w", err)
-	}
-
-	if err := auth_model.DeleteAuthTokensByUserID(ctx, u.ID); err != nil {
-		return fmt.Errorf("DeleteAuthTokensByUserID: %w", err)
 	}
 
 	if _, err = db.DeleteByID[user_model.User](ctx, u.ID); err != nil {

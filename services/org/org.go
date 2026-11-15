@@ -28,7 +28,6 @@ func deleteOrganization(ctx context.Context, org *org_model.Organization) error 
 		&org_model.OrgUser{OrgID: org.ID},
 		&org_model.TeamUser{OrgID: org.ID},
 		&org_model.TeamUnit{OrgID: org.ID},
-		&org_model.TeamInvite{OrgID: org.ID},
 	); err != nil {
 		return fmt.Errorf("DeleteBeans: %w", err)
 	}

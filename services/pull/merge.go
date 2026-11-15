@@ -20,7 +20,6 @@ import (
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
-	pull_model "gitea.dev/models/pull"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
@@ -653,11 +652,6 @@ func SetMerged(ctx context.Context, pr *issues_model.PullRequest, mergedCommitID
 
 		if err := pr.Issue.Repo.LoadOwner(ctx); err != nil {
 			return false, err
-		}
-
-		// Removing an auto merge pull and ignore if not exist
-		if err := pull_model.DeleteScheduledAutoMerge(ctx, pr.ID); err != nil && !db.IsErrNotExist(err) {
-			return false, fmt.Errorf("DeleteScheduledAutoMerge[%d]: %v", pr.ID, err)
 		}
 
 		// Set issue as closed

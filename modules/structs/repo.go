@@ -88,9 +88,8 @@ type Repository struct {
 	// swagger:strfmt date-time
 	MirrorUpdated time.Time `json:"mirror_updated"`
 	// swagger:strfmt date-time
-	MirrorLastSyncAt time.Time     `json:"mirror_last_sync_at"`
-	RepoTransfer     *RepoTransfer `json:"repo_transfer,omitempty"`
-	Topics           []string      `json:"topics"`
+	MirrorLastSyncAt time.Time `json:"mirror_last_sync_at"`
+	Topics           []string  `json:"topics"`
 }
 
 // CreateRepoOption options when creating repository
@@ -295,11 +294,4 @@ func (gt GitServiceType) TokenAuth() bool {
 		return true
 	}
 	return false
-}
-
-// RepoTransfer represents a pending repo transfer
-type RepoTransfer struct {
-	Doer      *User   `json:"doer"`
-	Recipient *User   `json:"recipient"`
-	Teams     []*Team `json:"teams"`
 }

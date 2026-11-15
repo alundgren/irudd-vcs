@@ -117,20 +117,6 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 	var mirrorUpdated time.Time
 	var lastSync time.Time
 
-	var transfer *api.RepoTransfer
-	if repo.Status == repo_model.RepositoryPendingTransfer {
-		t, err := repo_model.GetPendingRepositoryTransfer(ctx, repo)
-		if err != nil && !repo_model.IsErrNoPendingTransfer(err) {
-			log.Warn("GetPendingRepositoryTransfer: %v", err)
-		} else {
-			if err := t.LoadAttributes(ctx); err != nil {
-				log.Warn("LoadAttributes of RepoTransfer: %v", err)
-			} else {
-				transfer = ToRepoTransfer(ctx, t)
-			}
-		}
-	}
-
 	return &api.Repository{
 		ID:                            repo.ID,
 		Owner:                         ToUserWithAccessMode(ctx, repo.Owner, permissionInRepo.AccessMode),
@@ -187,19 +173,7 @@ func innerToRepo(ctx context.Context, repo *repo_model.Repository, permissionInR
 		MirrorLastSyncAt:              lastSync,
 		MirrorInterval:                mirrorInterval,
 		MirrorUpdated:                 mirrorUpdated,
-		RepoTransfer:                  transfer,
 		Topics:                        util.SliceNilAsEmpty(repo.Topics),
 		ObjectFormatName:              api.ObjectFormatName(repo.ObjectFormatName),
-	}
-}
-
-// ToRepoTransfer convert a models.RepoTransfer to a structs.RepeTransfer
-func ToRepoTransfer(ctx context.Context, t *repo_model.RepoTransfer) *api.RepoTransfer {
-	teams, _ := ToTeams(ctx, t.Teams, false)
-
-	return &api.RepoTransfer{
-		Doer:      ToUser(ctx, t.Doer, nil),
-		Recipient: ToUser(ctx, t.Recipient, nil),
-		Teams:     teams,
 	}
 }

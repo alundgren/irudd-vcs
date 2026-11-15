@@ -15,7 +15,6 @@ import (
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	org_model "gitea.dev/models/organization"
-	pull_model "gitea.dev/models/pull"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
@@ -161,20 +160,6 @@ func init() {
 
 // DeletePullsByBaseRepoID deletes all pull requests by the base repository ID
 func DeletePullsByBaseRepoID(ctx context.Context, repoID int64) error {
-	deleteCond := builder.Select("id").From("pull_request").Where(builder.Eq{"pull_request.base_repo_id": repoID})
-
-	// Delete scheduled auto merges
-	if _, err := db.GetEngine(ctx).In("pull_id", deleteCond).
-		Delete(&pull_model.AutoMerge{}); err != nil {
-		return err
-	}
-
-	// Delete review states
-	if _, err := db.GetEngine(ctx).In("pull_id", deleteCond).
-		Delete(&pull_model.ReviewState{}); err != nil {
-		return err
-	}
-
 	_, err := db.DeleteByBean(ctx, &PullRequest{BaseRepoID: repoID})
 	return err
 }

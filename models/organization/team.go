@@ -129,7 +129,6 @@ func init() {
 	db.RegisterModel(new(TeamUser))
 	db.RegisterModel(new(TeamRepo))
 	db.RegisterModel(new(TeamUnit))
-	db.RegisterModel(new(TeamInvite))
 }
 
 func (t *Team) LogString() string {
