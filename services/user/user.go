@@ -19,7 +19,6 @@ import (
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
-	asymkey_service "gitea.dev/services/asymkey"
 	org_service "gitea.dev/services/org"
 	repo_service "gitea.dev/services/repository"
 )
@@ -213,13 +212,6 @@ func DeleteUser(ctx context.Context, u *user_model.User, purge bool) error {
 		}
 		return nil
 	}); err != nil {
-		return err
-	}
-
-	if err := asymkey_service.RewriteAllPublicKeys(ctx); err != nil {
-		return err
-	}
-	if err := asymkey_service.RewriteAllPrincipalKeys(ctx); err != nil {
 		return err
 	}
 

@@ -393,22 +393,16 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 
 func commitAndSignNoAuthor(ctx *mergeContext, message string) error {
 	cmdCommit := gitcmd.NewCommand("commit").AddOptionFormat("--message=%s", message)
-	addCommitSigningOptions(cmdCommit, ctx.signKey)
+	addCommitSigningOptions(cmdCommit)
 	if err := ctx.PrepareGitCmd(cmdCommit).RunWithStderr(ctx); err != nil {
 		return fmt.Errorf("git commit %v: %w\n%s", ctx.pr, err, ctx.outbuf.String())
 	}
 	return nil
 }
 
-func addCommitSigningOptions(cmd *gitcmd.Command, signKey *git.SigningKey) {
-	if signKey == nil {
-		cmd.AddArguments("--no-gpg-sign")
-		return
-	}
-	if signKey.Format != "" {
-		cmd.AddConfig("gpg.format", signKey.Format)
-	}
-	cmd.AddOptionFormat("--gpg-sign=%s", signKey.KeyID)
+// Merge commits are never signed, so also ignore any commit.gpgSign from the system git config
+func addCommitSigningOptions(cmd *gitcmd.Command) {
+	cmd.AddArguments("--no-gpg-sign")
 }
 
 // ErrMergeConflicts represents an error if merging fails with a conflict

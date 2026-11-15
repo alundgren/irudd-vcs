@@ -28,7 +28,6 @@ import (
 	"gitea.dev/modules/queue"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
-	asymkey_service "gitea.dev/services/asymkey"
 	notify_service "gitea.dev/services/notify"
 )
 
@@ -245,28 +244,8 @@ func checkSigningRequirements(ctx context.Context, pr *issues_model.PullRequest,
 		return nil
 	}
 
-	gitRepo, closer, err := gitrepo.RepositoryFromContextOrOpen(ctx, pr.BaseRepo)
-	if err != nil {
-		return err
-	}
-	defer closer.Close()
-
-	if mergeStyle == repo_model.MergeStyleFastForwardOnly || mergeStyle == repo_model.MergeStyleMerge {
-		verified, err := asymkey_service.AllHeadCommitsVerified(ctx, pr, gitRepo)
-		if err != nil {
-			return err
-		}
-		if !verified {
-			return ErrHeadCommitsNotAllVerified
-		}
-	}
-
-	if mergeStyle != repo_model.MergeStyleFastForwardOnly {
-		if _, _, _, err := asymkey_service.SignMerge(ctx, pr, doer, gitRepo, pr.BaseBranch, pr.GetGitHeadRefName()); err != nil {
-			return err
-		}
-	}
-	return nil
+	// Commit signatures are neither verified nor created, so a branch that requires them can't be merged into
+	return ErrHeadCommitsNotAllVerified
 }
 
 // markPullRequestAsMergeable checks if pull request is possible to leaving checking status,

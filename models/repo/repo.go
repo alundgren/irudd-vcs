@@ -7,11 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -581,38 +579,9 @@ func ComposeHTTPSCloneURL(ctx context.Context, owner, repo string) string {
 	return fmt.Sprintf("%s%s/%s.git", httplib.GuessCurrentAppURL(ctx), url.PathEscape(owner), url.PathEscape(repo))
 }
 
-// ComposeSSHCloneURL returns SSH clone URL based on the given owner and repository name.
-func ComposeSSHCloneURL(doer *user_model.User, ownerName, repoName string) string {
-	sshUser := setting.SSH.User
-	sshDomain := setting.SSH.Domain
-
-	if sshUser == "(DOER_USERNAME)" {
-		// Some users use SSH reverse-proxy and need to use the current signed-in username as the SSH user
-		// to make the SSH reverse-proxy could prepare the user's public keys ahead.
-		// For most cases we have the correct "doer", then use it as the SSH user.
-		// If we can't get the doer, then use the built-in SSH user.
-		if doer != nil {
-			sshUser = doer.Name
-		} else {
-			sshUser = setting.SSH.BuiltinServerUser
-		}
-	}
-
-	// non-standard port, it must use full URI
-	if setting.SSH.Port != 22 {
-		sshHost := net.JoinHostPort(sshDomain, strconv.Itoa(setting.SSH.Port))
-		return fmt.Sprintf("ssh://%s@%s/%s/%s.git", sshUser, sshHost, url.PathEscape(ownerName), url.PathEscape(repoName))
-	}
-
-	// for standard port, it can use a shorter URI (without the port)
-	sshHost := sshDomain
-	if ip := net.ParseIP(sshHost); ip != nil && ip.To4() == nil {
-		sshHost = "[" + sshHost + "]" // for IPv6 address, wrap it with brackets
-	}
-	if setting.Repository.UseCompatSSHURI {
-		return fmt.Sprintf("ssh://%s@%s/%s/%s.git", sshUser, sshHost, url.PathEscape(ownerName), url.PathEscape(repoName))
-	}
-	return fmt.Sprintf("%s@%s:%s/%s.git", sshUser, sshHost, url.PathEscape(ownerName), url.PathEscape(repoName))
+// ComposeSSHCloneURL returns an empty SSH clone URL, there is no SSH server
+func ComposeSSHCloneURL(_ *user_model.User, _, _ string) string {
+	return ""
 }
 
 // ComposeTeaCloneCommand returns Tea CLI clone command based on the given owner and repository name.

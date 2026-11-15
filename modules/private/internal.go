@@ -17,7 +17,6 @@ import (
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/proxyprotocol"
 	"gitea.dev/modules/setting"
 )
 
@@ -44,12 +43,6 @@ func dialContextInternalAPI(ctx context.Context, network, address string) (conn 
 	}
 	if err != nil {
 		return nil, err
-	}
-	if setting.LocalUseProxyProtocol {
-		if err = proxyprotocol.WriteLocalHeader(conn); err != nil {
-			_ = conn.Close()
-			return nil, err
-		}
 	}
 	return conn, nil
 }

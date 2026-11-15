@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 
-	asymkey_model "gitea.dev/models/asymkey"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	perm_model "gitea.dev/models/perm"
@@ -222,22 +221,12 @@ func preReceiveBranch(ctx *preReceiveContext, oldCommitID, newCommitID string, r
 
 	// 3. Enforce require signed commits
 	if protectBranch.RequireSignedCommits {
-		err := verifyCommits(oldCommitID, newCommitID, gitRepo, ctx.env)
-		if err != nil {
-			if !isErrUnverifiedCommit(err) {
-				log.Error("Unable to check commits from %s to %s in %-v: %v", oldCommitID, newCommitID, repo, err)
-				ctx.JSON(http.StatusInternalServerError, private.Response{
-					Err: fmt.Sprintf("Unable to check commits from %s to %s: %v", oldCommitID, newCommitID, err),
-				})
-				return
-			}
-			unverifiedCommit := err.(*errUnverifiedCommit).sha
-			log.Warn("Forbidden: Branch: %s in %-v is protected from unverified commit %s", branchName, repo, unverifiedCommit)
-			ctx.JSON(http.StatusForbidden, private.Response{
-				UserMsg: fmt.Sprintf("branch %s is protected from unverified commit %s", branchName, unverifiedCommit),
-			})
-			return
-		}
+		// Commit signatures can't be verified without stored GPG or SSH keys
+		log.Warn("Forbidden: Branch: %s in %-v requires signed commits, which are not supported", branchName, repo)
+		ctx.JSON(http.StatusForbidden, private.Response{
+			UserMsg: fmt.Sprintf("branch %s requires signed commits, which this server cannot verify", branchName),
+		})
+		return
 	}
 
 	// Now there are several tests which can be overridden:
@@ -471,16 +460,5 @@ func (ctx *preReceiveContext) loadPusherAndPermission() bool {
 		ctx.userPerm = userPerm
 	}
 
-	if ctx.opts.DeployKeyID != 0 {
-		deployKey, err := asymkey_model.GetDeployKeyByID(ctx, ctx.opts.DeployKeyID)
-		if err != nil {
-			log.Error("Unable to get DeployKey id %d Error: %v", ctx.opts.DeployKeyID, err)
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: fmt.Sprintf("Unable to get DeployKey id %d Error: %v", ctx.opts.DeployKeyID, err),
-			})
-			return false
-		}
-		ctx.deployKeyAccessMode = deployKey.Mode
-	}
 	return true
 }

@@ -23,7 +23,6 @@ import (
 	"gitea.dev/modules/lfs"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/storage"
-	asymkey_service "gitea.dev/services/asymkey"
 	issue_service "gitea.dev/services/issue"
 
 	"xorm.io/builder"
@@ -72,13 +71,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 			return err
 		}
 	}
-
-	// Delete Deploy Keys
-	deleted, err := asymkey_service.DeleteRepoDeployKeys(ctx, repoID)
-	if err != nil {
-		return err
-	}
-	needRewriteKeysFile := deleted > 0
 
 	if err := deleteDBRepository(ctx, repoID); err != nil {
 		return err
@@ -259,12 +251,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 	}
 
 	committer.Close()
-
-	if needRewriteKeysFile {
-		if err := asymkey_service.RewriteAllPublicKeys(ctx); err != nil {
-			log.Error("RewriteAllPublicKeys failed: %v", err)
-		}
-	}
 
 	// We should always delete the files after the database transaction succeed. If
 	// we delete the file but the database rollback, the repository will be broken.

@@ -15,7 +15,6 @@ import (
 	"unicode/utf8"
 
 	"gitea.dev/models/db"
-	git_model "gitea.dev/models/git"
 	"gitea.dev/models/organization"
 	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
@@ -316,10 +315,9 @@ type Comment struct {
 	RefIssue   *Issue                 `xorm:"-"`
 	RefComment *Comment               `xorm:"-"`
 
-	Commits    []*git_model.SignCommitWithStatuses `xorm:"-"`
-	OldCommit  string                              `xorm:"-"`
-	NewCommit  string                              `xorm:"-"`
-	CommitsNum int64                               `xorm:"-"`
+	OldCommit  string `xorm:"-"`
+	NewCommit  string `xorm:"-"`
+	CommitsNum int64  `xorm:"-"`
 
 	// Templates still use it. It is not persisted in database, it is only set when creating or loading
 	IsForcePush bool `xorm:"-"`

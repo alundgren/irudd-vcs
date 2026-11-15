@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	asymkey_model "gitea.dev/models/asymkey"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/organization"
@@ -26,7 +25,6 @@ import (
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
-	asymkey_service "gitea.dev/services/asymkey"
 	"gitea.dev/services/gitdiff"
 )
 
@@ -255,83 +253,17 @@ func toPullRequestMinimal(ctx context.Context, repo *repo_model.Repository, pr *
 
 // ToVerification convert a git.Commit.Signature to an api.PayloadCommitVerification
 func ToVerification(ctx context.Context, c *git.Commit) *api.PayloadCommitVerification {
-	verif := asymkey_service.ParseCommitWithSignature(ctx, c)
+	// Signatures are passed through but never verified, there are no stored GPG or SSH keys
 	commitVerification := &api.PayloadCommitVerification{
-		Verified: verif.Verified,
-		Reason:   verif.Reason,
+		Verified: false,
+		Reason:   "gpg.error.not_signed_commit",
 	}
 	if c.Signature != nil {
+		commitVerification.Reason = "signature verification is not supported"
 		commitVerification.Signature = c.Signature.Signature
 		commitVerification.Payload = c.Signature.Payload
 	}
-	if verif.SigningUser != nil {
-		commitVerification.Signer = &api.PayloadUser{
-			UserName: verif.SigningUser.Name,
-			Name:     verif.SigningUser.DisplayName(),
-			Email:    verif.SigningEmail, // Use the email from the signature, not from the user profile
-		}
-	}
 	return commitVerification
-}
-
-// ToPublicKey convert asymkey_model.PublicKey to api.PublicKey
-func ToPublicKey(apiLink string, key *asymkey_model.PublicKey) *api.PublicKey {
-	return &api.PublicKey{
-		ID:          key.ID,
-		Key:         key.Content,
-		URL:         fmt.Sprintf("%s%d", apiLink, key.ID),
-		Title:       key.Name,
-		Fingerprint: key.Fingerprint,
-		Created:     key.CreatedUnix.AsTime(),
-		Updated:     key.UpdatedUnix.AsTime(),
-	}
-}
-
-// ToGPGKey converts models.GPGKey to api.GPGKey
-func ToGPGKey(key *asymkey_model.GPGKey) *api.GPGKey {
-	subkeys := make([]*api.GPGKey, len(key.SubsKey))
-	for id, k := range key.SubsKey {
-		subkeys[id] = &api.GPGKey{
-			ID:                k.ID,
-			PrimaryKeyID:      k.PrimaryKeyID,
-			KeyID:             k.KeyID,
-			PublicKey:         k.Content,
-			Created:           k.CreatedUnix.AsTime(),
-			Expires:           k.ExpiredUnix.AsTime(),
-			CanSign:           k.CanSign,
-			CanEncryptComms:   k.CanEncryptComms,
-			CanEncryptStorage: k.CanEncryptStorage,
-			CanCertify:        k.CanSign,
-			Verified:          k.Verified,
-		}
-	}
-	emails := make([]*api.GPGKeyEmail, len(key.Emails))
-	for i, e := range key.Emails {
-		emails[i] = ToGPGKeyEmail(e)
-	}
-	return &api.GPGKey{
-		ID:                key.ID,
-		PrimaryKeyID:      key.PrimaryKeyID,
-		KeyID:             key.KeyID,
-		PublicKey:         key.Content,
-		Created:           key.CreatedUnix.AsTime(),
-		Expires:           key.ExpiredUnix.AsTime(),
-		Emails:            emails,
-		SubsKey:           subkeys,
-		CanSign:           key.CanSign,
-		CanEncryptComms:   key.CanEncryptComms,
-		CanEncryptStorage: key.CanEncryptStorage,
-		CanCertify:        key.CanSign,
-		Verified:          key.Verified,
-	}
-}
-
-// ToGPGKeyEmail convert models.EmailAddress to api.GPGKeyEmail
-func ToGPGKeyEmail(email *user_model.EmailAddress) *api.GPGKeyEmail {
-	return &api.GPGKeyEmail{
-		Email:    email.Email,
-		Verified: email.IsActivated,
-	}
 }
 
 // ToGitHook convert git.Hook to api.GitHook
@@ -340,20 +272,6 @@ func ToGitHook(h *git.Hook) *api.GitHook {
 		Name:     h.Name(),
 		IsActive: h.IsActive,
 		Content:  h.Content,
-	}
-}
-
-// ToDeployKey convert asymkey_model.DeployKey to api.DeployKey
-func ToDeployKey(apiLink string, key *asymkey_model.DeployKey) *api.DeployKey {
-	return &api.DeployKey{
-		ID:          key.ID,
-		KeyID:       key.KeyID,
-		Key:         key.Content,
-		Fingerprint: key.Fingerprint,
-		URL:         fmt.Sprintf("%s%d", apiLink, key.ID),
-		Title:       key.Name,
-		Created:     key.CreatedUnix.AsTime(),
-		ReadOnly:    key.Mode == perm.AccessModeRead, // All deploy keys are read-only.
 	}
 }
 

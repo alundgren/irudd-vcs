@@ -24,7 +24,6 @@ import (
 	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	"gitea.dev/routers/api/v1/utils"
-	asymkey_service "gitea.dev/services/asymkey"
 	pull_service "gitea.dev/services/pull"
 )
 
@@ -686,14 +685,8 @@ func VerifyBranchProtection(ctx context.Context, repo *repo_model.Repository, gi
 			}
 		}
 		if protectedBranch.RequireSignedCommits {
-			_, _, _, err := asymkey_service.SignCRUDAction(ctx, doer, gitRepo, branchName)
-			if err != nil {
-				if !asymkey_service.IsErrWontSign(err) {
-					return err
-				}
-				return ErrUserCannotCommit{
-					UserName: doer.LowerName,
-				}
+			return ErrUserCannotCommit{ // commits are never signed
+				UserName: doer.LowerName,
 			}
 		}
 	}

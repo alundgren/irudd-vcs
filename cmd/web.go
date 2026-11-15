@@ -258,22 +258,22 @@ func listen(m http.Handler, handleRedirector bool) error {
 		if handleRedirector {
 			NoHTTPRedirector()
 		}
-		err = runHTTP("tcp", listenAddr, "Web", m, setting.UseProxyProtocol)
+		err = runHTTP("tcp", listenAddr, "Web", m)
 	case setting.FCGI:
 		if handleRedirector {
 			NoHTTPRedirector()
 		}
-		err = runFCGI("tcp", listenAddr, "FCGI Web", m, setting.UseProxyProtocol)
+		err = runFCGI("tcp", listenAddr, "FCGI Web", m)
 	case setting.HTTPUnix:
 		if handleRedirector {
 			NoHTTPRedirector()
 		}
-		err = runHTTP("unix", listenAddr, "Web", m, setting.UseProxyProtocol)
+		err = runHTTP("unix", listenAddr, "Web", m)
 	case setting.FCGIUnix:
 		if handleRedirector {
 			NoHTTPRedirector()
 		}
-		err = runFCGI("unix", listenAddr, "Web", m, setting.UseProxyProtocol)
+		err = runFCGI("unix", listenAddr, "Web", m)
 	default:
 		log.Fatal("Invalid protocol: %s", setting.Protocol)
 	}

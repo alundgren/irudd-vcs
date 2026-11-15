@@ -9,7 +9,6 @@ import (
 	"time"
 
 	activities_model "gitea.dev/models/activities"
-	asymkey_model "gitea.dev/models/asymkey"
 	auth_model "gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
@@ -147,30 +146,6 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 		}
 	}
 	// ***** END: Branch Protections *****
-
-	// ***** START: PublicKey *****
-	if _, err = db.DeleteByBean(ctx, &asymkey_model.PublicKey{OwnerID: u.ID}); err != nil {
-		return fmt.Errorf("deletePublicKeys: %w", err)
-	}
-	// ***** END: PublicKey *****
-
-	// ***** START: GPGPublicKey *****
-	keys, err := db.Find[asymkey_model.GPGKey](ctx, asymkey_model.FindGPGKeyOptions{
-		OwnerID: u.ID,
-	})
-	if err != nil {
-		return fmt.Errorf("ListGPGKeys: %w", err)
-	}
-	// Delete GPGKeyImport(s).
-	for _, key := range keys {
-		if _, err = db.DeleteByBean(ctx, &asymkey_model.GPGKeyImport{KeyID: key.KeyID}); err != nil {
-			return fmt.Errorf("deleteGPGKeyImports: %w", err)
-		}
-	}
-	if _, err = db.DeleteByBean(ctx, &asymkey_model.GPGKey{OwnerID: u.ID}); err != nil {
-		return fmt.Errorf("deleteGPGKeys: %w", err)
-	}
-	// ***** END: GPGPublicKey *****
 
 	// Clear assignee.
 	if _, err = db.DeleteByBean(ctx, &issues_model.IssueAssignees{AssigneeID: u.ID}); err != nil {

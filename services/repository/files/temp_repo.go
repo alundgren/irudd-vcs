@@ -22,7 +22,6 @@ import (
 	"gitea.dev/modules/log"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/util"
-	asymkey_service "gitea.dev/services/asymkey"
 )
 
 // TemporaryUploadRepository is a type to wrap our upload repositories as a shallow clone
@@ -284,30 +283,7 @@ func (t *TemporaryUploadRepository) CommitTree(ctx context.Context, opts *Commit
 		cmdCommitTree.AddOptionValues("-p", opts.ParentCommitID)
 	}
 
-	var sign bool
-	var key *git.SigningKey
-	var signer *git.Signature
-	if opts.ParentCommitID != "" {
-		sign, key, signer, _ = asymkey_service.SignCRUDAction(ctx, opts.DoerUser, t.gitRepo, opts.ParentCommitID)
-	} else {
-		sign, key, signer, _ = asymkey_service.SignInitialCommit(ctx, opts.DoerUser)
-	}
-	if sign {
-		if key.Format != "" {
-			cmdCommitTree.AddConfig("gpg.format", key.Format)
-		}
-		cmdCommitTree.AddOptionFormat("-S%s", key.KeyID)
-		if t.repo.GetTrustModel() == repo_model.CommitterTrustModel || t.repo.GetTrustModel() == repo_model.CollaboratorCommitterTrustModel {
-			if committerSig.Name != authorSig.Name || committerSig.Email != authorSig.Email {
-				_, _ = messageBytes.WriteString("\n" + git.CoAuthoredByTrailer + ": ")
-				_, _ = messageBytes.WriteString(committerSig.String())
-				_, _ = messageBytes.WriteString("\n")
-			}
-			committerSig = signer
-		}
-	} else {
-		cmdCommitTree.AddArguments("--no-gpg-sign")
-	}
+	cmdCommitTree.AddArguments("--no-gpg-sign") // commits are never signed
 
 	if opts.SignOff {
 		// Signed-off-by

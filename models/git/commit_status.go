@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	asymkey_model "gitea.dev/models/asymkey"
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
@@ -521,13 +520,6 @@ func NewCommitStatus(ctx context.Context, opts NewCommitStatusOptions) error {
 
 		return nil
 	})
-}
-
-// SignCommitWithStatuses represents a commit with validation of signature and status state.
-type SignCommitWithStatuses struct {
-	Status   *CommitStatus
-	Statuses []*CommitStatus
-	*asymkey_model.SignCommit
 }
 
 // HashCommitStatusContext returns the sha1 hash used to dedupe commit statuses
