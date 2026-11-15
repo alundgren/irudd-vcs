@@ -30,6 +30,10 @@ See [app.example.ini](custom/conf/app.example.ini) for the options that are stil
 
 Run `./gitea help` to see all available commands.
 
+There are no scheduled background jobs. Run maintenance with `./gitea admin maintenance`
+(fsck, gc, counters, webhook delivery and notice cleanup, missing repositories) and
+`./gitea doctor`, from an external scheduler if you want them periodic.
+
 The API is documented by the generated specs served at `/swagger.v1.json` (Swagger 2.0)
 and `/openapi3.v1.json` (OpenAPI 3.0) when `[api] ENABLE_SWAGGER` is enabled.
 

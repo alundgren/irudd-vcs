@@ -15,6 +15,7 @@ func newAdminCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newUserCommand(),
 			newRegenerateCommand(),
+			newMaintenanceCommand(),
 		},
 	}
 }

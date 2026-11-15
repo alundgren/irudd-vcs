@@ -559,3 +559,15 @@ func CountBranches(ctx context.Context, repoID int64, includeDeleted bool) (int6
 	}
 	return sess.Count(new(Branch))
 }
+
+// RemoveOldDeletedBranches removes old deleted branches
+func RemoveOldDeletedBranches(ctx context.Context, olderThan time.Duration) {
+	// Nothing to do for shutdown or terminate
+	log.Trace("Doing: DeletedBranchesCleanup")
+
+	deleteBefore := time.Now().Add(-olderThan)
+	_, err := db.GetEngine(ctx).Where("is_deleted=? AND deleted_unix < ?", true, deleteBefore.Unix()).Delete(new(Branch))
+	if err != nil {
+		log.Error("DeletedBranchesCleanup: %v", err)
+	}
+}
