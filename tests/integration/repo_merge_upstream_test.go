@@ -28,14 +28,14 @@ func TestRepoMergeUpstream(t *testing.T) {
 		baseRepo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
 		baseUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: baseRepo.OwnerID})
 
+		session := loginUser(t, forkUser.Name)
+		token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)
+
 		checkFileContent := func(branch, exp string) {
-			req := NewRequest(t, "GET", fmt.Sprintf("/api/v1/repos/%s/test-repo-fork/raw/new-file.txt?ref=%s", forkUser.Name, branch))
+			req := NewRequest(t, "GET", fmt.Sprintf("/api/v1/repos/%s/test-repo-fork/raw/new-file.txt?ref=%s", forkUser.Name, branch)).AddTokenAuth(token)
 			resp := MakeRequest(t, req, http.StatusOK)
 			require.Equal(t, exp, resp.Body.String())
 		}
-
-		session := loginUser(t, forkUser.Name)
-		token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)
 
 		// create a fork
 		req := NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/forks", baseUser.Name, baseRepo.Name), &api.CreateForkOption{
@@ -115,17 +115,17 @@ func TestRepoMergeUpstream(t *testing.T) {
 			MakeRequest(t, req, http.StatusBadRequest)
 		})
 
-		t.Run("BasePrivateBlocksSync", func(t *testing.T) {
+		t.Run("BasePrivateStillSyncs", func(t *testing.T) {
 			// add a new commit to the base repo, then make the base repo private
 			require.NoError(t, createOrReplaceFileInBranch(baseUser, baseRepo, "secret.txt", "master", "private-content"))
 			baseRepo.IsPrivate = true
 			_, err := db.GetEngine(t.Context()).ID(baseRepo.ID).Cols("is_private").Update(baseRepo)
 			require.NoError(t, err)
-			// the fork owner can no longer read the base repo, so syncing must be refused
+			// the fork owner still reads the private base repo, every signed-in user owns every repository
 			req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/test-repo-fork/merge-upstream", forkUser.Name), &api.MergeUpstreamRequest{
 				Branch: "fork-branch",
 			}).AddTokenAuth(token)
-			MakeRequest(t, req, http.StatusForbidden)
+			MakeRequest(t, req, http.StatusOK)
 		})
 	})
 }

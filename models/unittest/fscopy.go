@@ -80,7 +80,7 @@ func SyncDirs(srcPath, destPath string) error {
 		}
 		// if src file does not exist, remove dest file
 		if shouldRemove {
-			if err = os.RemoveAll(destFilePath); err != nil {
+			if err = util.RemoveAll(destFilePath); err != nil { // retries, a background git process may still hold a file on Windows
 				return err
 			}
 		}

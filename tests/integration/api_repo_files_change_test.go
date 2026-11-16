@@ -300,7 +300,7 @@ func TestAPIChangeFiles(t *testing.T) {
 		apiError := DecodeJSON(t, resp, &context.APIError{})
 		assert.Equal(t, expectedAPIError, apiError)
 
-		// Test creating a file in repo1 by user4 who does not have write access
+		// Test creating a file in repo1 by user4, who owns it like every signed-in user
 		fileID++
 		createTreePath = fmt.Sprintf("new/file%d.txt", fileID)
 		updateTreePath = fmt.Sprintf("update/file%d.txt", fileID)
@@ -313,7 +313,7 @@ func TestAPIChangeFiles(t *testing.T) {
 		changeFilesOptions.Files[2].Path = deleteTreePath
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/contents", user2.Name, repo16.Name), &changeFilesOptions).
 			AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusCreated)
 
 		// Tests a repo with no token given so will fail
 		fileID++
@@ -327,7 +327,7 @@ func TestAPIChangeFiles(t *testing.T) {
 		changeFilesOptions.Files[1].Path = updateTreePath
 		changeFilesOptions.Files[2].Path = deleteTreePath
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/contents", user2.Name, repo16.Name), &changeFilesOptions)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusUnauthorized)
 
 		// Test using access token for a private repo that the user of the token owns
 		fileID++
@@ -371,9 +371,9 @@ func TestAPIChangeFiles(t *testing.T) {
 		changeFilesOptions.Files[1].Path = updateTreePath
 		changeFilesOptions.Files[2].Path = deleteTreePath
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/contents", org3.Name, repo3.Name), &changeFilesOptions)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusUnauthorized)
 
-		// Test using repo "user2/repo1" where user4 is a NOT collaborator
+		// Test using repo "user2/repo1" by user4, who owns it like every signed-in user
 		fileID++
 		createTreePath = fmt.Sprintf("new/file%d.txt", fileID)
 		updateTreePath = fmt.Sprintf("update/file%d.txt", fileID)
@@ -386,6 +386,6 @@ func TestAPIChangeFiles(t *testing.T) {
 		changeFilesOptions.Files[2].Path = deleteTreePath
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/contents", user2.Name, repo1.Name), &changeFilesOptions).
 			AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusForbidden)
+		MakeRequest(t, req, http.StatusCreated)
 	})
 }

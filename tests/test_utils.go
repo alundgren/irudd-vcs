@@ -4,6 +4,7 @@
 package tests
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -29,6 +30,11 @@ func InitIntegrationTest() error {
 
 	setting.SetupGiteaTestEnv()
 	setting.Repository.DefaultBranch = "master" // many test code still assume that default branch is called "master"
+
+	// a git command in a missing test repository must not find and change the source checkout
+	if err := os.Setenv("GIT_CEILING_DIRECTORIES", setting.GetGiteaTestSourceRoot()); err != nil {
+		return err
+	}
 
 	if err := git.InitFull(); err != nil {
 		return err

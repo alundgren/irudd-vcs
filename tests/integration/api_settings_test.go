@@ -16,9 +16,10 @@ import (
 
 func TestAPIExposedSettings(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
+	ownerSession := loginUser(t, "user2") // adds the token to requests without one
 
 	req := NewRequest(t, "GET", "/api/v1/settings/api")
-	resp := MakeRequest(t, req, http.StatusOK)
+	resp := ownerSession.MakeRequest(t, req, http.StatusOK)
 
 	apiSettings := DecodeJSON(t, resp, &api.GeneralAPISettings{})
 	assert.Equal(t, &api.GeneralAPISettings{
@@ -30,7 +31,7 @@ func TestAPIExposedSettings(t *testing.T) {
 	}, apiSettings)
 
 	req = NewRequest(t, "GET", "/api/v1/settings/repository")
-	resp = MakeRequest(t, req, http.StatusOK)
+	resp = ownerSession.MakeRequest(t, req, http.StatusOK)
 
 	repo := DecodeJSON(t, resp, &api.GeneralRepoSettings{})
 	assert.Equal(t, &api.GeneralRepoSettings{

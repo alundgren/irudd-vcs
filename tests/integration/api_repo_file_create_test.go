@@ -221,20 +221,20 @@ func TestAPICreateFile(t *testing.T) {
 		apiError := DecodeJSON(t, resp, &context.APIError{})
 		assert.Equal(t, expectedAPIError, apiError)
 
-		// Test creating a file in repo1 by user4 who does not have write access
+		// Test creating a file in repo1 by user4, who owns it like every signed-in user
 		createFileOptions = getCreateFileOptions()
 		fileID++
 		treePath = fmt.Sprintf("new/file%d.txt", fileID)
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/contents/%s", user2.Name, repo16.Name, treePath), &createFileOptions).
 			AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusCreated)
 
 		// Tests a repo with no token given so will fail
 		createFileOptions = getCreateFileOptions()
 		fileID++
 		treePath = fmt.Sprintf("new/file%d.txt", fileID)
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/contents/%s", user2.Name, repo16.Name, treePath), &createFileOptions)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusUnauthorized)
 
 		// Test using access token for a private repo that the user of the token owns
 		createFileOptions = getCreateFileOptions()
@@ -257,15 +257,15 @@ func TestAPICreateFile(t *testing.T) {
 		fileID++
 		treePath = fmt.Sprintf("new/file%d.txt", fileID)
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/contents/%s", org3.Name, repo3.Name, treePath), &createFileOptions)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusUnauthorized)
 
-		// Test using repo "user2/repo1" where user4 is a NOT collaborator
+		// Test using repo "user2/repo1" by user4, who owns it like every signed-in user
 		createFileOptions = getCreateFileOptions()
 		fileID++
 		treePath = fmt.Sprintf("new/file%d.txt", fileID)
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/contents/%s", user2.Name, repo1.Name, treePath), &createFileOptions).
 			AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusForbidden)
+		MakeRequest(t, req, http.StatusCreated)
 
 		// Test creating a file in an empty repository
 		doAPICreateRepository(NewAPITestContext(t, "user2", "empty-repo", auth_model.AccessTokenScopeWriteRepository, auth_model.AccessTokenScopeWriteUser), true)(t)

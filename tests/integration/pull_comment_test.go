@@ -43,6 +43,7 @@ func testPullCommentRebase(t *testing.T, u *url.URL, session *TestSession) {
 
 	dstPath := t.TempDir()
 	u.Path = "/user2/repo1.git"
+	u.User = gitUserInfo(t, "user1")
 	doGitClone(dstPath, u)(t)
 	doGitCheckoutBranch(dstPath, "test-branch/rebase")(t)
 	doGitCreateBranch(dstPath, "local-branch/rebase")(t)

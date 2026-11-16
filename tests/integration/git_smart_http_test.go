@@ -139,6 +139,7 @@ func testRenamedRepoRedirect(t *testing.T) {
 
 func testGitArchiveRemote(t *testing.T, u *url.URL) {
 	u = u.JoinPath("user27/repo49.git")
+	u.User = gitUserInfo(t, "user27")
 	t.Run("Fetch HEAD archive", doGitRemoteArchive(u.String(), "HEAD"))
 	t.Run("Fetch HEAD archive subpath", doGitRemoteArchive(u.String(), "HEAD", "test"))
 	t.Run("list compression options", doGitRemoteArchive(u.String(), "--list"))

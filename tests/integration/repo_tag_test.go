@@ -90,7 +90,7 @@ func TestCreateNewTagProtected(t *testing.T) {
 
 			_, _, err = gitcmd.NewCommand("push", "--tags", "--force").WithDir(dstPath).RunStdString(t.Context())
 			require.NoError(t, err)
-			req := NewRequestf(t, "GET", "/api/v1/repos/%s/tags/v-1.1", repo.FullName())
+			req := NewRequestf(t, "GET", "/api/v1/repos/%s/tags/v-1.1", repo.FullName()).AddTokenAuth(httpContext.Token)
 			resp := MakeRequest(t, req, http.StatusOK)
 			assert.Contains(t, DecodeJSON(t, resp, &api.Tag{}).Message, "force update v2")
 		})

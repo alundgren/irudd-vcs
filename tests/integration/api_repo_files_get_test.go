@@ -48,7 +48,7 @@ func TestAPIGetRequestedFiles(t *testing.T) {
 	lastCommit, _ := gitRepo.GetCommitByPath("README.md")
 
 	requestFiles := func(t *testing.T, url string, files []string, expectedStatusCode ...int) (ret []*api.ContentsResponse) {
-		req := NewRequestWithJSON(t, "POST", url, &api.GetFilesOptions{Files: files})
+		req := NewRequestWithJSON(t, "POST", url, &api.GetFilesOptions{Files: files}).AddTokenAuth(token2)
 		resp := MakeRequest(t, req, util.OptionalArg(expectedStatusCode, http.StatusOK))
 		if resp.Code != http.StatusOK {
 			return nil
@@ -60,7 +60,7 @@ func TestAPIGetRequestedFiles(t *testing.T) {
 	t.Run("User2Get", func(t *testing.T) {
 		reqBodyOpt := &api.GetFilesOptions{Files: []string{"README.md"}}
 		reqBodyParam, _ := json.Marshal(reqBodyOpt)
-		req := NewRequest(t, "GET", "/api/v1/repos/user2/repo1/file-contents?body="+url.QueryEscape(string(reqBodyParam)))
+		req := NewRequest(t, "GET", "/api/v1/repos/user2/repo1/file-contents?body="+url.QueryEscape(string(reqBodyParam))).AddTokenAuth(token2)
 		resp := MakeRequest(t, req, http.StatusOK)
 		ret := DecodeJSON(t, resp, []*api.ContentsResponse{})
 		expected := []*api.ContentsResponse{getExpectedContentsResponseForContents(repo1.DefaultBranch, "branch", lastCommit.ID.String())}
@@ -93,9 +93,12 @@ func TestAPIGetRequestedFiles(t *testing.T) {
 
 	t.Run("PermissionCheck", func(t *testing.T) {
 		filesOptions := &api.GetFilesOptions{Files: []string{"README.md"}}
-		// Test accessing private ref with user token that does not have access - should fail
+		// Test accessing private ref with another user's token, every signed-in user owns every repository
 		req := NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/file-contents", user2.Name, repo16.Name), &filesOptions).AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusOK)
+		// Test without a token
+		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/file-contents", user2.Name, repo16.Name), &filesOptions)
+		MakeRequest(t, req, http.StatusUnauthorized)
 		// Test access private ref of owner of token
 		req = NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/file-contents", user2.Name, repo16.Name), &filesOptions).AddTokenAuth(token2)
 		MakeRequest(t, req, http.StatusOK)

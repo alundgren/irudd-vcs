@@ -80,7 +80,7 @@ func TestAPIRepoBranchesPlain(t *testing.T) {
 		assert.Equal(t, "master", branches[2].Name)
 
 		link3, _ := url.Parse(fmt.Sprintf("/api/v1/repos/org3/%s/branches/test_branch2", repo3.Name))
-		MakeRequest(t, NewRequest(t, "DELETE", link3.String()), http.StatusNotFound)
+		MakeRequest(t, NewRequest(t, "DELETE", link3.String()), http.StatusUnauthorized)
 		MakeRequest(t, NewRequest(t, "DELETE", link3.String()).AddTokenAuth(publicOnlyToken), http.StatusNotFound)
 
 		MakeRequest(t, NewRequest(t, "DELETE", link3.String()).AddTokenAuth(token), http.StatusNoContent)

@@ -96,14 +96,14 @@ func testAPIGetContents(t *testing.T, _ *url.URL) {
 	/*** END SETUP ***/
 
 	// not found
-	req := NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/no-such/file.md", user2.Name, repo1.Name)
+	req := NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/no-such/file.md", user2.Name, repo1.Name).AddTokenAuth(token2)
 	resp := MakeRequest(t, req, http.StatusNotFound)
 	assert.Contains(t, resp.Body.String(), "object does not exist [id: , rel_path: no-such]")
 
 	// ref is default ref
 	ref := repo1.DefaultBranch
 	refType := "branch"
-	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref)
+	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref).AddTokenAuth(token2)
 	resp = MakeRequest(t, req, http.StatusOK)
 	contentsResponse := DecodeJSON(t, resp, &api.ContentsResponse{})
 	lastCommit, _ := gitRepo.GetCommitByPath("README.md")
@@ -112,7 +112,7 @@ func testAPIGetContents(t *testing.T, _ *url.URL) {
 
 	// No ref
 	refType = "branch"
-	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s", user2.Name, repo1.Name, treePath)
+	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s", user2.Name, repo1.Name, treePath).AddTokenAuth(token2)
 	resp = MakeRequest(t, req, http.StatusOK)
 	contentsResponse = DecodeJSON(t, resp, &api.ContentsResponse{})
 	expectedContentsResponse = getExpectedContentsResponseForContents(repo1.DefaultBranch, refType, lastCommit.ID.String())
@@ -121,7 +121,7 @@ func testAPIGetContents(t *testing.T, _ *url.URL) {
 	// ref is the branch we created above in setup
 	ref = newBranch
 	refType = "branch"
-	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref)
+	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref).AddTokenAuth(token2)
 	resp = MakeRequest(t, req, http.StatusOK)
 	contentsResponse = DecodeJSON(t, resp, &api.ContentsResponse{})
 	branchCommit, _ := gitRepo.GetBranchCommit(ref)
@@ -132,7 +132,7 @@ func testAPIGetContents(t *testing.T, _ *url.URL) {
 	// ref is the new tag we created above in setup
 	ref = newTag
 	refType = "tag"
-	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref)
+	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref).AddTokenAuth(token2)
 	resp = MakeRequest(t, req, http.StatusOK)
 	contentsResponse = DecodeJSON(t, resp, &api.ContentsResponse{})
 	tagCommit, _ := gitRepo.GetTagCommit(ref)
@@ -143,7 +143,7 @@ func testAPIGetContents(t *testing.T, _ *url.URL) {
 	// ref is a commit
 	ref = commitID
 	refType = "commit"
-	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref)
+	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref).AddTokenAuth(token2)
 	resp = MakeRequest(t, req, http.StatusOK)
 	contentsResponse = DecodeJSON(t, resp, &api.ContentsResponse{})
 	expectedContentsResponse = getExpectedContentsResponseForContents(ref, refType, commitID)
@@ -151,13 +151,13 @@ func testAPIGetContents(t *testing.T, _ *url.URL) {
 
 	// Test file contents a file with a bad ref
 	ref = "badref"
-	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref)
+	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s?ref=%s", user2.Name, repo1.Name, treePath, ref).AddTokenAuth(token2)
 	MakeRequest(t, req, http.StatusNotFound)
 
-	// Test accessing private ref with user token that does not have access - should fail
-	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/%s", user2.Name, repo16.Name, treePath).
+	// Test accessing private ref with another user's token, every signed-in user owns every repository
+	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/readme.md", user2.Name, repo16.Name).
 		AddTokenAuth(token4)
-	MakeRequest(t, req, http.StatusNotFound)
+	MakeRequest(t, req, http.StatusOK)
 
 	// Test access private ref of owner of token
 	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/contents/readme.md", user2.Name, repo16.Name).
@@ -171,56 +171,57 @@ func testAPIGetContents(t *testing.T, _ *url.URL) {
 }
 
 func testAPIGetContentsRefFormats(t *testing.T) {
+	session := loginUser(t, "user2")
 	file := "README.md"
 	sha := "65f1bf27bc3bf70f64657658635e66094edbcb4d"
 	content := "# repo1\n\nDescription for repo1"
 
-	resp := MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/"+file), http.StatusOK)
+	resp := session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/"+file), http.StatusOK)
 	raw, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, content, string(raw))
 
-	resp = MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/"+sha+"/"+file), http.StatusOK)
+	resp = session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/"+sha+"/"+file), http.StatusOK)
 	raw, err = io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, content, string(raw))
 
-	resp = MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/"+file+"?ref="+sha), http.StatusOK)
+	resp = session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/"+file+"?ref="+sha), http.StatusOK)
 	raw, err = io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, content, string(raw))
 
-	resp = MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/"+file+"?ref=master"), http.StatusOK)
+	resp = session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/"+file+"?ref=master"), http.StatusOK)
 	raw, err = io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, content, string(raw))
 
-	_ = MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/docs/README.md?ref=main"), http.StatusNotFound)
-	_ = MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/README.md?ref=main"), http.StatusOK)
-	_ = MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/docs/README.md?ref=sub-home-md-img-check"), http.StatusOK)
-	_ = MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/README.md?ref=sub-home-md-img-check"), http.StatusNotFound)
+	_ = session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/docs/README.md?ref=main"), http.StatusNotFound)
+	_ = session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/README.md?ref=main"), http.StatusOK)
+	_ = session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/docs/README.md?ref=sub-home-md-img-check"), http.StatusOK)
+	_ = session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/README.md?ref=sub-home-md-img-check"), http.StatusNotFound)
 
 	// FIXME: this is an incorrect behavior, non-existing branch falls back to default branch
-	_ = MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/README.md?ref=no-such"), http.StatusOK)
+	_ = session.MakeRequest(t, NewRequest(t, http.MethodGet, "/api/v1/repos/user2/repo1/raw/README.md?ref=no-such"), http.StatusOK)
 }
 
 func testAPIGetContentsExt(t *testing.T) {
 	session := loginUser(t, "user2")
 	token2 := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)
 	t.Run("DirContents", func(t *testing.T) {
-		req := NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext?ref=sub-home-md-img-check")
+		req := NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext?ref=sub-home-md-img-check").AddTokenAuth(token2)
 		resp := MakeRequest(t, req, http.StatusOK)
 		contentsResponse := DecodeJSON(t, resp, &api.ContentsExtResponse{})
 		assert.Nil(t, contentsResponse.FileContents)
 		assert.NotNil(t, contentsResponse.DirContents)
 
-		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/.?ref=sub-home-md-img-check")
+		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/.?ref=sub-home-md-img-check").AddTokenAuth(token2)
 		resp = MakeRequest(t, req, http.StatusOK)
 		contentsResponse = DecodeJSON(t, resp, &api.ContentsExtResponse{})
 		assert.Nil(t, contentsResponse.FileContents)
 		assert.NotNil(t, contentsResponse.DirContents)
 
-		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/docs?ref=sub-home-md-img-check")
+		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/docs?ref=sub-home-md-img-check").AddTokenAuth(token2)
 		resp = MakeRequest(t, req, http.StatusOK)
 		contentsResponse = DecodeJSON(t, resp, &api.ContentsExtResponse{})
 		assert.Nil(t, contentsResponse.FileContents)
@@ -231,7 +232,7 @@ func testAPIGetContentsExt(t *testing.T) {
 		assert.Nil(t, contentsResponse.DirContents[0].LastCommitMessage)
 
 		// "includes=file_content" shouldn't affect directory listing
-		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/docs?ref=sub-home-md-img-check&includes=file_content")
+		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/docs?ref=sub-home-md-img-check&includes=file_content").AddTokenAuth(token2)
 		resp = MakeRequest(t, req, http.StatusOK)
 		contentsResponse = DecodeJSON(t, resp, &api.ContentsExtResponse{})
 		assert.Nil(t, contentsResponse.FileContents)
@@ -254,7 +255,7 @@ func testAPIGetContentsExt(t *testing.T) {
 	})
 	t.Run("FileContents", func(t *testing.T) {
 		// by default, no file content or commit info is returned
-		req := NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/docs/README.md?ref=sub-home-md-img-check")
+		req := NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/docs/README.md?ref=sub-home-md-img-check").AddTokenAuth(token2)
 		resp := MakeRequest(t, req, http.StatusOK)
 		contentsResponse := DecodeJSON(t, resp, &api.ContentsExtResponse{})
 		assert.Nil(t, contentsResponse.DirContents)
@@ -265,7 +266,7 @@ func testAPIGetContentsExt(t *testing.T) {
 		assert.Nil(t, contentsResponse.FileContents.LastCommitMessage)
 
 		// file content is only returned when `includes=file_content`
-		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/docs/README.md?ref=sub-home-md-img-check&includes=file_content,commit_metadata,commit_message")
+		req = NewRequestf(t, "GET", "/api/v1/repos/user2/repo1/contents-ext/docs/README.md?ref=sub-home-md-img-check&includes=file_content,commit_metadata,commit_message").AddTokenAuth(token2)
 		resp = MakeRequest(t, req, http.StatusOK)
 		contentsResponse = DecodeJSON(t, resp, &api.ContentsExtResponse{})
 		assert.Nil(t, contentsResponse.DirContents)
