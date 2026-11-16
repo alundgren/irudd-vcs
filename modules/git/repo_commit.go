@@ -12,6 +12,8 @@ import (
 
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/setting"
+
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // GetBranchCommitID returns last commit ID string of given branch.
@@ -44,7 +46,16 @@ func (repo *Repository) GetTagCommit(name string) (*Commit, error) {
 	return repo.GetCommit(RefNameFromTag(name).String())
 }
 
+// lastCommitByPath maps a commit ID and path to the last commit that changed the path, which the commit
+// ID fixes since replace objects are disabled; the contents API asks for it on every request
+var lastCommitByPath, _ = lru.New[string, ObjectID](4096)
+
 func (repo *Repository) getCommitByPathWithID(id ObjectID, relpath string) (*Commit, error) {
+	key := id.String() + ":" + relpath
+	if lastID, ok := lastCommitByPath.Get(key); ok {
+		return repo.getCommit(lastID)
+	}
+
 	// File name starts with ':' must be escaped.
 	if strings.HasPrefix(relpath, ":") {
 		relpath = `\` + relpath
@@ -59,12 +70,12 @@ func (repo *Repository) getCommitByPathWithID(id ObjectID, relpath string) (*Com
 		return nil, runErr
 	}
 
-	id, err := NewIDFromString(stdout)
+	lastID, err := NewIDFromString(stdout)
 	if err != nil {
 		return nil, err
 	}
-
-	return repo.getCommit(id)
+	lastCommitByPath.Add(key, lastID)
+	return repo.getCommit(lastID)
 }
 
 // GetCommitByPath returns the last commit of relative path.
