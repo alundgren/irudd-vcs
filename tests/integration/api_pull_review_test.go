@@ -227,7 +227,6 @@ func testAPIPullReviewGeneral(t *testing.T) {
 	assert.Equal(t, 0, reviews[0].CodeCommentsCount)
 	assert.False(t, reviews[0].Stale)
 	assert.True(t, reviews[0].Official)
-	assert.Equal(t, "test_team", reviews[0].ReviewerTeam.Name)
 
 	assert.EqualValues(t, 12, reviews[1].ID)
 	assert.EqualValues(t, "REQUEST_REVIEW", reviews[1].State)
@@ -271,12 +270,6 @@ func TestAPIPullReviewRequest(t *testing.T) {
 		Reviewers: []string{"user4"},
 	}).AddTokenAuth(token2)
 	MakeRequest(t, req, http.StatusNoContent)
-
-	// doer is not admin
-	req = NewRequestWithJSON(t, http.MethodDelete, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo.OwnerName, repo.Name, pullIssue.Index), &api.PullReviewRequestOptions{
-		Reviewers: []string{"user8"},
-	}).AddTokenAuth(token2)
-	MakeRequest(t, req, http.StatusUnprocessableEntity)
 
 	req = NewRequestWithJSON(t, http.MethodDelete, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo.OwnerName, repo.Name, pullIssue.Index), &api.PullReviewRequestOptions{
 		Reviewers: []string{"user8"},
@@ -326,34 +319,10 @@ func TestAPIPullReviewRequest(t *testing.T) {
 	}).AddTokenAuth(user39Token) // user39 is from a team with read permission on pull requests unit
 	MakeRequest(t, req, http.StatusNoContent)
 
-	// Test team review request
+	// team review requests are gone, there are no teams
 	pullIssue12 := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: 12})
 	assert.NoError(t, pullIssue12.LoadAttributes(t.Context()))
 	repo3 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: pullIssue12.RepoID})
-
-	// Test add Team Review Request
-	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo3.OwnerName, repo3.Name, pullIssue12.Index), &api.PullReviewRequestOptions{
-		TeamReviewers: []string{"team1", "owners"},
-	}).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusCreated)
-
-	// Test add Team Review Request to not allowned
-	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo3.OwnerName, repo3.Name, pullIssue12.Index), &api.PullReviewRequestOptions{
-		TeamReviewers: []string{"test_team"},
-	}).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusUnprocessableEntity)
-
-	// Test add Team Review Request to not exist
-	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo3.OwnerName, repo3.Name, pullIssue12.Index), &api.PullReviewRequestOptions{
-		TeamReviewers: []string{"not_exist_team"},
-	}).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusNotFound)
-
-	// Test Remove team Review Request
-	req = NewRequestWithJSON(t, http.MethodDelete, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo3.OwnerName, repo3.Name, pullIssue12.Index), &api.PullReviewRequestOptions{
-		TeamReviewers: []string{"team1"},
-	}).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusNoContent)
 
 	// empty request test
 	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo3.OwnerName, repo3.Name, pullIssue12.Index), &api.PullReviewRequestOptions{}).
@@ -382,7 +351,7 @@ func TestAPIPullReviewCommentResolveEndpoints(t *testing.T) {
 	latestCommitID, err := gitRepo.GetRefCommitID(pullIssue.PullRequest.GetGitHeadRefName())
 	require.NoError(t, err)
 
-	codeComment, err := pull_service.CreateCodeComment(ctx, doer, gitRepo, pullIssue, 1, "resolve comment", "README.md", false, 0, latestCommitID, nil)
+	codeComment, err := pull_service.CreateCodeComment(ctx, doer, gitRepo, pullIssue, 1, "resolve comment", "README.md", false, 0, latestCommitID)
 	require.NoError(t, err)
 	require.NotNil(t, codeComment)
 
@@ -420,22 +389,11 @@ func TestAPIPullReviewCommentResolveEndpoints(t *testing.T) {
 	MakeRequest(t, req, http.StatusNotFound)
 
 	// Non-code-comment
-	plainComment, err := issue_service.CreateIssueComment(ctx, doer, repo, pullIssue, "not a review comment", nil)
+	plainComment, err := issue_service.CreateIssueComment(ctx, doer, repo, pullIssue, "not a review comment")
 	require.NoError(t, err)
 	req = NewRequest(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/comments/%d/resolve", repo.OwnerName, repo.Name, plainComment.ID)).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusBadRequest)
 
-	// Test permission check: use a user without write access for target repo to test 403 response
-	unauthorizedUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 5})
-	require.NotEqual(t, pullIssue.PosterID, unauthorizedUser.ID)
-
-	unauthorizedSession := loginUser(t, unauthorizedUser.Name)
-	unauthorizedToken := getTokenForLoggedInUser(t, unauthorizedSession, auth_model.AccessTokenScopeWriteIssue, auth_model.AccessTokenScopeWriteRepository)
-
-	req = NewRequest(t, http.MethodGet, fmt.Sprintf("/api/v1/repos/%s/%s/issues/comments/%d", repo.OwnerName, repo.Name, plainComment.ID)).AddTokenAuth(unauthorizedToken)
-	MakeRequest(t, req, http.StatusOK)
-	req = NewRequest(t, http.MethodPost, resolveURL).AddTokenAuth(unauthorizedToken)
-	MakeRequest(t, req, http.StatusForbidden)
 }
 
 func TestAPIPullReviewStayDismissed(t *testing.T) {
@@ -543,7 +501,7 @@ func testAPIPullReviewCommentReply(t *testing.T) {
 	commitID, err := gitRepo.GetRefCommitID(pullIssue.PullRequest.GetGitHeadRefName())
 	require.NoError(t, err)
 
-	parent, err := pull_service.CreateCodeComment(t.Context(), doer, gitRepo, pullIssue, 1, "parent comment", "README.md", false, 0, commitID, nil)
+	parent, err := pull_service.CreateCodeComment(t.Context(), doer, gitRepo, pullIssue, 1, "parent comment", "README.md", false, 0, commitID)
 	require.NoError(t, err)
 	require.NotZero(t, parent.ReviewID)
 

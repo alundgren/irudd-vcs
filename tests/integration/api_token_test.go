@@ -6,145 +6,17 @@ package integration
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	auth_model "gitea.dev/models/auth"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/log"
-	api "gitea.dev/modules/structs"
 	"gitea.dev/tests"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-// TestAPICreateAndDeleteToken tests that token that was just created can be deleted
-func TestAPICreateAndDeleteToken(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})
-
-	newAccessToken := createAPIAccessTokenWithoutCleanUp(t, "test-key-1", user, []auth_model.AccessTokenScope{auth_model.AccessTokenScopeAll})
-	deleteAPIAccessToken(t, newAccessToken, user)
-
-	newAccessToken = createAPIAccessTokenWithoutCleanUp(t, "test-key-2", user, []auth_model.AccessTokenScope{auth_model.AccessTokenScopeAll})
-	deleteAPIAccessToken(t, newAccessToken, user)
-}
-
-// TestAPICreateTokenScopeEscalation ensures a token-authenticated request cannot
-// mint a new token with a broader scope than the authenticating token.
-func TestAPICreateTokenScopeEscalation(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-
-	// a write:user-scoped token authenticates the create requests below
-	writeUserToken := getUserToken(t, user.Name, auth_model.AccessTokenScopeWriteUser)
-
-	// requesting a broader scope ("all") than the authenticating token is rejected
-	req := NewRequestWithJSON(t, "POST", "/api/v1/users/"+user.LoginName+"/tokens", map[string]any{
-		"name":   "escalated",
-		"scopes": []string{"all"},
-	})
-	req.Request.SetBasicAuth(user.Name, writeUserToken)
-	MakeRequest(t, req, http.StatusForbidden)
-
-	// requesting a subset scope ("read:user") is allowed
-	req = NewRequestWithJSON(t, "POST", "/api/v1/users/"+user.LoginName+"/tokens", map[string]any{
-		"name":   "subset",
-		"scopes": []string{"read:user"},
-	})
-	req.Request.SetBasicAuth(user.Name, writeUserToken)
-	MakeRequest(t, req, http.StatusCreated)
-
-	// password (non-token) auth may still create a token with any scope
-	req = NewRequestWithJSON(t, "POST", "/api/v1/users/"+user.LoginName+"/tokens", map[string]any{
-		"name":   "by-password",
-		"scopes": []string{"all"},
-	}).AddBasicAuth(user.Name)
-	MakeRequest(t, req, http.StatusCreated)
-
-	// a public-only token must not mint a token that drops the public-only restriction
-	publicOnlyToken := getUserToken(t, user.Name, auth_model.AccessTokenScopeWriteUser, auth_model.AccessTokenScopePublicOnly)
-	req = NewRequestWithJSON(t, "POST", "/api/v1/users/"+user.LoginName+"/tokens", map[string]any{
-		"name":   "still-public-only",
-		"scopes": []string{"write:user"},
-	})
-	req.Request.SetBasicAuth(user.Name, publicOnlyToken)
-	resp := MakeRequest(t, req, http.StatusCreated)
-	var createdToken api.AccessToken
-	DecodeJSON(t, resp, &createdToken)
-	assert.Contains(t, createdToken.Scopes, string(auth_model.AccessTokenScopePublicOnly))
-
-	// an unrestricted parent token may create a narrower public-only child: public-only is a restriction,
-	// not a grantable permission, so the subset check must not reject it
-	req = NewRequestWithJSON(t, "POST", "/api/v1/users/"+user.LoginName+"/tokens", map[string]any{
-		"name":   "narrower-public-only",
-		"scopes": []string{"write:user", "public-only"},
-	})
-	req.Request.SetBasicAuth(user.Name, writeUserToken)
-	resp = MakeRequest(t, req, http.StatusCreated)
-	DecodeJSON(t, resp, &createdToken)
-	assert.Contains(t, createdToken.Scopes, string(auth_model.AccessTokenScopePublicOnly))
-}
-
-// TestAPIDeleteMissingToken ensures that error is thrown when token not found
-func TestAPIDeleteMissingToken(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})
-
-	req := NewRequestf(t, "DELETE", "/api/v1/users/user1/tokens/%d", unittest.NonexistentID).
-		AddBasicAuth(user.Name)
-	MakeRequest(t, req, http.StatusNotFound)
-}
-
-// TestAPIGetTokensPermission ensures that only the admin can get tokens from other users
-func TestAPIGetTokensPermission(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-
-	// admin can get tokens for other users
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})
-	req := NewRequest(t, "GET", "/api/v1/users/user2/tokens").
-		AddBasicAuth(user.Name)
-	MakeRequest(t, req, http.StatusOK)
-
-	// non-admin can get tokens for himself
-	user = unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-	req = NewRequest(t, "GET", "/api/v1/users/user2/tokens").
-		AddBasicAuth(user.Name)
-	MakeRequest(t, req, http.StatusOK)
-
-	// non-admin can't get tokens for other users
-	user = unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
-	req = NewRequest(t, "GET", "/api/v1/users/user2/tokens").
-		AddBasicAuth(user.Name)
-	MakeRequest(t, req, http.StatusForbidden)
-}
-
-// TestAPIDeleteTokensPermission ensures that only the admin can delete tokens from other users
-func TestAPIDeleteTokensPermission(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-
-	admin := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})
-	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-	user4 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
-
-	// admin can delete tokens for other users
-	createAPIAccessTokenWithoutCleanUp(t, "test-key-1", user2, []auth_model.AccessTokenScope{auth_model.AccessTokenScopeAll})
-	req := NewRequest(t, "DELETE", "/api/v1/users/"+user2.LoginName+"/tokens/test-key-1").
-		AddBasicAuth(admin.Name)
-	MakeRequest(t, req, http.StatusNoContent)
-
-	// non-admin can delete tokens for himself
-	createAPIAccessTokenWithoutCleanUp(t, "test-key-2", user2, []auth_model.AccessTokenScope{auth_model.AccessTokenScopeAll})
-	req = NewRequest(t, "DELETE", "/api/v1/users/"+user2.LoginName+"/tokens/test-key-2").
-		AddBasicAuth(user2.Name)
-	MakeRequest(t, req, http.StatusNoContent)
-
-	// non-admin can't delete tokens for other users
-	createAPIAccessTokenWithoutCleanUp(t, "test-key-3", user2, []auth_model.AccessTokenScope{auth_model.AccessTokenScopeAll})
-	req = NewRequest(t, "DELETE", "/api/v1/users/"+user2.LoginName+"/tokens/test-key-3").
-		AddBasicAuth(user4.Name)
-	MakeRequest(t, req, http.StatusForbidden)
-}
 
 type permission struct {
 	category auth_model.AccessTokenScopeCategory
@@ -215,90 +87,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 			},
 		},
 		{
-			"/api/v1/admin/users/user2/orgs",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryAdmin,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/admin/users/user2/orgs",
-			"POST",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryAdmin,
-					auth_model.Write,
-				},
-			},
-		},
-		{
-			"/api/v1/admin/orgs",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryAdmin,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/notifications",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryNotification,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/notifications",
-			"PUT",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryNotification,
-					auth_model.Write,
-				},
-			},
-		},
-		{
-			"/api/v1/org/org1/repos",
-			"POST",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryOrganization,
-					auth_model.Write,
-				},
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Write,
-				},
-			},
-		},
-		{
-			"/api/v1/packages/user1/type/name/1",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryPackage,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/packages/user1/type/name/1",
-			"DELETE",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryPackage,
-					auth_model.Write,
-				},
-			},
-		},
-		{
 			"/api/v1/repos/user1/repo1",
 			"GET",
 			[]permission{
@@ -339,16 +127,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 			},
 		},
 		{
-			"/api/v1/repos/user1/repo1/archive/foo",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Read,
-				},
-			},
-		},
-		{
 			"/api/v1/repos/user1/repo1/issues",
 			"GET",
 			[]permission{
@@ -375,36 +153,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 				{
 					auth_model.AccessTokenScopeCategoryRepository,
 					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/repos/user1/repo1/teams",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/repos/user1/repo1/teams/team1",
-			"PUT",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Write,
-				},
-			},
-		},
-		{
-			"/api/v1/repos/user1/repo1/transfer",
-			"POST",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Write,
 				},
 			},
 		},
@@ -471,26 +219,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 			},
 		},
 		{
-			"/api/v1/user/applications/oauth2",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryUser,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/user/applications/oauth2",
-			"POST",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryUser,
-					auth_model.Write,
-				},
-			},
-		},
-		{
 			"/api/v1/users/search",
 			"GET",
 			[]permission{
@@ -503,17 +231,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 		// Private user
 		{
 			"/api/v1/users/user31",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryUser,
-					auth_model.Read,
-				},
-			},
-		},
-		// Private user
-		{
-			"/api/v1/users/user31/gpg_keys",
 			"GET",
 			[]permission{
 				{
@@ -587,35 +304,22 @@ func runTestCase(t *testing.T, testCase *requiredScopeTestCase, user *user_model
 	})
 }
 
-// createAPIAccessTokenWithoutCleanUp Create an API access token and assert that
-// creation succeeded.  The caller is responsible for deleting the token.
-func createAPIAccessTokenWithoutCleanUp(t *testing.T, tokenName string, user *user_model.User, scopes []auth_model.AccessTokenScope) api.AccessToken {
-	payload := map[string]any{
-		"name":   tokenName,
-		"scopes": scopes,
+// createAPIAccessTokenWithoutCleanUp creates an access token directly, there is no token API.
+// The caller is responsible for deleting the token.
+func createAPIAccessTokenWithoutCleanUp(t *testing.T, tokenName string, user *user_model.User, scopes []auth_model.AccessTokenScope) *auth_model.AccessToken {
+	scopeNames := make([]string, 0, len(scopes))
+	for _, scope := range scopes {
+		scopeNames = append(scopeNames, string(scope))
 	}
-
-	log.Debug("Requesting creation of token with scopes: %v", scopes)
-	req := NewRequestWithJSON(t, "POST", "/api/v1/users/"+user.LoginName+"/tokens", payload).
-		AddBasicAuth(user.Name)
-	resp := MakeRequest(t, req, http.StatusCreated)
-
-	newAccessToken := DecodeJSON(t, resp, &api.AccessToken{})
-	unittest.AssertExistsAndLoadBean(t, &auth_model.AccessToken{
-		ID:    newAccessToken.ID,
-		Name:  newAccessToken.Name,
-		Token: newAccessToken.Token,
-		UID:   user.ID,
-	})
-
-	return *newAccessToken
+	scope, err := auth_model.AccessTokenScope(strings.Join(scopeNames, ",")).Normalize()
+	require.NoError(t, err)
+	token := &auth_model.AccessToken{UID: user.ID, Name: tokenName, Scope: scope}
+	require.NoError(t, auth_model.NewAccessToken(t.Context(), token))
+	return token
 }
 
-// deleteAPIAccessToken deletes an API access token and assert that deletion succeeded.
-func deleteAPIAccessToken(t *testing.T, accessToken api.AccessToken, user *user_model.User) {
-	req := NewRequestf(t, "DELETE", "/api/v1/users/"+user.LoginName+"/tokens/%d", accessToken.ID).
-		AddBasicAuth(user.Name)
-	MakeRequest(t, req, http.StatusNoContent)
-
+// deleteAPIAccessToken deletes an access token and asserts that deletion succeeded.
+func deleteAPIAccessToken(t *testing.T, accessToken *auth_model.AccessToken, user *user_model.User) {
+	require.NoError(t, auth_model.DeleteAccessTokenByID(t.Context(), accessToken.ID, user.ID))
 	unittest.AssertNotExistsBean(t, &auth_model.AccessToken{ID: accessToken.ID})
 }

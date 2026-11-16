@@ -14,8 +14,6 @@ import (
 
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
-	org_model "gitea.dev/models/organization"
-	pull_model "gitea.dev/models/pull"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
@@ -131,7 +129,6 @@ type PullRequest struct {
 	Issue                      *Issue `xorm:"-"`
 	Index                      int64
 	RequestedReviewers         []*user_model.User `xorm:"-"`
-	RequestedReviewersTeams    []*org_model.Team  `xorm:"-"`
 	isRequestedReviewersLoaded bool               `xorm:"-"`
 
 	HeadRepoID          int64                  `xorm:"INDEX"`
@@ -161,20 +158,6 @@ func init() {
 
 // DeletePullsByBaseRepoID deletes all pull requests by the base repository ID
 func DeletePullsByBaseRepoID(ctx context.Context, repoID int64) error {
-	deleteCond := builder.Select("id").From("pull_request").Where(builder.Eq{"pull_request.base_repo_id": repoID})
-
-	// Delete scheduled auto merges
-	if _, err := db.GetEngine(ctx).In("pull_id", deleteCond).
-		Delete(&pull_model.AutoMerge{}); err != nil {
-		return err
-	}
-
-	// Delete review states
-	if _, err := db.GetEngine(ctx).In("pull_id", deleteCond).
-		Delete(&pull_model.ReviewState{}); err != nil {
-		return err
-	}
-
 	_, err := db.DeleteByBean(ctx, &PullRequest{BaseRepoID: repoID})
 	return err
 }
@@ -278,25 +261,6 @@ func (pr *PullRequest) LoadRequestedReviewers(ctx context.Context) error {
 	for _, review := range reviews {
 		if review.ReviewerID != 0 {
 			pr.RequestedReviewers = append(pr.RequestedReviewers, review.Reviewer)
-		}
-	}
-
-	return nil
-}
-
-// LoadRequestedReviewersTeams loads the requested reviewers teams.
-func (pr *PullRequest) LoadRequestedReviewersTeams(ctx context.Context) error {
-	reviews, _, err := GetReviewsByIssueID(ctx, pr.Issue.ID)
-	if err != nil {
-		return err
-	}
-	if err = reviews.LoadReviewersTeams(ctx); err != nil {
-		return err
-	}
-
-	for _, review := range reviews {
-		if review.ReviewerTeamID != 0 {
-			pr.RequestedReviewersTeams = append(pr.RequestedReviewersTeams, review.ReviewerTeam)
 		}
 	}
 
@@ -459,7 +423,7 @@ func (pr *PullRequest) IsFromFork() bool {
 }
 
 // NewPullRequest creates new pull request with labels for repository.
-func NewPullRequest(ctx context.Context, repo *repo_model.Repository, issue *Issue, labelIDs []int64, uuids []string, pr *PullRequest) (err error) {
+func NewPullRequest(ctx context.Context, repo *repo_model.Repository, issue *Issue, labelIDs []int64, pr *PullRequest) (err error) {
 	return db.WithTx(ctx, func(ctx context.Context) error {
 		idx, err := db.GetNextResourceIndex(ctx, "issue_index", repo.ID)
 		if err != nil {
@@ -471,10 +435,9 @@ func NewPullRequest(ctx context.Context, repo *repo_model.Repository, issue *Iss
 		issue.IsPull = true
 
 		if err = NewIssueWithIndex(ctx, issue.Poster, NewIssueOptions{
-			Repo:        repo,
-			Issue:       issue,
-			LabelIDs:    labelIDs,
-			Attachments: uuids,
+			Repo:     repo,
+			Issue:    issue,
+			LabelIDs: labelIDs,
 		}); err != nil {
 			if repo_model.IsErrUserDoesNotHaveAccessToRepo(err) {
 				return err
@@ -516,20 +479,6 @@ func GetUnmergedPullRequest(ctx context.Context, headRepoID, baseRepoID int64, h
 	return pr, nil
 }
 
-// GetLatestPullRequestByHeadInfo returns the latest pull request (regardless of its status)
-// by given head information (repo and branch).
-func GetLatestPullRequestByHeadInfo(ctx context.Context, repoID int64, branch string) (*PullRequest, error) {
-	pr := new(PullRequest)
-	has, err := db.GetEngine(ctx).
-		Where("head_repo_id = ? AND head_branch = ? AND flow = ?", repoID, branch, PullRequestFlowGithub).
-		OrderBy("id DESC").
-		Get(pr)
-	if !has {
-		return nil, err
-	}
-	return pr, err
-}
-
 // GetPullRequestByIndex returns a pull request by the given index
 func GetPullRequestByIndex(ctx context.Context, repoID, index int64) (*PullRequest, error) {
 	if index < 1 {
@@ -563,19 +512,6 @@ func GetPullRequestByID(ctx context.Context, id int64) (*PullRequest, error) {
 		return nil, ErrPullRequestNotExist{id, 0, 0, 0, "", ""}
 	}
 	return pr, pr.LoadAttributes(ctx)
-}
-
-// GetPullRequestByIssueIDWithNoAttributes returns pull request with no attributes loaded by given issue ID.
-func GetPullRequestByIssueIDWithNoAttributes(ctx context.Context, issueID int64) (*PullRequest, error) {
-	var pr PullRequest
-	has, err := db.GetEngine(ctx).Where("issue_id = ?", issueID).Get(&pr)
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, ErrPullRequestNotExist{0, issueID, 0, 0, "", ""}
-	}
-	return &pr, nil
 }
 
 // GetPullRequestByIssueID returns pull request by given issue ID.
@@ -616,20 +552,6 @@ func GetPullRequestByBaseHeadInfo(ctx context.Context, baseID, headID int64, bas
 	}
 
 	return pr, nil
-}
-
-// GetAllUnmergedAgitPullRequestByPoster get all unmerged agit flow pull request
-// By poster id.
-func GetAllUnmergedAgitPullRequestByPoster(ctx context.Context, uid int64) ([]*PullRequest, error) {
-	pulls := make([]*PullRequest, 0, 10)
-
-	err := db.GetEngine(ctx).
-		Where("has_merged=? AND flow = ? AND issue.is_closed=? AND issue.poster_id=?",
-			false, PullRequestFlowAGit, false, uid).
-		Join("INNER", "issue", "issue.id=pull_request.issue_id").
-		Find(&pulls)
-
-	return pulls, err
 }
 
 // UpdateCols updates specific fields of pull request.
@@ -866,14 +788,12 @@ type CodeOwnerRule struct {
 	Rule     *regexp2.Regexp // it supports negative lookahead, does better for end users
 	Negative bool
 	Users    []*user_model.User
-	Teams    []*org_model.Team
 }
 
 func ParseCodeOwnersLine(ctx context.Context, tokens []string) (*CodeOwnerRule, []string) {
 	var err error
 	rule := &CodeOwnerRule{
 		Users:    make([]*user_model.User, 0),
-		Teams:    make([]*org_model.Team, 0),
 		Negative: strings.HasPrefix(tokens[0], "!"),
 	}
 
@@ -895,44 +815,15 @@ func ParseCodeOwnersLine(ctx context.Context, tokens []string) (*CodeOwnerRule, 
 
 	for _, user := range tokens[1:] {
 		user = strings.TrimPrefix(user, "@")
-
-		// Only @org/team can contain slashes
-		if strings.Contains(user, "/") {
-			s := strings.Split(user, "/")
-			if len(s) != 2 {
-				warnings = append(warnings, "incorrect codeowner group: "+user)
-				continue
-			}
-			orgName := s[0]
-			teamName := s[1]
-
-			org, err := org_model.GetOrgByName(ctx, orgName)
-			if err != nil {
-				warnings = append(warnings, "incorrect codeowner organization: "+user)
-				continue
-			}
-			teams, err := org.LoadTeams(ctx)
-			if err != nil {
-				warnings = append(warnings, "incorrect codeowner team: "+user)
-				continue
-			}
-
-			for _, team := range teams {
-				if team.Name == teamName {
-					rule.Teams = append(rule.Teams, team)
-				}
-			}
-		} else {
-			u, err := user_model.GetUserByName(ctx, user)
-			if err != nil {
-				warnings = append(warnings, "incorrect codeowner user: "+user)
-				continue
-			}
-			rule.Users = append(rule.Users, u)
+		u, err := user_model.GetUserByName(ctx, user) // @org/team owners can't match, there are no teams
+		if err != nil {
+			warnings = append(warnings, "incorrect codeowner user: "+user)
+			continue
 		}
+		rule.Users = append(rule.Users, u)
 	}
 
-	if (len(rule.Users) == 0) && (len(rule.Teams) == 0) {
+	if len(rule.Users) == 0 {
 		warnings = append(warnings, "no users/groups matched")
 		return nil, warnings
 	}

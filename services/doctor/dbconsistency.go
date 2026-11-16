@@ -6,15 +6,11 @@ package doctor
 import (
 	"context"
 
-	actions_model "gitea.dev/models/actions"
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/migrations"
 	repo_model "gitea.dev/models/repo"
-	secret_model "gitea.dev/models/secret"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	issue_service "gitea.dev/services/issue"
 )
 
@@ -105,15 +101,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 		// find pull requests without base repository
 		genericOrphanCheck("Pull request entries without existing base repository",
 			"pull_request", "repository", "pull_request.base_repo_id=repository.id"),
-		// find tracked times without existing issues/pulls
-		genericOrphanCheck("Orphaned TrackedTimes without existing issue",
-			"tracked_time", "issue", "tracked_time.issue_id=issue.id"),
-		// find attachments without existing issues or releases
-		{
-			Name:    "Orphaned Attachments without existing issues or releases",
-			Counter: repo_model.CountOrphanedAttachments,
-			Fixer:   asFixer(repo_model.DeleteOrphanedAttachments),
-		},
 		// find null archived repositories
 		{
 			Name:         "Repositories with is_archived IS NULL",
@@ -142,60 +129,9 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 			Fixer:        issues_model.FixIssueLabelWithOutsideLabels,
 			FixedMessage: "Removed",
 		},
-		{
-			Name:         "Action with created_unix set as an empty string",
-			Counter:      activities_model.CountActionCreatedUnixString,
-			Fixer:        activities_model.FixActionCreatedUnixString,
-			FixedMessage: "Set to zero",
-		},
-		{
-			Name:         "Action Runners without existing owner",
-			Counter:      actions_model.CountRunnersWithoutBelongingOwner,
-			Fixer:        actions_model.FixRunnersWithoutBelongingOwner,
-			FixedMessage: "Removed",
-		},
-		{
-			Name:         "Action Runners without existing repository",
-			Counter:      actions_model.CountRunnersWithoutBelongingRepo,
-			Fixer:        actions_model.FixRunnersWithoutBelongingRepo,
-			FixedMessage: "Removed",
-		},
-		{
-			Name:         "Topics with empty repository count",
-			Counter:      repo_model.CountOrphanedTopics,
-			Fixer:        repo_model.DeleteOrphanedTopics,
-			FixedMessage: "Removed",
-		},
-		{
-			Name:         "Repository level Runners with non-zero owner_id",
-			Counter:      actions_model.CountWrongRepoLevelRunners,
-			Fixer:        actions_model.UpdateWrongRepoLevelRunners,
-			FixedMessage: "Corrected",
-		},
-		{
-			Name:         "Repository level Variables with non-zero owner_id",
-			Counter:      actions_model.CountWrongRepoLevelVariables,
-			Fixer:        actions_model.UpdateWrongRepoLevelVariables,
-			FixedMessage: "Corrected",
-		},
-		{
-			Name:         "Repository level Secrets with non-zero owner_id",
-			Counter:      secret_model.CountWrongRepoLevelSecrets,
-			Fixer:        secret_model.UpdateWrongRepoLevelSecrets,
-			FixedMessage: "Corrected",
-		},
 	}
 
 	// TODO: function to recalc all counters
-
-	if setting.Database.Type.IsPostgreSQL() {
-		consistencyChecks = append(consistencyChecks, consistencyCheck{
-			Name:         "Sequence values",
-			Counter:      db.CountBadSequences,
-			Fixer:        asFixer(db.FixBadSequences),
-			FixedMessage: "Updated",
-		})
-	}
 
 	consistencyChecks = append(consistencyChecks,
 		// find protected branches without existing repository
@@ -207,39 +143,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 		// find LFS locks without existing repository
 		genericOrphanCheck("LFS locks without existing repository",
 			"lfs_lock", "repository", "lfs_lock.repo_id=repository.id"),
-		// find collaborations without users
-		genericOrphanCheck("Collaborations without existing user",
-			"collaboration", "user", "collaboration.user_id=`user`.id"),
-		// find collaborations without repository
-		genericOrphanCheck("Collaborations without existing repository",
-			"collaboration", "repository", "collaboration.repo_id=repository.id"),
-		// find access without users
-		genericOrphanCheck("Access entries without existing user",
-			"access", "user", "access.user_id=`user`.id"),
-		// find access without repository
-		genericOrphanCheck("Access entries without existing repository",
-			"access", "repository", "access.repo_id=repository.id"),
-		// find action without repository
-		genericOrphanCheck("Action entries without existing repository",
-			"action", "repository", "action.repo_id=repository.id"),
-		// find action without user
-		genericOrphanCheck("Action entries without existing user",
-			"action", "user", "action.act_user_id=`user`.id"),
-		// find OAuth2Grant without existing user
-		genericOrphanCheck("Orphaned OAuth2Grant without existing User",
-			"oauth2_grant", "user", "oauth2_grant.user_id=`user`.id"),
-		// find OAuth2Application without existing user
-		genericOrphanCheck("Orphaned OAuth2Application without existing User",
-			"oauth2_application", "user", "oauth2_application.uid=0 OR oauth2_application.uid=`user`.id"),
-		// find OAuth2AuthorizationCode without existing OAuth2Grant
-		genericOrphanCheck("Orphaned OAuth2AuthorizationCode without existing OAuth2Grant",
-			"oauth2_authorization_code", "oauth2_grant", "oauth2_authorization_code.grant_id=oauth2_grant.id"),
-		// find stopwatches without existing user
-		genericOrphanCheck("Orphaned Stopwatches without existing User",
-			"stopwatch", "user", "stopwatch.user_id=`user`.id"),
-		// find stopwatches without existing issue
-		genericOrphanCheck("Orphaned Stopwatches without existing Issue",
-			"stopwatch", "issue", "stopwatch.issue_id=`issue`.id"),
 		// find redirects without existing user.
 		genericOrphanCheck("Orphaned Redirects without existing redirect user",
 			"user_redirect", "user", "user_redirect.redirect_user_id=`user`.id"),

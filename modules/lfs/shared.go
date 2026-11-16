@@ -16,10 +16,6 @@ const (
 	MediaType = "application/vnd.git-lfs+json"
 	// AcceptHeader Some LFS servers offer content with other types, so fallback to '*/*' if application/vnd.git-lfs+json cannot be served
 	AcceptHeader = "application/vnd.git-lfs+json;q=0.9, */*;q=0.8"
-	// UserAgentHeader Add User-Agent for gitea's self-implemented lfs client,
-	// and the version is consistent with the latest version of git lfs can be avoided incompatibilities.
-	// Some lfs servers will check this
-	UserAgentHeader = "git-lfs/3.6.0 (Gitea)"
 )
 
 // BatchRequest contains multiple requests processed in one batch operation.
@@ -118,12 +114,6 @@ func (e *ObjectError) Unwrap() error {
 	default:
 		return errors.New(e.Message)
 	}
-}
-
-// PointerBlob associates a Git blob with a Pointer.
-type PointerBlob struct {
-	Hash string
-	Pointer
 }
 
 // ErrorResponse describes the error to the client.

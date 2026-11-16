@@ -10,16 +10,12 @@ import (
 	"html/template"
 	"regexp"
 	"slices"
-	"strconv"
 
 	"gitea.dev/models/db"
-	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/optional"
-	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
@@ -52,39 +48,32 @@ var ErrIssueAlreadyChanged = util.NewInvalidArgumentErrorf("the issue is already
 
 // Issue represents an issue or pull request of repository.
 type Issue struct {
-	ID                int64                  `xorm:"pk autoincr"`
-	RepoID            int64                  `xorm:"INDEX UNIQUE(repo_index)"`
-	Repo              *repo_model.Repository `xorm:"-"`
-	Index             int64                  `xorm:"UNIQUE(repo_index)"` // Index in one repository.
-	PosterID          int64                  `xorm:"INDEX"`
-	Poster            *user_model.User       `xorm:"-"`
-	OriginalAuthor    string
-	OriginalAuthorID  int64                    `xorm:"index"`
-	Title             string                   `xorm:"name"`
-	Content           string                   `xorm:"LONGTEXT"`
-	RenderedContent   template.HTML            `xorm:"-"`
-	ContentVersion    int                      `xorm:"NOT NULL DEFAULT 0"`
-	Labels            []*Label                 `xorm:"-"`
-	isLabelsLoaded    bool                     `xorm:"-"`
-	MilestoneID       int64                    `xorm:"INDEX"`
-	Milestone         *Milestone               `xorm:"-"`
-	isMilestoneLoaded bool                     `xorm:"-"`
-	Projects          []*project_model.Project `xorm:"-"`
-	isProjectsLoaded  bool                     `xorm:"-"`
-	Priority          int
-	AssigneeID        int64            `xorm:"-"`
-	Assignee          *user_model.User `xorm:"-"`
-	isAssigneeLoaded  bool             `xorm:"-"`
-	IsClosed          bool             `xorm:"INDEX"`
-	IsRead            bool             `xorm:"-"`
-	IsPull            bool             `xorm:"INDEX"` // Indicates whether is a pull request or not.
-	PullRequest       *PullRequest     `xorm:"-"`
-	NumComments       int
+	ID               int64                  `xorm:"pk autoincr"`
+	RepoID           int64                  `xorm:"INDEX UNIQUE(repo_index)"`
+	Repo             *repo_model.Repository `xorm:"-"`
+	Index            int64                  `xorm:"UNIQUE(repo_index)"` // Index in one repository.
+	PosterID         int64                  `xorm:"INDEX"`
+	Poster           *user_model.User       `xorm:"-"`
+	OriginalAuthor   string
+	OriginalAuthorID int64         `xorm:"index"`
+	Title            string        `xorm:"name"`
+	Content          string        `xorm:"LONGTEXT"`
+	RenderedContent  template.HTML `xorm:"-"`
+	ContentVersion   int           `xorm:"NOT NULL DEFAULT 0"`
+	Labels           []*Label      `xorm:"-"`
+	isLabelsLoaded   bool          `xorm:"-"`
+	Priority         int
+	AssigneeID       int64            `xorm:"-"`
+	Assignee         *user_model.User `xorm:"-"`
+	isAssigneeLoaded bool             `xorm:"-"`
+	IsClosed         bool             `xorm:"INDEX"`
+	IsRead           bool             `xorm:"-"`
+	IsPull           bool             `xorm:"INDEX"` // Indicates whether is a pull request or not.
+	PullRequest      *PullRequest     `xorm:"-"`
+	NumComments      int
 
 	// TODO: RemoveIssueRef: see "repo/issue/branch_selector_field.tmpl"
 	Ref string
-
-	PinOrder int `xorm:"-"` // 0 means not loaded, -1 means loaded but not pinned
 
 	DeadlineUnix timeutil.TimeStamp `xorm:"INDEX"`
 
@@ -92,12 +81,9 @@ type Issue struct {
 	UpdatedUnix timeutil.TimeStamp `xorm:"INDEX updated"`
 	ClosedUnix  timeutil.TimeStamp `xorm:"INDEX"`
 
-	Attachments         []*repo_model.Attachment `xorm:"-"`
-	isAttachmentsLoaded bool                     `xorm:"-"`
-	Comments            CommentList              `xorm:"-"`
-	Reactions           ReactionList             `xorm:"-"`
-	TotalTrackedTime    int64                    `xorm:"-"`
-	Assignees           []*user_model.User       `xorm:"-"`
+	Comments  CommentList        `xorm:"-"`
+	Reactions ReactionList       `xorm:"-"`
+	Assignees []*user_model.User `xorm:"-"`
 
 	// IsLocked limits commenting abilities to users on an issue
 	// with write access
@@ -105,9 +91,6 @@ type Issue struct {
 
 	// For view issue page.
 	ShowRole RoleDescriptor `xorm:"-"`
-
-	// Time estimate
-	TimeEstimate int64 `xorm:"NOT NULL DEFAULT 0"`
 }
 
 var (
@@ -121,16 +104,6 @@ type IssueIndex db.ResourceIndex
 func init() {
 	db.RegisterModel(new(Issue))
 	db.RegisterModel(new(IssueIndex))
-}
-
-// LoadTotalTimes load total tracked time
-func (issue *Issue) LoadTotalTimes(ctx context.Context) (err error) {
-	opts := FindTrackedTimesOptions{IssueID: issue.ID}
-	issue.TotalTrackedTime, err = opts.toSession(db.GetEngine(ctx)).SumInt(&TrackedTime{}, "time")
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // IsOverdue checks if the issue is overdue
@@ -150,28 +123,6 @@ func (issue *Issue) LoadRepo(ctx context.Context) (err error) {
 		}
 	}
 	return nil
-}
-
-func (issue *Issue) LoadAttachments(ctx context.Context) (err error) {
-	if issue.isAttachmentsLoaded || issue.Attachments != nil {
-		return nil
-	}
-
-	issue.Attachments, err = repo_model.GetAttachmentsByIssueID(ctx, issue.ID)
-	if err != nil {
-		return fmt.Errorf("getAttachmentsByIssueID [%d]: %w", issue.ID, err)
-	}
-	issue.isAttachmentsLoaded = true
-	return nil
-}
-
-// IsTimetrackerEnabled returns true if the repo enables timetracking
-func (issue *Issue) IsTimetrackerEnabled(ctx context.Context) bool {
-	if err := issue.LoadRepo(ctx); err != nil {
-		log.Error(fmt.Sprintf("loadRepo: %v", err))
-		return false
-	}
-	return issue.Repo.IsTimetrackerEnabled(ctx)
 }
 
 // LoadPoster loads poster
@@ -259,35 +210,6 @@ func (issue *Issue) loadReactions(ctx context.Context) (err error) {
 	return nil
 }
 
-// LoadMilestone load milestone of this issue.
-func (issue *Issue) LoadMilestone(ctx context.Context) (err error) {
-	if !issue.isMilestoneLoaded && (issue.Milestone == nil || issue.Milestone.ID != issue.MilestoneID) && issue.MilestoneID > 0 {
-		issue.Milestone, err = GetMilestoneByRepoID(ctx, issue.RepoID, issue.MilestoneID)
-		if err != nil && !IsErrMilestoneNotExist(err) {
-			return fmt.Errorf("getMilestoneByRepoID [repo_id: %d, milestone_id: %d]: %w", issue.RepoID, issue.MilestoneID, err)
-		}
-		issue.isMilestoneLoaded = true
-	}
-	return nil
-}
-
-func (issue *Issue) LoadPinOrder(ctx context.Context) error {
-	if issue.PinOrder != 0 {
-		return nil
-	}
-	issuePin, err := GetIssuePin(ctx, issue)
-	if err != nil && !db.IsErrNotExist(err) {
-		return err
-	}
-
-	if issuePin != nil {
-		issue.PinOrder = issuePin.PinOrder
-	} else {
-		issue.PinOrder = -1
-	}
-	return nil
-}
-
 // LoadAttributes loads the attribute of this issue.
 func (issue *Issue) LoadAttributes(ctx context.Context) (err error) {
 	if err = issue.LoadRepo(ctx); err != nil {
@@ -302,14 +224,6 @@ func (issue *Issue) LoadAttributes(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err = issue.LoadMilestone(ctx); err != nil {
-		return err
-	}
-
-	if err = issue.LoadProjects(ctx); err != nil {
-		return err
-	}
-
 	if err = issue.LoadAssignees(ctx); err != nil {
 		return err
 	}
@@ -319,44 +233,19 @@ func (issue *Issue) LoadAttributes(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err = issue.LoadAttachments(ctx); err != nil {
-		return err
-	}
-
 	if err = issue.loadComments(ctx); err != nil {
-		return err
-	}
-
-	if err = issue.LoadPinOrder(ctx); err != nil {
 		return err
 	}
 
 	if err = issue.Comments.LoadAttributes(ctx); err != nil {
 		return err
 	}
-	if issue.IsTimetrackerEnabled(ctx) {
-		if err = issue.LoadTotalTimes(ctx); err != nil {
-			return err
-		}
-	}
-
 	return issue.loadReactions(ctx)
-}
-
-// IsPinned returns if a Issue is pinned
-func (issue *Issue) IsPinned() bool {
-	if issue.PinOrder == 0 {
-		setting.PanicInDevOrTesting("issue's pinorder has not been loaded")
-	}
-	return issue.PinOrder > 0
 }
 
 func (issue *Issue) ResetAttributesLoaded() {
 	issue.isLabelsLoaded = false
-	issue.isMilestoneLoaded = false
-	issue.isAttachmentsLoaded = false
 	issue.isAssigneeLoaded = false
-	issue.isProjectsLoaded = false
 }
 
 // GetIsRead load the `IsRead` field of the issue
@@ -409,7 +298,7 @@ func (issue *Issue) Link() string {
 // DiffURL returns the absolute URL to this diff
 func (issue *Issue) DiffURL() string {
 	if issue.IsPull {
-		return fmt.Sprintf("%s/pulls/%d.diff", issue.Repo.HTMLURL(), issue.Index)
+		return fmt.Sprintf("%s/pulls/%d.diff", issue.Repo.APIURL(), issue.Index) // the web diff route is gone
 	}
 	return ""
 }
@@ -417,7 +306,7 @@ func (issue *Issue) DiffURL() string {
 // PatchURL returns the absolute URL to this patch
 func (issue *Issue) PatchURL() string {
 	if issue.IsPull {
-		return fmt.Sprintf("%s/pulls/%d.patch", issue.Repo.HTMLURL(), issue.Index)
+		return fmt.Sprintf("%s/pulls/%d.patch", issue.Repo.APIURL(), issue.Index) // the web patch route is gone
 	}
 	return ""
 }
@@ -508,45 +397,6 @@ func GetIssueByIndex(ctx context.Context, repoID, index int64) (*Issue, error) {
 	return issue, nil
 }
 
-func isPullToCond(isPull optional.Option[bool]) builder.Cond {
-	if isPull.Has() {
-		return builder.Eq{"is_pull": isPull.Value()}
-	}
-	return builder.NewCond()
-}
-
-func FindLatestUpdatedIssues(ctx context.Context, repoID int64, isPull optional.Option[bool], pageSize int) (IssueList, error) {
-	issues := make([]*Issue, 0, pageSize)
-	err := db.GetEngine(ctx).Where("repo_id = ?", repoID).
-		And(isPullToCond(isPull)).
-		OrderBy("updated_unix DESC").
-		Limit(pageSize).
-		Find(&issues)
-	return issues, err
-}
-
-func FindIssuesSuggestionByKeyword(ctx context.Context, repoID int64, keyword string, isPull optional.Option[bool], excludedID int64, pageSize int) (IssueList, error) {
-	cond := builder.NewCond()
-	if excludedID > 0 {
-		cond = cond.And(builder.Neq{"`id`": excludedID})
-	}
-
-	// It seems that GitHub searches both title and content (maybe sorting by the search engine's ranking system?)
-	// The first PR (https://github.com/go-gitea/gitea/pull/32327) uses "search indexer" to search "name(title) +  content"
-	// But it seems that searching "content" (especially LIKE by DB engine) generates worse (unusable) results.
-	// So now (https://github.com/go-gitea/gitea/pull/33538) it only searches "name(title)", leave the improvements to the future.
-	cond = cond.And(db.BuildCaseInsensitiveLike("`name`", keyword))
-
-	issues := make([]*Issue, 0, pageSize)
-	err := db.GetEngine(ctx).Where("repo_id = ?", repoID).
-		And(isPullToCond(isPull)).
-		And(cond).
-		OrderBy("updated_unix DESC, `index` DESC").
-		Limit(pageSize).
-		Find(&issues)
-	return issues, err
-}
-
 // GetIssueWithAttrsByIndex returns issue by index in a repository.
 func GetIssueWithAttrsByIndex(ctx context.Context, repoID, index int64) (*Issue, error) {
 	issue, err := GetIssueByIndex(ctx, repoID, index)
@@ -564,17 +414,6 @@ func GetIssueByID(ctx context.Context, id int64) (*Issue, error) {
 		return nil, err
 	} else if !has {
 		return nil, ErrIssueNotExist{id, 0, 0}
-	}
-	return issue, nil
-}
-
-func GetIssueByRepoID(ctx context.Context, repoID, issueID int64) (*Issue, error) {
-	issue := new(Issue)
-	has, err := db.GetEngine(ctx).ID(issueID).Where("repo_id=?", repoID).Get(issue)
-	if err != nil {
-		return nil, err
-	} else if !has {
-		return nil, ErrIssueNotExist{issueID, repoID, 0}
 	}
 	return issue, nil
 }
@@ -609,43 +448,6 @@ func GetIssuesByIDs(ctx context.Context, issueIDs []int64, keepOrder ...bool) (I
 	return issues, nil
 }
 
-// GetIssueIDsByRepoID returns all issue ids by repo id
-func GetIssueIDsByRepoID(ctx context.Context, repoID int64) ([]int64, error) {
-	ids := make([]int64, 0, 10)
-	err := db.GetEngine(ctx).Table("issue").Cols("id").Where("repo_id = ?", repoID).Find(&ids)
-	return ids, err
-}
-
-// GetParticipantsIDsByIssueID returns the IDs of all users who participated in comments of an issue,
-// but skips joining with `user` for performance reasons.
-// User permissions must be verified elsewhere if required.
-func GetParticipantsIDsByIssueID(ctx context.Context, issueID int64) ([]int64, error) {
-	userIDs := make([]int64, 0, 5)
-	return userIDs, db.GetEngine(ctx).
-		Table("comment").
-		Cols("poster_id").
-		Where("issue_id = ?", issueID).
-		And("type in (?,?,?)", CommentTypeComment, CommentTypeCode, CommentTypeReview).
-		Distinct("poster_id").
-		Find(&userIDs)
-}
-
-// IsUserParticipantsOfIssue return true if user is participants of an issue
-func IsUserParticipantsOfIssue(ctx context.Context, user *user_model.User, issue *Issue) bool {
-	userIDs, err := issue.GetParticipantIDsByIssue(ctx)
-	if err != nil {
-		log.Error(err.Error())
-		return false
-	}
-	return slices.Contains(userIDs, user.ID)
-}
-
-// DependencyInfo represents high level information about an issue which is a dependency of another issue.
-type DependencyInfo struct {
-	Issue                 `xorm:"extends"`
-	repo_model.Repository `xorm:"extends"`
-}
-
 // GetParticipantIDsByIssue returns all userIDs who are participated in comments of an issue and issue author
 func (issue *Issue) GetParticipantIDsByIssue(ctx context.Context) ([]int64, error) {
 	if issue == nil {
@@ -666,56 +468,6 @@ func (issue *Issue) GetParticipantIDsByIssue(ctx context.Context) ([]int64, erro
 		return append(userIDs, issue.PosterID), nil
 	}
 	return userIDs, nil
-}
-
-// BlockedByDependencies finds all Dependencies an issue is blocked by
-func (issue *Issue) BlockedByDependencies(ctx context.Context, opts db.ListOptions) (issueDeps []*DependencyInfo, total int64, err error) {
-	sess := db.GetEngine(ctx).
-		Table("issue").
-		Join("INNER", "repository", "repository.id = issue.repo_id").
-		Join("INNER", "issue_dependency", "issue_dependency.dependency_id = issue.id").
-		Where("issue_id = ?", issue.ID).
-		// sort by repo id then created date, with the issues of the same repo at the beginning of the list
-		OrderBy("CASE WHEN issue.repo_id = ? THEN 0 ELSE issue.repo_id END, issue.created_unix DESC", issue.RepoID)
-	if opts.Page > 0 {
-		db.SetSessionPagination(sess, &opts)
-	}
-	total, err = sess.FindAndCount(&issueDeps)
-
-	for _, depInfo := range issueDeps {
-		depInfo.Issue.Repo = &depInfo.Repository
-	}
-
-	return issueDeps, total, err
-}
-
-// BlockingDependencies returns all blocking dependencies, aka all other issues a given issue blocks
-func (issue *Issue) BlockingDependencies(ctx context.Context) (issueDeps []*DependencyInfo, err error) {
-	err = db.GetEngine(ctx).
-		Table("issue").
-		Join("INNER", "repository", "repository.id = issue.repo_id").
-		Join("INNER", "issue_dependency", "issue_dependency.issue_id = issue.id").
-		Where("dependency_id = ?", issue.ID).
-		// sort by repo id then created date, with the issues of the same repo at the beginning of the list
-		OrderBy("CASE WHEN issue.repo_id = ? THEN 0 ELSE issue.repo_id END, issue.created_unix DESC", issue.RepoID).
-		Find(&issueDeps)
-
-	for _, depInfo := range issueDeps {
-		depInfo.Issue.Repo = &depInfo.Repository
-	}
-
-	return issueDeps, err
-}
-
-func migratedIssueCond(tp api.GitServiceType) builder.Cond {
-	return builder.In("issue_id",
-		builder.Select("issue.id").
-			From("issue").
-			InnerJoin("repository", "issue.repo_id = repository.id").
-			Where(builder.Eq{
-				"repository.original_service_type": tp,
-			}),
-	)
 }
 
 // RemapExternalUser ExternalUserRemappable interface
@@ -781,29 +533,4 @@ func insertIssue(ctx context.Context, issue *Issue) error {
 	}
 
 	return nil
-}
-
-// ChangeIssueTimeEstimate changes the plan time of this issue, as the given user.
-func ChangeIssueTimeEstimate(ctx context.Context, issue *Issue, doer *user_model.User, timeEstimate int64) error {
-	return db.WithTx(ctx, func(ctx context.Context) error {
-		if err := UpdateIssueCols(ctx, &Issue{ID: issue.ID, TimeEstimate: timeEstimate}, "time_estimate"); err != nil {
-			return fmt.Errorf("updateIssueCols: %w", err)
-		}
-
-		if err := issue.LoadRepo(ctx); err != nil {
-			return fmt.Errorf("loadRepo: %w", err)
-		}
-
-		opts := &CreateCommentOptions{
-			Type:    CommentTypeChangeTimeEstimate,
-			Doer:    doer,
-			Repo:    issue.Repo,
-			Issue:   issue,
-			Content: strconv.FormatInt(timeEstimate, 10),
-		}
-		if _, err := CreateComment(ctx, opts); err != nil {
-			return fmt.Errorf("createComment: %w", err)
-		}
-		return nil
-	})
 }

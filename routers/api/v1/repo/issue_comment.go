@@ -6,7 +6,6 @@ package repo
 
 import (
 	stdCtx "context"
-	"errors"
 	"net/http"
 
 	issues_model "gitea.dev/models/issues"
@@ -100,11 +99,6 @@ func ListIssueComments(ctx *context.APIContext) {
 	}
 
 	if err := comments.LoadPosters(ctx); err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
-
-	if err := comments.LoadAttachments(ctx); err != nil {
 		ctx.APIErrorInternal(err)
 		return
 	}
@@ -323,10 +317,6 @@ func ListRepoIssueComments(ctx *context.APIContext) {
 		ctx.APIErrorInternal(err)
 		return
 	}
-	if err := comments.LoadAttachments(ctx); err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
 	if _, err := comments.Issues().LoadRepositories(ctx); err != nil {
 		ctx.APIErrorInternal(err)
 		return
@@ -392,17 +382,13 @@ func CreateIssueComment(ctx *context.APIContext) {
 	}
 
 	if issue.IsLocked && !ctx.Repo.Permission.CanWriteIssuesOrPulls(issue.IsPull) && !ctx.Doer.IsAdmin {
-		ctx.APIError(http.StatusForbidden, ctx.Locale.TrString("repo.issues.comment_on_locked"))
+		ctx.APIError(http.StatusForbidden, "You cannot comment on a locked issue.")
 		return
 	}
 
-	comment, err := issue_service.CreateIssueComment(ctx, ctx.Doer, ctx.Repo.Repository, issue, form.Body, nil)
+	comment, err := issue_service.CreateIssueComment(ctx, ctx.Doer, ctx.Repo.Repository, issue, form.Body)
 	if err != nil {
-		if errors.Is(err, user_model.ErrBlockedUser) {
-			ctx.APIError(http.StatusForbidden, err.Error())
-		} else {
-			ctx.APIErrorInternal(err)
-		}
+		ctx.APIErrorInternal(err)
 		return
 	}
 
@@ -586,11 +572,7 @@ func editIssueComment(ctx *context.APIContext, form api.EditIssueCommentOption) 
 		oldContent := comment.Content
 		comment.Content = form.Body
 		if err := issue_service.UpdateComment(ctx, comment, comment.ContentVersion, ctx.Doer, oldContent); err != nil {
-			if errors.Is(err, user_model.ErrBlockedUser) {
-				ctx.APIError(http.StatusForbidden, err.Error())
-			} else {
-				ctx.APIErrorInternal(err)
-			}
+			ctx.APIErrorInternal(err)
 			return
 		}
 	}

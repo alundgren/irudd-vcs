@@ -10,8 +10,6 @@ import (
 	api "gitea.dev/modules/structs"
 	"gitea.dev/services/contexttest"
 
-	_ "gitea.dev/models/actions"
-
 	"github.com/stretchr/testify/assert"
 )
 

@@ -7,8 +7,6 @@ package pull
 import (
 	"testing"
 
-	actions_model "gitea.dev/models/actions"
-	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
@@ -96,8 +94,7 @@ func TestMergeRequiredContextsCommitStatus(t *testing.T) {
 	}
 }
 
-// TestEffectiveRequiredContexts: every required scoped workflow's stored status-check patterns are appended to the
-// branch protection's configured contexts unconditionally (must-present; the matching is done downstream).
+// TestEffectiveRequiredContexts: the configured contexts of every enabled branch protection rule are required.
 func TestEffectiveRequiredContexts(t *testing.T) {
 	require.NoError(t, unittest.PrepareTestDatabase())
 	consumer := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 4}) // owned by user5
@@ -121,37 +118,6 @@ func TestEffectiveRequiredContexts(t *testing.T) {
 		got, err := EffectiveRequiredContexts(t.Context(), noSourceRepo, pbOn)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"configured/check"}, got)
-	})
-
-	t.Run("required workflow patterns appended", func(t *testing.T) {
-		require.NoError(t, db.Insert(t.Context(), &actions_model.ActionScopedWorkflowSource{
-			OwnerID:      consumer.OwnerID,
-			SourceRepoID: 1,
-			WorkflowConfigs: map[string]*actions_model.ScopedWorkflowConfig{
-				"ci.yaml":  {Required: true, Patterns: []string{"org/src: ci.yaml / build (pull_request)", "org/src: ci.yaml / lint (pull_request)"}},
-				"old.yaml": {Required: false, Patterns: []string{"org/src: old.yaml / *"}}, // kept as history, must NOT be enforced
-			},
-		}))
-		// No status is passed/needed: required patterns are enforced even though nothing has posted them yet (must-present).
-		got, err := EffectiveRequiredContexts(t.Context(), consumer, pbOn)
-		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{
-			"configured/check",
-			"org/src: ci.yaml / build (pull_request)",
-			"org/src: ci.yaml / lint (pull_request)",
-		}, got)
-		assert.NotContains(t, got, "org/src: old.yaml / *", "a non-required (history) config must not be enforced")
-	})
-
-	t.Run("status checks disabled, with required scoped: only the scoped patterns gate", func(t *testing.T) {
-		pbOff := &git_model.ProtectedBranch{EnableStatusCheck: false, StatusCheckContexts: []string{"configured/check"}}
-		got, err := EffectiveRequiredContexts(t.Context(), consumer, pbOff)
-		require.NoError(t, err)
-		// "configured/check" is dropped (the rule's own status check is off); only the required scoped patterns remain.
-		assert.ElementsMatch(t, []string{
-			"org/src: ci.yaml / build (pull_request)",
-			"org/src: ci.yaml / lint (pull_request)",
-		}, got)
 	})
 
 	t.Run("several rules union their enabled contexts, deduplicated; a disabled rule contributes none", func(t *testing.T) {

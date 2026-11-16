@@ -4,17 +4,14 @@
 package password
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
-	"html/template"
 	"math/big"
 	"strings"
 	"sync"
 
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/translation"
 )
 
 var (
@@ -25,7 +22,6 @@ var (
 // complexity contains information about a particular kind of password complexity
 type complexity struct {
 	ValidChars string
-	TrNameOne  string
 }
 
 var (
@@ -36,19 +32,15 @@ var (
 	charComplexities = map[string]complexity{
 		"lower": {
 			`abcdefghijklmnopqrstuvwxyz`,
-			"form.password_lowercase_one",
 		},
 		"upper": {
 			`ABCDEFGHIJKLMNOPQRSTUVWXYZ`,
-			"form.password_uppercase_one",
 		},
 		"digit": {
 			`0123456789`,
-			"form.password_digit_one",
 		},
 		"spec": {
 			` !"#$%&'()*+,-./:;<=>?@[\]^_{|}~` + "`",
-			"form.password_special_one",
 		},
 	}
 )
@@ -119,18 +111,4 @@ func Generate(n int) (string, error) {
 			return string(buffer), nil
 		}
 	}
-}
-
-// BuildComplexityError builds the error message when password complexity checks fail
-func BuildComplexityError(locale translation.Locale) template.HTML {
-	var buffer bytes.Buffer
-	buffer.WriteString(locale.TrString("form.password_complexity"))
-	buffer.WriteString("<ul>")
-	for _, c := range requiredList {
-		buffer.WriteString("<li>")
-		buffer.WriteString(locale.TrString(c.TrNameOne))
-		buffer.WriteString("</li>")
-	}
-	buffer.WriteString("</ul>")
-	return template.HTML(buffer.String())
 }

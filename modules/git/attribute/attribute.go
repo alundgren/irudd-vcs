@@ -4,33 +4,15 @@
 package attribute
 
 import (
-	"strings"
-
 	"gitea.dev/modules/optional"
 )
 
 type Attribute string
 
 const (
-	LinguistVendored      = "linguist-vendored"
-	LinguistGenerated     = "linguist-generated"
-	LinguistDocumentation = "linguist-documentation"
-	LinguistDetectable    = "linguist-detectable"
-	LinguistLanguage      = "linguist-language"
-	GitlabLanguage        = "gitlab-language"
-	Lockable              = "lockable"
-	Filter                = "filter"
-	Diff                  = "diff"
+	Filter = "filter"
+	Diff   = "diff"
 )
-
-var LinguistAttributes = []string{
-	LinguistVendored,
-	LinguistGenerated,
-	LinguistDocumentation,
-	LinguistDetectable,
-	LinguistLanguage,
-	GitlabLanguage,
-}
 
 func (a Attribute) IsUnspecified() bool {
 	return a == "" || a == "unspecified"
@@ -67,49 +49,4 @@ func (attrs *Attributes) Get(name string) Attribute {
 		return value
 	}
 	return ""
-}
-
-func (attrs *Attributes) GetVendored() optional.Option[bool] {
-	return attrs.Get(LinguistVendored).ToBool()
-}
-
-func (attrs *Attributes) GetGenerated() optional.Option[bool] {
-	return attrs.Get(LinguistGenerated).ToBool()
-}
-
-func (attrs *Attributes) GetDocumentation() optional.Option[bool] {
-	return attrs.Get(LinguistDocumentation).ToBool()
-}
-
-func (attrs *Attributes) GetDetectable() optional.Option[bool] {
-	return attrs.Get(LinguistDetectable).ToBool()
-}
-
-func (attrs *Attributes) GetLinguistLanguage() optional.Option[string] {
-	return attrs.Get(LinguistLanguage).ToString()
-}
-
-func (attrs *Attributes) GetGitlabLanguage() optional.Option[string] {
-	attrStr := attrs.Get(GitlabLanguage).ToString()
-	if attrStr.Has() {
-		raw := attrStr.Value()
-		// gitlab-language may have additional parameters after the language
-		// ignore them and just use the main language
-		// https://docs.gitlab.com/ee/user/project/highlighting.html#override-syntax-highlighting-for-a-file-type
-		if before, _, ok := strings.Cut(raw, "?"); ok {
-			return optional.Some(before)
-		}
-	}
-	return attrStr
-}
-
-func (attrs *Attributes) GetLanguage() optional.Option[string] {
-	// prefer linguist-language over gitlab-language
-	// if linguist-language is not set, use gitlab-language
-	// if both are not set, return none
-	language := attrs.GetLinguistLanguage()
-	if language.Value() == "" {
-		language = attrs.GetGitlabLanguage()
-	}
-	return language
 }

@@ -14,8 +14,6 @@ import (
 	"gitea.dev/modules/private"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/web"
-	"gitea.dev/routers/common"
-	"gitea.dev/routers/web/misc"
 	"gitea.dev/services/context"
 
 	"gitea.com/go-chi/binding"
@@ -72,36 +70,18 @@ func Routes() *web.Router {
 	// Since internal API will be sent only from Gitea sub commands and it's under control (checked by InternalToken), we can trust the headers.
 	r.AfterRouting(setRealIP)
 
-	r.Get("/dummy", misc.DummyOK)
-	r.Post("/ssh/authorized_keys", AuthorizedPublicKeyByContent)
-	r.Post("/ssh/{id}/update/{repoid}", UpdatePublicKeyInRepo)
+	r.Get("/dummy", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Post("/ssh/log", bind(private.SSHLogOption{}), SSHLog)
 	r.Post("/hook/pre-receive/{owner}/{repo}", RepoAssignment, bind(private.HookOptions{}), HookPreReceive)
 	r.Post("/hook/post-receive/{owner}/{repo}", context.OverrideContext(), bind(private.HookOptions{}), HookPostReceive)
-	r.Post("/hook/proc-receive/{owner}/{repo}", context.OverrideContext(), RepoAssignment, bind(private.HookOptions{}), HookProcReceive)
-	r.Get("/serv/none/{keyid}", ServNoCommand)
-	r.Get("/serv/command/{keyid}/{owner}/{repo}", ServCommand)
 	r.Post("/manager/shutdown", Shutdown)
 	r.Post("/manager/restart", Restart)
-	r.Post("/manager/reload-templates", ReloadTemplates)
 	r.Post("/manager/flush-queues", bind(private.FlushOptions{}), FlushQueues)
 	r.Post("/manager/pause-logging", PauseLogging)
 	r.Post("/manager/resume-logging", ResumeLogging)
 	r.Post("/manager/release-and-reopen-logging", ReleaseReopenLogging)
 	r.Post("/manager/set-log-sql", SetLogSQL)
 	r.Get("/manager/processes", Processes)
-	r.Post("/mail/send", SendEmail)
-	r.Post("/restore_repo", RestoreRepo)
-	r.Post("/actions/generate_actions_runner_token", GenerateActionsRunnerToken)
-
-	r.Group("/repo", func() {
-		// FIXME: it is not right to use context.Contexter here because all routes here should use PrivateContext
-		// Fortunately, the LFS handlers are able to handle requests without a complete web context
-		common.AddOwnerRepoGitLFSRoutes(r, func(ctx *context.PrivateContext) {
-			webContext := &context.Context{Base: ctx.Base}         // see above, it shouldn't manually construct the web context
-			ctx.SetContextValue(context.WebContextKey, webContext) // FIXME: this is not ideal but no other way at the moment
-		})
-	})
 
 	return r
 }

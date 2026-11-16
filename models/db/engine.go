@@ -11,10 +11,6 @@ import (
 	"reflect"
 	"strings"
 
-	_ "github.com/go-sql-driver/mysql"  // Needed for the MySQL driver
-	_ "github.com/lib/pq"               // Needed for the Postgresql driver
-	_ "github.com/microsoft/go-mssqldb" // Needed for the MSSQL driver
-
 	"xorm.io/xorm"
 	"xorm.io/xorm/core"
 	"xorm.io/xorm/dialects"
@@ -118,7 +114,7 @@ func RegisterModel(bean any, initFunc ...func() error) {
 
 // SyncAllTables sync the schemas of all tables, is required by unit test code
 func SyncAllTables() error {
-	_, err := xormEngine.StoreEngine("InnoDB").SyncWithOptions(xorm.SyncOptions{
+	_, err := xormEngine.SyncWithOptions(xorm.SyncOptions{
 		WarnIfDatabaseColumnMissed: true,
 	}, registeredModels...)
 	return err
@@ -171,12 +167,6 @@ func IsTableNotEmpty(beanOrTableName any) (bool, error) {
 func DeleteAllRecords(tableName string) error {
 	_, err := xormEngine.Exec("DELETE FROM " + tableName)
 	return err
-}
-
-// GetMaxID will return max id of the table
-func GetMaxID(beanOrTableName any) (maxID int64, err error) {
-	_, err = xormEngine.Select("MAX(id)").Table(beanOrTableName).Get(&maxID)
-	return maxID, err
 }
 
 func SetLogSQL(ctx context.Context, on bool) {

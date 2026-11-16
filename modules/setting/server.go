@@ -21,21 +21,10 @@ type Scheme string
 // enumerates all the scheme types
 const (
 	HTTP     Scheme = "http"
-	HTTPS    Scheme = "https"
+	HTTPS    Scheme = "https" // only valid in ROOT_URL (TLS terminated by a reverse proxy), not as PROTOCOL
 	FCGI     Scheme = "fcgi"
 	FCGIUnix Scheme = "fcgi+unix"
 	HTTPUnix Scheme = "http+unix"
-)
-
-// LandingPage describes the default page
-type LandingPage string
-
-// enumerates all the landing page types
-const (
-	LandingPageHome          LandingPage = "/"
-	LandingPageExplore       LandingPage = "/explore"
-	LandingPageOrganizations LandingPage = "/explore/organizations"
-	LandingPageLogin         LandingPage = "/user/login"
 )
 
 const (
@@ -74,43 +63,20 @@ var (
 	// DO NOT use it directly, always use AppDataTempDir
 	appTempPathInternal string
 
-	Protocol                   Scheme
-	UseProxyProtocol           bool
-	ProxyProtocolTLSBridging   bool
-	ProxyProtocolHeaderTimeout time.Duration
-	ProxyProtocolAcceptUnknown bool
-	Domain                     string
-	HTTPAddr                   string
-	HTTPPort                   string
-	LocalUseProxyProtocol      bool
-	RedirectOtherPort          bool
-	RedirectorUseProxyProtocol bool
-	PortToRedirect             string
-	CertFile                   string
-	KeyFile                    string
-	StaticRootPath             string
-	StaticCacheTime            time.Duration
-	EnableGzip                 bool
-	LandingPageURL             LandingPage
-	UnixSocketPermission       uint32
-	EnablePprof                bool
-	PprofDataPath              string
-	EnableAcme                 bool
-	AcmeTOS                    bool
-	AcmeLiveDirectory          string
-	AcmeEmail                  string
-	AcmeURL                    string
-	AcmeCARoot                 string
-	SSLMinimumVersion          string
-	SSLMaximumVersion          string
-	SSLCurvePreferences        []string
-	SSLCipherSuites            []string
-	GracefulRestartable        bool
-	GracefulHammerTime         time.Duration
-	StartupTimeout             time.Duration
-	PerWriteTimeout            = 30 * time.Second
-	PerWritePerKbTimeout       = 10 * time.Second
-	StaticURLPrefix            string // no trailing slash, defaults to AppSubURL, the URL can be relative or absolute
+	Protocol             Scheme
+	Domain               string
+	HTTPAddr             string
+	HTTPPort             string
+	StaticRootPath       string // builtin "options" assets (gitignore/label/readme templates) for non-bindata builds
+	StaticCacheTime      time.Duration
+	EnableGzip           bool
+	UnixSocketPermission uint32
+	EnablePprof          bool
+	GracefulRestartable  bool
+	GracefulHammerTime   time.Duration
+	StartupTimeout       time.Duration
+	PerWriteTimeout      = 30 * time.Second
+	PerWritePerKbTimeout = 10 * time.Second
 )
 
 func loadServerFrom(rootCfg ConfigProvider) {
@@ -121,66 +87,10 @@ func loadServerFrom(rootCfg ConfigProvider) {
 	HTTPAddr = sec.Key("HTTP_ADDR").MustString("0.0.0.0")
 	HTTPPort = sec.Key("HTTP_PORT").MustString("3000")
 
-	// DEPRECATED should not be removed because users maybe upgrade from lower version to the latest version
-	// if these are removed, the warning will not be shown
-	if sec.HasKey("ENABLE_ACME") {
-		EnableAcme = sec.Key("ENABLE_ACME").MustBool(false)
-	} else {
-		deprecatedSetting(rootCfg, "server", "ENABLE_LETSENCRYPT", "server", "ENABLE_ACME", "v1.19.0")
-		EnableAcme = sec.Key("ENABLE_LETSENCRYPT").MustBool(false)
-	}
-
 	protocolCfg := sec.Key("PROTOCOL").String()
-	if protocolCfg != "https" && EnableAcme {
-		log.Fatal("ACME could only be used with HTTPS protocol")
-	}
-
 	switch protocolCfg {
 	case "", "http":
 		Protocol = HTTP
-	case "https":
-		Protocol = HTTPS
-		if EnableAcme {
-			AcmeURL = sec.Key("ACME_URL").MustString("")
-			AcmeCARoot = sec.Key("ACME_CA_ROOT").MustString("")
-
-			if sec.HasKey("ACME_ACCEPTTOS") {
-				AcmeTOS = sec.Key("ACME_ACCEPTTOS").MustBool(false)
-			} else {
-				deprecatedSetting(rootCfg, "server", "LETSENCRYPT_ACCEPTTOS", "server", "ACME_ACCEPTTOS", "v1.19.0")
-				AcmeTOS = sec.Key("LETSENCRYPT_ACCEPTTOS").MustBool(false)
-			}
-			if !AcmeTOS {
-				log.Fatal("ACME TOS is not accepted (ACME_ACCEPTTOS).")
-			}
-
-			if sec.HasKey("ACME_DIRECTORY") {
-				AcmeLiveDirectory = sec.Key("ACME_DIRECTORY").MustString("https")
-			} else {
-				deprecatedSetting(rootCfg, "server", "LETSENCRYPT_DIRECTORY", "server", "ACME_DIRECTORY", "v1.19.0")
-				AcmeLiveDirectory = sec.Key("LETSENCRYPT_DIRECTORY").MustString("https")
-			}
-
-			if sec.HasKey("ACME_EMAIL") {
-				AcmeEmail = sec.Key("ACME_EMAIL").MustString("")
-			} else {
-				deprecatedSetting(rootCfg, "server", "LETSENCRYPT_EMAIL", "server", "ACME_EMAIL", "v1.19.0")
-				AcmeEmail = sec.Key("LETSENCRYPT_EMAIL").MustString("")
-			}
-		} else {
-			CertFile = sec.Key("CERT_FILE").String()
-			KeyFile = sec.Key("KEY_FILE").String()
-			if len(CertFile) > 0 && !filepath.IsAbs(CertFile) {
-				CertFile = filepath.Join(CustomPath, CertFile)
-			}
-			if len(KeyFile) > 0 && !filepath.IsAbs(KeyFile) {
-				KeyFile = filepath.Join(CustomPath, KeyFile)
-			}
-		}
-		SSLMinimumVersion = sec.Key("SSL_MIN_VERSION").MustString("")
-		SSLMaximumVersion = sec.Key("SSL_MAX_VERSION").MustString("")
-		SSLCurvePreferences = sec.Key("SSL_CURVE_PREFERENCES").Strings(",")
-		SSLCipherSuites = sec.Key("SSL_CIPHER_SUITES").Strings(",")
 	case "fcgi":
 		Protocol = FCGI
 	case "fcgi+unix", "unix", "http+unix":
@@ -206,10 +116,6 @@ func loadServerFrom(rootCfg ConfigProvider) {
 	default:
 		log.Fatal("Invalid PROTOCOL %q", protocolCfg)
 	}
-	UseProxyProtocol = sec.Key("USE_PROXY_PROTOCOL").MustBool(false)
-	ProxyProtocolTLSBridging = sec.Key("PROXY_PROTOCOL_TLS_BRIDGING").MustBool(false)
-	ProxyProtocolHeaderTimeout = sec.Key("PROXY_PROTOCOL_HEADER_TIMEOUT").MustDuration(5 * time.Second)
-	ProxyProtocolAcceptUnknown = sec.Key("PROXY_PROTOCOL_ACCEPT_UNKNOWN").MustBool(false)
 	GracefulRestartable = sec.Key("ALLOW_GRACEFUL_RESTARTS").MustBool(true)
 	GracefulHammerTime = sec.Key("GRACEFUL_HAMMER_TIME").MustDuration(60 * time.Second)
 	StartupTimeout = sec.Key("STARTUP_TIMEOUT").MustDuration(0 * time.Second)
@@ -240,7 +146,6 @@ func loadServerFrom(rootCfg ConfigProvider) {
 	// This value is empty if site does not have sub-url.
 	AppSubURL = strings.TrimSuffix(appURL.Path, "/")
 	UseSubURLPath = sec.Key("USE_SUB_URL_PATH").MustBool(false)
-	StaticURLPrefix = strings.TrimSuffix(sec.Key("STATIC_URL_PREFIX").MustString(AppSubURL), "/")
 
 	// Check if Domain differs from AppURL domain than update it to AppURL's domain
 	urlHostname := appURL.Hostname()
@@ -256,7 +161,7 @@ func loadServerFrom(rootCfg ConfigProvider) {
 		defaultLocalURL = AppURL
 	case FCGIUnix:
 		defaultLocalURL = AppURL
-	case HTTP, HTTPS:
+	case HTTP:
 		defaultLocalURL = string(Protocol) + "://"
 		if HTTPAddr == "0.0.0.0" {
 			defaultLocalURL += net.JoinHostPort("localhost", HTTPPort) + "/"
@@ -268,10 +173,6 @@ func loadServerFrom(rootCfg ConfigProvider) {
 	}
 	LocalURL = sec.Key("LOCAL_ROOT_URL").MustString(defaultLocalURL)
 	LocalURL = strings.TrimRight(LocalURL, "/") + "/"
-	LocalUseProxyProtocol = sec.Key("LOCAL_USE_PROXY_PROTOCOL").MustBool(UseProxyProtocol)
-	RedirectOtherPort = sec.Key("REDIRECT_OTHER_PORT").MustBool(false)
-	PortToRedirect = sec.Key("PORT_TO_REDIRECT").MustString("80")
-	RedirectorUseProxyProtocol = sec.Key("REDIRECTOR_USE_PROXY_PROTOCOL").MustBool(UseProxyProtocol)
 	if len(StaticRootPath) == 0 {
 		StaticRootPath = AppWorkPath
 	}
@@ -301,23 +202,4 @@ func loadServerFrom(rootCfg ConfigProvider) {
 
 	EnableGzip = sec.Key("ENABLE_GZIP").MustBool()
 	EnablePprof = sec.Key("ENABLE_PPROF").MustBool(false)
-	PprofDataPath = sec.Key("PPROF_DATA_PATH").MustString(filepath.Join(AppWorkPath, "data/tmp/pprof"))
-	if !filepath.IsAbs(PprofDataPath) {
-		PprofDataPath = filepath.Join(AppWorkPath, PprofDataPath)
-	}
-	checkOverlappedPath("[server].PPROF_DATA_PATH", PprofDataPath)
-
-	landingPage := sec.Key("LANDING_PAGE").MustString("home")
-	switch landingPage {
-	case "explore":
-		LandingPageURL = LandingPageExplore
-	case "organizations":
-		LandingPageURL = LandingPageOrganizations
-	case "login":
-		LandingPageURL = LandingPageLogin
-	case "", "home":
-		LandingPageURL = LandingPageHome
-	default:
-		LandingPageURL = LandingPage(landingPage)
-	}
 }

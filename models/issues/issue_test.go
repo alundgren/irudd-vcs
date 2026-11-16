@@ -16,7 +16,6 @@ import (
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/test"
 
 	"github.com/stretchr/testify/assert"
@@ -50,14 +49,6 @@ func TestIssue_ReplaceLabels(t *testing.T) {
 	testSuccess(18, []int64{6, 7}, []int64{6, 7})
 	testSuccess(18, []int64{7, 8}, []int64{8})
 	testSuccess(18, []int64{6, 8, 7}, []int64{6, 7})
-}
-
-func Test_GetIssueIDsByRepoID(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	ids, err := issues_model.GetIssueIDsByRepoID(t.Context(), 1)
-	assert.NoError(t, err)
-	assert.Len(t, ids, 5)
 }
 
 func TestIssueAPIURL(t *testing.T) {
@@ -192,18 +183,6 @@ func TestIssues(t *testing.T) {
 			},
 			[]int64{}, // issues with **both** label 1 and 2, none of these issues matches, TODO: add more tests
 		},
-		{
-			issues_model.IssuesOptions{
-				MilestoneIDs: []int64{1},
-			},
-			[]int64{2},
-		},
-		{
-			issues_model.IssuesOptions{
-				SubscriberID: 11,
-			},
-			[]int64{11, 5, 9, 8, 3, 2, 1},
-		},
 	} {
 		issues, err := issues_model.Issues(t.Context(), &test.Opts)
 		assert.NoError(t, err)
@@ -213,14 +192,6 @@ func TestIssues(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestIssue_loadTotalTimes(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-	ms, err := issues_model.GetIssueByID(t.Context(), 2)
-	assert.NoError(t, err)
-	assert.NoError(t, ms.LoadTotalTimes(t.Context()))
-	assert.Equal(t, int64(3682), ms.TotalTrackedTime)
 }
 
 func testInsertIssue(t *testing.T, title, content string, expectIndex int64) *issues_model.Issue {
@@ -236,7 +207,7 @@ func testInsertIssue(t *testing.T, title, content string, expectIndex int64) *is
 			Title:    title,
 			Content:  content,
 		}
-		err := issues_model.NewIssue(t.Context(), repo, &issue, nil, nil)
+		err := issues_model.NewIssue(t.Context(), repo, &issue, nil)
 		assert.NoError(t, err)
 
 		has, err := db.GetEngine(t.Context()).ID(issue.ID).Get(&newIssue)
@@ -288,12 +259,11 @@ func TestIssue_ResolveMentions(t *testing.T) {
 	testSuccess("user2", "repo1", "user1", []string{"nonexisting"}, []int64{})
 	// Public repo, doer
 	testSuccess("user2", "repo1", "user1", []string{"user1"}, []int64{})
-	// Private repo, team member
+	// Private repo, every user can see it
 	testSuccess("org17", "big_test_private_4", "user20", []string{"user2"}, []int64{2})
-	// Private repo, not a team member
-	testSuccess("org17", "big_test_private_4", "user20", []string{"user5"}, []int64{})
-	// Private repo, whole team
-	testSuccess("org17", "big_test_private_4", "user15", []string{"org17/owners"}, []int64{18})
+	testSuccess("org17", "big_test_private_4", "user20", []string{"user5"}, []int64{5})
+	// Team mentions resolve nobody, there are no teams
+	testSuccess("org17", "big_test_private_4", "user15", []string{"org17/owners"}, []int64{})
 }
 
 func TestResourceIndex(t *testing.T) {
@@ -353,26 +323,6 @@ func TestCorrectIssueStats(t *testing.T) {
 	assert.EqualValues(t, issueStats.OpenCount, issueAmount)
 }
 
-func TestMilestoneList_LoadTotalTrackedTimes(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-	miles := issues_model.MilestoneList{
-		unittest.AssertExistsAndLoadBean(t, &issues_model.Milestone{ID: 1}),
-	}
-
-	assert.NoError(t, miles.LoadTotalTrackedTimes(t.Context()))
-
-	assert.Equal(t, int64(3682), miles[0].TotalTrackedTime)
-}
-
-func TestLoadTotalTrackedTime(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-	milestone := unittest.AssertExistsAndLoadBean(t, &issues_model.Milestone{ID: 1})
-
-	assert.NoError(t, milestone.LoadTotalTrackedTime(t.Context()))
-
-	assert.Equal(t, int64(3682), milestone.TotalTrackedTime)
-}
-
 func TestCountIssues(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 	count, err := issues_model.CountIssues(t.Context(), &issues_model.IssuesOptions{})
@@ -382,8 +332,6 @@ func TestCountIssues(t *testing.T) {
 
 func TestIssueLoadAttributes(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
-	setting.Service.EnableTimetracking = true
-
 	issueList := issues_model.IssueList{
 		unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: 1}),
 		unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: 4}),
@@ -402,24 +350,11 @@ func TestIssueLoadAttributes(t *testing.T) {
 		if issue.AssigneeID > 0 {
 			assert.Equal(t, issue.AssigneeID, issue.Assignee.ID)
 		}
-		if issue.MilestoneID > 0 {
-			assert.Equal(t, issue.MilestoneID, issue.Milestone.ID)
-		}
 		if issue.IsPull {
 			assert.Equal(t, issue.ID, issue.PullRequest.IssueID)
 		}
-		for _, attachment := range issue.Attachments {
-			assert.Equal(t, issue.ID, attachment.IssueID)
-		}
 		for _, comment := range issue.Comments {
 			assert.Equal(t, issue.ID, comment.IssueID)
-		}
-		if issue.ID == int64(1) {
-			assert.Equal(t, int64(400), issue.TotalTrackedTime)
-			assert.NotEmpty(t, issue.Projects)
-			assert.Equal(t, int64(1), issue.Projects[0].ID)
-		} else {
-			assert.Empty(t, issue.Projects)
 		}
 	}
 }
@@ -430,8 +365,6 @@ func assertCreateIssues(t *testing.T, isPull bool) {
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{Name: reponame})
 	owner := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo.OwnerID})
 	label := unittest.AssertExistsAndLoadBean(t, &issues_model.Label{ID: 1})
-	milestone := unittest.AssertExistsAndLoadBean(t, &issues_model.Milestone{ID: 1})
-	assert.EqualValues(t, 1, milestone.ID)
 	reaction := &issues_model.Reaction{
 		Type:   "heart",
 		UserID: owner.ID,
@@ -439,17 +372,16 @@ func assertCreateIssues(t *testing.T, isPull bool) {
 
 	title := "issuetitle1"
 	is := &issues_model.Issue{
-		RepoID:      repo.ID,
-		MilestoneID: milestone.ID,
-		Repo:        repo,
-		Title:       title,
-		Content:     "issuecontent1",
-		IsPull:      isPull,
-		PosterID:    owner.ID,
-		Poster:      owner,
-		IsClosed:    true,
-		Labels:      []*issues_model.Label{label},
-		Reactions:   []*issues_model.Reaction{reaction},
+		RepoID:    repo.ID,
+		Repo:      repo,
+		Title:     title,
+		Content:   "issuecontent1",
+		IsPull:    isPull,
+		PosterID:  owner.ID,
+		Poster:    owner,
+		IsClosed:  true,
+		Labels:    []*issues_model.Label{label},
+		Reactions: []*issues_model.Reaction{reaction},
 	}
 	err := issues_model.InsertIssues(t.Context(), is)
 	assert.NoError(t, err)

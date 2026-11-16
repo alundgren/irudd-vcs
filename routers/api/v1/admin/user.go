@@ -9,11 +9,8 @@ import (
 	"fmt"
 	"net/http"
 
-	asymkey_model "gitea.dev/models/asymkey"
 	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
-	org_model "gitea.dev/models/organization"
-	packages_model "gitea.dev/models/packages"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/password"
@@ -23,12 +20,9 @@ import (
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/web"
-	"gitea.dev/routers/api/v1/user"
 	"gitea.dev/routers/api/v1/utils"
-	asymkey_service "gitea.dev/services/asymkey"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
-	"gitea.dev/services/mailer"
 	user_service "gitea.dev/services/user"
 )
 
@@ -154,10 +148,6 @@ func CreateUser(ctx *context.APIContext) {
 
 	log.Trace("Account created by admin (%s): %s", ctx.Doer.Name, u.Name)
 
-	// Send email notification.
-	if form.SendNotify {
-		mailer.SendRegisterNotifyMail(u)
-	}
 	ctx.JSON(http.StatusCreated, convert.ToUser(ctx, u, ctx.Doer))
 }
 
@@ -299,8 +289,6 @@ func DeleteUser(ctx *context.APIContext) {
 
 	if err := user_service.DeleteUser(ctx, ctx.ContextUser, ctx.FormBool("purge")); err != nil {
 		if repo_model.IsErrUserOwnRepos(err) ||
-			org_model.IsErrUserHasOrgs(err) ||
-			packages_model.IsErrUserOwnPackages(err) ||
 			user_model.IsErrDeleteLastAdminUser(err) {
 			ctx.APIError(http.StatusUnprocessableEntity, err.Error())
 		} else {
@@ -309,80 +297,6 @@ func DeleteUser(ctx *context.APIContext) {
 		return
 	}
 	log.Trace("Account deleted by admin(%s): %s", ctx.Doer.Name, ctx.ContextUser.Name)
-
-	ctx.Status(http.StatusNoContent)
-}
-
-// CreatePublicKey api for creating a public key to a user
-func CreatePublicKey(ctx *context.APIContext) {
-	// swagger:operation POST /admin/users/{username}/keys admin adminCreatePublicKey
-	// ---
-	// summary: Add a public key on behalf of a user
-	// consumes:
-	// - application/json
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: username
-	//   in: path
-	//   description: username of the user who is to receive a public key
-	//   type: string
-	//   required: true
-	// - name: key
-	//   in: body
-	//   schema:
-	//     "$ref": "#/definitions/CreateKeyOption"
-	// responses:
-	//   "201":
-	//     "$ref": "#/responses/PublicKey"
-	//   "403":
-	//     "$ref": "#/responses/forbidden"
-	//   "422":
-	//     "$ref": "#/responses/validationError"
-
-	form := web.GetForm(ctx).(*api.CreateKeyOption)
-
-	user.CreateUserPublicKey(ctx, *form, ctx.ContextUser.ID)
-}
-
-// DeleteUserPublicKey api for deleting a user's public key
-func DeleteUserPublicKey(ctx *context.APIContext) {
-	// swagger:operation DELETE /admin/users/{username}/keys/{id} admin adminDeleteUserPublicKey
-	// ---
-	// summary: Delete a user's public key
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: username
-	//   in: path
-	//   description: username of the user whose public key is to be deleted
-	//   type: string
-	//   required: true
-	// - name: id
-	//   in: path
-	//   description: id of the key to delete
-	//   type: integer
-	//   format: int64
-	//   required: true
-	// responses:
-	//   "204":
-	//     "$ref": "#/responses/empty"
-	//   "403":
-	//     "$ref": "#/responses/forbidden"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-
-	if err := asymkey_service.DeletePublicKey(ctx, ctx.ContextUser, ctx.PathParamInt64("id")); err != nil {
-		if asymkey_model.IsErrKeyNotExist(err) {
-			ctx.APIErrorNotFound()
-		} else if asymkey_model.IsErrKeyAccessDenied(err) {
-			ctx.APIError(http.StatusForbidden, "You do not have access to this key")
-		} else {
-			ctx.APIErrorInternal(err)
-		}
-		return
-	}
-	log.Trace("Key deleted by admin(%s): %s", ctx.Doer.Name, ctx.ContextUser.Name)
 
 	ctx.Status(http.StatusNoContent)
 }
@@ -496,9 +410,6 @@ func SearchUsers(ctx *context.APIContext) {
 	}
 	if ctx.FormString("is_restricted") != "" {
 		searchOpts.IsRestricted = optional.Some(ctx.FormBool("is_restricted"))
-	}
-	if ctx.FormString("is_2fa_enabled") != "" {
-		searchOpts.IsTwoFactorEnabled = optional.Some(ctx.FormBool("is_2fa_enabled"))
 	}
 	if ctx.FormString("is_prohibit_login") != "" {
 		searchOpts.IsProhibitLogin = optional.Some(ctx.FormBool("is_prohibit_login"))

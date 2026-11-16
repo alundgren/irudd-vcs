@@ -5,12 +5,9 @@ package issues
 
 import (
 	"context"
-	"strconv"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/renderhelper"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/markup/markdown"
 
 	"xorm.io/builder"
 )
@@ -75,10 +72,6 @@ func findCodeComments(ctx context.Context, opts FindCommentsOptions, issue *Issu
 		return nil, err
 	}
 
-	if err := comments.LoadAttachments(ctx); err != nil {
-		return nil, err
-	}
-
 	if err := comments.loadResolveDoers(ctx); err != nil {
 		return nil, err
 	}
@@ -114,25 +107,6 @@ func findCodeComments(ctx context.Context, opts FindCommentsOptions, issue *Issu
 		}
 		comments[n] = comment
 		n++
-
-		var err error
-		rctx := renderhelper.NewRenderContextRepoComment(ctx, issue.Repo, renderhelper.RepoCommentOptions{
-			FootnoteContextID: strconv.FormatInt(comment.ID, 10),
-		})
-		if comment.RenderedContent, err = markdown.RenderString(rctx, comment.Content); err != nil {
-			return nil, err
-		}
 	}
 	return comments[:n], nil
-}
-
-// FetchCodeCommentsByLine fetches the code comments for a given treePath and line number
-func FetchCodeCommentsByLine(ctx context.Context, issue *Issue, currentUser *user_model.User, treePath string, line int64, showOutdatedComments bool) (CommentList, error) {
-	opts := FindCommentsOptions{
-		Type:     CommentTypeCode,
-		IssueID:  issue.ID,
-		TreePath: treePath,
-		Line:     line,
-	}
-	return findCodeComments(ctx, opts, issue, currentUser, nil, showOutdatedComments)
 }

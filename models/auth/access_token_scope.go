@@ -211,11 +211,6 @@ func GetRequiredScopes(level AccessTokenScopeLevel, scopeCategories ...AccessTok
 	return scopes
 }
 
-// ContainsCategory checks if a list of categories contains a specific category
-func ContainsCategory(categories []AccessTokenScopeCategory, category AccessTokenScopeCategory) bool {
-	return slices.Contains(categories, category)
-}
-
 // GetScopeLevelFromAccessMode converts permission access mode to scope level
 func GetScopeLevelFromAccessMode(mode perm.AccessMode) AccessTokenScopeLevel {
 	switch mode {

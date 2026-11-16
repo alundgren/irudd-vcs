@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"gitea.dev/modules/graceful"
-	asymkey_service "gitea.dev/services/asymkey"
 	repo_service "gitea.dev/services/repository"
 
 	"github.com/urfave/cli/v3"
@@ -21,24 +20,9 @@ func newRegenerateHooksCommand() *cli.Command {
 	}
 }
 
-func newRegenerateKeysCommand() *cli.Command {
-	return &cli.Command{
-		Name:   "keys",
-		Usage:  "Regenerate authorized_keys file",
-		Action: runRegenerateKeys,
-	}
-}
-
 func runRegenerateHooks(ctx context.Context, _ *cli.Command) error {
 	if err := initDB(ctx); err != nil {
 		return err
 	}
 	return repo_service.SyncRepositoryHooks(graceful.GetManager().ShutdownContext())
-}
-
-func runRegenerateKeys(ctx context.Context, _ *cli.Command) error {
-	if err := initDB(ctx); err != nil {
-		return err
-	}
-	return asymkey_service.RewriteAllPublicKeys(ctx)
 }

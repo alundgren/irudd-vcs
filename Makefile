@@ -43,7 +43,7 @@ TAGS ?=
 TAGS_EVIDENCE := $(MAKE_EVIDENCE_DIR)/tags
 
 CGO_ENABLED ?= 0
-ifneq (,$(findstring sqlite_mattn,$(TAGS))$(findstring pam,$(TAGS)))
+ifneq (,$(findstring sqlite_mattn,$(TAGS)))
 	CGO_ENABLED = 1
 endif
 
@@ -112,61 +112,31 @@ LDFLAGS := $(LDFLAGS) -X "main.Version=$(GITEA_VERSION)" -X "main.Tags=$(TAGS)"
 
 LINUX_ARCHS ?= linux/amd64,linux/386,linux/arm-5,linux/arm-6,linux/arm64,linux/riscv64
 
-GO_TEST_PACKAGES ?= $(filter-out $(shell $(GO) list gitea.dev/models/migrations/...) gitea.dev/tests/integration/migration-test gitea.dev/tests gitea.dev/tests/integration,$(shell $(GO) list ./... | grep -v /vendor/))
+GO_TEST_PACKAGES ?= $(filter-out $(shell $(GO) list gitea.dev/models/migrations/...) gitea.dev/tests gitea.dev/tests/integration,$(shell $(GO) list ./... | grep -v /vendor/))
 MIGRATE_TEST_PACKAGES ?= $(shell $(GO) list gitea.dev/models/migrations/...)
 
-FRONTEND_SOURCES := $(shell find web_src/js web_src/css -type f)
-FRONTEND_CONFIGS := vite.config.ts tailwind.config.ts
-FRONTEND_DEST := public/assets/.vite/manifest.json
-FRONTEND_DEST_ENTRIES := public/assets/js public/assets/css public/assets/fonts public/assets/.vite
-FRONTEND_DEV_LOG_LEVEL ?= warn
-
-BINDATA_DEST_WILDCARD := modules/migration/bindata.* modules/public/bindata.* modules/options/bindata.* modules/templates/bindata.*
-
-GENERATED_GO_DEST := modules/charset/invisible_gen.go modules/charset/ambiguous_gen.go
-
-SVG_DEST_DIR := public/assets/img/svg
-SVG_DEST_DIRS := $(SVG_DEST_DIR) options/fileicon
+BINDATA_DEST_WILDCARD := modules/options/bindata.*
 
 AIR_TMP_DIR := .air
 
 GO_LICENSE_FILE := assets/go-licenses.json
 
-TAR_EXCLUDES := .git data indexers queues log node_modules $(EXECUTABLE) $(DIST) $(MAKE_EVIDENCE_DIR) $(AIR_TMP_DIR)
+TAR_EXCLUDES := .git data indexers queues log $(EXECUTABLE) $(DIST) $(MAKE_EVIDENCE_DIR) $(AIR_TMP_DIR)
 
 GO_DIRS := build cmd models modules routers services tests tools
-WEB_DIRS := web_src/js web_src/css
 
-ESLINT_FILES := web_src/js tools *.ts tests/e2e
-STYLELINT_FILES := web_src/css web_src/js/components/*.vue
-SPELLCHECK_FILES := $(GO_DIRS) $(WEB_DIRS) templates options/locale/locale_en-US.json $(filter-out CHANGELOG.md, $(wildcard *.go *.md *.yml *.yaml *.toml))
-EDITORCONFIG_FILES := templates options/locale/locale_en-US.json
+SPELLCHECK_FILES := $(GO_DIRS) docs $(wildcard *.go *.md *.yml *.yaml *.toml)
+EDITORCONFIG_FILES := custom/conf/app.example.ini modules/apispec tools .air.toml
 
 GO_SOURCES := $(wildcard *.go)
 GO_SOURCES += $(shell find $(GO_DIRS) -type f -name "*.go")
-GO_SOURCES += $(GENERATED_GO_DEST)
 
-ESLINT_CONCURRENCY ?= 2
-
-SWAGGER_SPEC := templates/swagger/v1_json.tmpl
-SWAGGER_SPEC_INPUT := templates/swagger/v1_input.json
+SWAGGER_SPEC := modules/apispec/v1_json.tmpl
+SWAGGER_SPEC_INPUT := modules/apispec/v1_input.json
 SWAGGER_EXCLUDE := gitea.dev/sdk
-OPENAPI3_SPEC := templates/swagger/v1_openapi3_json.tmpl
+OPENAPI3_SPEC := modules/apispec/v1_openapi3_json.tmpl
 
-TEST_MYSQL_HOST ?= mysql:3306
-TEST_MYSQL_DBNAME ?= testgitea
-TEST_MYSQL_USERNAME ?= root
-TEST_MYSQL_PASSWORD ?=
-TEST_PGSQL_HOST ?= pgsql:5432
-TEST_PGSQL_DBNAME ?= testgitea
-TEST_PGSQL_USERNAME ?= postgres
-TEST_PGSQL_PASSWORD ?= postgres
-TEST_PGSQL_SCHEMA ?= gtestschema
 TEST_MINIO_ENDPOINT ?= minio:9000
-TEST_MSSQL_HOST ?= mssql:1433
-TEST_MSSQL_DBNAME ?= testgitea
-TEST_MSSQL_USERNAME ?= sa
-TEST_MSSQL_PASSWORD ?= MwantsaSecurePassword1
 
 # Include local Makefile
 # Makefile.local is listed in .gitignore
@@ -184,13 +154,8 @@ all: build
 .PHONY: help
 help: Makefile ## print Makefile help information.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m[TARGETS] default target: build\033[0m\n\n\033[35mTargets:\033[0m\n"} /^[0-9A-Za-z._-]+:.*?##/ { printf "  \033[36m%-45s\033[0m %s\n", $$1, $$2 }' Makefile #$(MAKEFILE_LIST)
-	@printf "  \033[36m%-46s\033[0m %s\n" "test-e2e" "test end to end using playwright"
 	@printf "  \033[36m%-46s\033[0m %s\n" "test-backend[#TestSpecificName]" "run unit test (sqlite only)"
-	@printf "  \033[36m%-46s\033[0m %s\n" "test-integration[#TestSpecificName]" "run integration test for GITEA_TEST_DATABASE (sqlite, mysql, pgsql, mssql)"
-
-.PHONY: clean-all
-clean-all: clean ## delete backend, frontend and integration files
-	rm -rf $(FRONTEND_DEST_ENTRIES) node_modules
+	@printf "  \033[36m%-46s\033[0m %s\n" "test-integration[#TestSpecificName]" "run integration test (sqlite only)"
 
 .PHONY: clean
 clean: ## delete backend and integration files
@@ -198,19 +163,12 @@ clean: ## delete backend and integration files
 	rm -rf  $(DIST) $(BINDATA_DEST_WILDCARD) man tests/integration/gitea-integration-*
 
 .PHONY: fmt
-fmt: ## format the Go and template code
+fmt: ## format the Go code
 	$(GO) run $(GOLANGCI_LINT_PACKAGE) fmt
-	$(eval TEMPLATES := $(shell find templates -type f -name '*.tmpl'))
-	@# strip whitespace after '{{' or '(' and before '}}' or ')' unless there is only
-	@# whitespace before it
-	@$(SED_INPLACE) \
-		-e 's/{{[ 	]\{1,\}/{{/g' -e '/^[ 	]\{1,\}}}/! s/[ 	]\{1,\}}}/}}/g' \
-	  -e 's/([ 	]\{1,\}/(/g' -e '/^[ 	]\{1,\})/! s/[ 	]\{1,\})/)/g' \
-	  $(TEMPLATES)
 
 .PHONY: fmt-check
 fmt-check: fmt
-	@diff=$$(git diff --color=always $(GO_SOURCES) templates $(WEB_DIRS)); \
+	@diff=$$(git diff --color=always $(GO_SOURCES)); \
 	if [ -n "$$diff" ]; then \
 	  echo "Please run 'make fmt' and commit the result:"; \
 	  printf "%s" "$${diff}"; \
@@ -227,7 +185,7 @@ TAGS_PREREQ := $(TAGS_EVIDENCE)
 endif
 
 .PHONY: generate-swagger
-generate-swagger: $(SWAGGER_SPEC) $(OPENAPI3_SPEC) ## generate the swagger spec from code comments
+generate-swagger: $(SWAGGER_SPEC) $(OPENAPI3_SPEC) ## generate the Swagger 2.0 and OpenAPI 3.0 specs from code comments
 
 $(SWAGGER_SPEC): $(GO_SOURCES) $(SWAGGER_SPEC_INPUT)
 	$(GO) run $(SWAGGER_PACKAGE) generate spec --exclude "$(SWAGGER_EXCLUDE)" --input "$(SWAGGER_SPEC_INPUT)" --output './$(SWAGGER_SPEC)'
@@ -265,61 +223,22 @@ openapi3-check: generate-openapi3
 	fi
 
 .PHONY: checks
-checks: checks-frontend checks-backend ## run various consistency checks
-
-.PHONY: checks-frontend
-checks-frontend: lockfile-check svg-check ## check frontend files
+checks: checks-backend ## run various consistency checks
 
 .PHONY: checks-backend
 checks-backend: tidy-check swagger-check openapi3-check fmt-check swagger-validate security-check ## check backend files
 
 .PHONY: lint
-lint: lint-frontend lint-backend lint-templates lint-swagger lint-spell lint-md lint-json lint-yaml lint-shell ## lint everything
+lint: lint-backend lint-spell lint-shell ## lint everything
 
 .PHONY: lint-fix
-lint-fix: lint-frontend-fix lint-backend-fix lint-spell-fix ## lint everything and fix issues
-
-.PHONY: lint-frontend
-lint-frontend: lint-js lint-css ## lint frontend files
-
-.PHONY: lint-frontend-fix
-lint-frontend-fix: lint-js-fix lint-css-fix ## lint frontend files and fix issues
+lint-fix: lint-backend-fix lint-spell-fix ## lint everything and fix issues
 
 .PHONY: lint-backend
 lint-backend: lint-go lint-editorconfig ## lint backend files
 
 .PHONY: lint-backend-fix
 lint-backend-fix: lint-go-fix lint-editorconfig ## lint backend files and fix issues
-
-.PHONY: lint-js
-lint-js: node_modules ## lint js and ts files
-	pnpm exec eslint --color --max-warnings=0 --concurrency $(ESLINT_CONCURRENCY) $(ESLINT_FILES)
-	pnpm exec vue-tsc
-
-.PHONY: lint-js-fix
-lint-js-fix: node_modules ## lint js and ts files and fix issues
-	pnpm exec eslint --color --max-warnings=0 --concurrency $(ESLINT_CONCURRENCY) $(ESLINT_FILES) --fix
-	pnpm exec vue-tsc
-
-.PHONY: lint-css
-lint-css: node_modules ## lint css files
-	pnpm exec stylelint --color --max-warnings=0 $(STYLELINT_FILES)
-
-.PHONY: lint-css-fix
-lint-css-fix: node_modules ## lint css files and fix issues
-	pnpm exec stylelint --color --max-warnings=0 $(STYLELINT_FILES) --fix
-
-.PHONY: lint-swagger
-lint-swagger: node_modules ## lint swagger files
-	pnpm exec spectral lint -q -F hint $(SWAGGER_SPEC)
-
-.PHONY: lint-md
-lint-md: node_modules ## lint markdown files
-	pnpm exec markdownlint *.md
-
-.PHONY: lint-md-fix
-lint-md-fix: node_modules ## lint markdown files and fix issues
-	pnpm exec markdownlint --fix *.md
 
 .PHONY: lint-spell
 lint-spell: ## lint spelling
@@ -338,38 +257,13 @@ lint-go-fix: ## lint go files and fix issues
 	GO=$(GO) GOLANGCI_LINT_PACKAGE=$(GOLANGCI_LINT_PACKAGE) $(GO) run ./tools/lint-go-all.go --fix
 
 .PHONY: lint-editorconfig
-lint-editorconfig:
+lint-editorconfig: ## lint files with editorconfig rules
 	@echo "Running editorconfig check..."
 	@$(GO) run $(EDITORCONFIG_CHECKER_PACKAGE) $(EDITORCONFIG_FILES)
 
 .PHONY: lint-shell
 lint-shell: ## lint shell scripts
 	@SHELLCHECK_IMAGE=$(SHELLCHECK_IMAGE) CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) ./tools/lint-shell.sh $$(git ls-files '*.sh')
-
-.PHONY: lint-templates
-lint-templates: .venv node_modules ## lint template files
-	@node tools/lint-templates-svg.ts
-	@uv run --frozen djlint $(shell find templates -type f -iname '*.tmpl')
-
-.PHONY: lint-yaml
-lint-yaml: .venv ## lint yaml files
-	@uv run --frozen yamllint -s .
-
-.PHONY: lint-json
-lint-json: node_modules ## lint json files
-	pnpm exec eslint -c eslint.json.config.ts --color --max-warnings=0 --concurrency $(ESLINT_CONCURRENCY)
-
-.PHONY: lint-json-fix
-lint-json-fix: node_modules ## lint and fix json files
-	pnpm exec eslint -c eslint.json.config.ts --color --max-warnings=0 --concurrency $(ESLINT_CONCURRENCY) --fix
-
-.PHONY: watch
-watch: ## watch everything and continuously rebuild
-	@bash tools/watch.sh
-
-.PHONY: watch-frontend
-watch-frontend: node_modules ## start vite dev server for frontend
-	NODE_ENV=development pnpm exec vite --logLevel $(FRONTEND_DEV_LOG_LEVEL)
 
 .PHONY: watch-backend
 watch-backend: ## watch backend files and continuously rebuild
@@ -379,10 +273,6 @@ watch-backend: ## watch backend files and continuously rebuild
 test-backend: ## test backend files
 	@echo "Running go test with $(GOTEST_FLAGS) -tags '$(TAGS)'..."
 	@$(GO) test $(GOTEST_FLAGS) -tags='$(TAGS)' $(GO_TEST_PACKAGES)
-
-.PHONY: test-frontend
-test-frontend: node_modules ## test frontend files
-	pnpm exec vitest
 
 .PHONY: test-check
 test-check:
@@ -454,11 +344,7 @@ test-integration\#%:
 	$(GO) test $(GOTEST_FLAGS) -tags '$(TAGS)' -run $(subst .,/,$*) gitea.dev/tests/integration
 
 .PHONY: test-migration
-test-migration: migrations.integration.test migrations.individual.test
-
-.PHONY: migrations.integration.test
-migrations.integration.test:
-	$(GO) test $(GOTEST_FLAGS) -tags '$(TAGS)' gitea.dev/tests/integration/migration-test
+test-migration: migrations.individual.test
 
 .PHONY: migrations.individual.test
 migrations.individual.test:
@@ -469,24 +355,12 @@ migrations.individual.test:
 migrations.individual.test\#%:
 	$(GO) test $(GOTEST_FLAGS) -tags '$(TAGS)' gitea.dev/models/migrations/$*
 
-.PHONY: playwright
-playwright: deps-frontend
-	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) ./tools/test-e2e.sh install
-
-.PHONY: test-e2e
-test-e2e: playwright frontend backend
-	@CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) EXECUTABLE=$(EXECUTABLE) ./tools/test-e2e.sh run $(GITEA_TEST_E2E_FLAGS)
-
 .PHONY: build
-build: frontend backend ## build everything
-
-.PHONY: frontend
-frontend: $(FRONTEND_DEST) ## build frontend files
+build: backend ## build the server
 
 .PHONY: backend
-backend: generate-backend $(EXECUTABLE) ## build backend files
+backend: generate-backend $(EXECUTABLE) ## build the server binary
 
-# We generate the backend before the frontend in case we in future we want to generate things in the frontend from generated files in backend
 .PHONY: generate
 generate: generate-backend ## run "go generate"
 
@@ -503,13 +377,10 @@ security-check:
 	GOEXPERIMENT= go run $(GOVULNCHECK_PACKAGE) -show color ./... || true
 
 $(EXECUTABLE): $(GO_SOURCES) $(TAGS_PREREQ)
-ifneq ($(and $(STATIC),$(findstring pam,$(TAGS))),)
-  $(error pam support set via TAGS does not support static builds)
-endif
 	CGO_ENABLED="$(CGO_ENABLED)" CGO_CFLAGS="$(CGO_CFLAGS)" $(GO) build $(GOFLAGS) $(EXTRA_GOFLAGS) -tags '$(TAGS)' -ldflags '-s -w $(EXTLDFLAGS) $(LDFLAGS)' -o $@
 
 .PHONY: release
-release: frontend generate release-windows release-linux release-darwin release-freebsd release-copy release-compress vendor release-sources release-check
+release: generate release-windows release-linux release-darwin release-freebsd release-copy release-compress vendor release-sources release-check
 
 $(DIST_DIRS):
 	mkdir -p $(DIST_DIRS)
@@ -556,13 +427,7 @@ release-sources: | $(DIST_DIRS)
 	rm -f $(STORED_VERSION_FILE)
 
 .PHONY: deps
-deps: deps-frontend deps-backend deps-tools deps-py ## install dependencies
-
-.PHONY: deps-py
-deps-py: .venv ## install python dependencies
-
-.PHONY: deps-frontend
-deps-frontend: node_modules ## install frontend dependencies
+deps: deps-backend deps-tools ## install dependencies
 
 .PHONY: deps-backend
 deps-backend: ## install backend dependencies
@@ -578,86 +443,19 @@ deps-tools: ## install tool dependencies
 	$(GO) install $(SWAGGER_PACKAGE) & \
 	$(GO) install $(XGO_PACKAGE) & \
 	$(GO) install $(GOVULNCHECK_PACKAGE) & \
-	$(GO) install $(ACTIONLINT_PACKAGE) & \
 	wait
 
-node_modules: pnpm-lock.yaml
-	pnpm install --frozen-lockfile
-	@touch node_modules
-
-.venv: uv.lock
-	uv sync
-	@touch .venv
-
 .PHONY: update
-update: update-go update-js update-py ## update dependencies
+update: update-go ## update dependencies
 
 .PHONY: update-go
 update-go: ## update go dependencies
 	$(GO) get -u ./...
 	$(MAKE) tidy
 
-.PHONY: update-js
-update-js: node_modules ## update js dependencies
-	pnpm exec updates -u -f package.json
-	rm -rf node_modules pnpm-lock.yaml
-	pnpm install
-	@touch node_modules
-
-.PHONY: update-py
-update-py: node_modules ## update py dependencies
-	pnpm exec updates -u -f pyproject.toml
-	rm -rf .venv uv.lock
-	uv sync
-	@touch .venv
-
-.PHONY: vite
-vite: $(FRONTEND_DEST) ## build vite files
-
-$(FRONTEND_DEST): $(FRONTEND_SOURCES) $(FRONTEND_CONFIGS) pnpm-lock.yaml
-	@$(MAKE) -s node_modules
-	@rm -rf $(FRONTEND_DEST_ENTRIES)
-	@echo "Running vite build..."
-	@pnpm exec vite build
-	@touch $(FRONTEND_DEST)
-
-.PHONY: svg
-svg: node_modules ## build svg files
-	rm -rf $(SVG_DEST_DIR)
-	node tools/generate-svg.ts
-
-.PHONY: svg-check
-svg-check: svg
-	@git add $(SVG_DEST_DIRS)
-	@diff=$$(git diff --color=always --cached $(SVG_DEST_DIRS)); \
-	if [ -n "$$diff" ]; then \
-		echo "Please run 'make svg' and 'git add $(SVG_DEST_DIRS)' and commit the result:"; \
-		printf "%s" "$${diff}"; \
-		exit 1; \
-	fi
-
-.PHONY: lockfile-check
-lockfile-check:
-	pnpm install --frozen-lockfile
-	@diff=$$(git diff --color=always pnpm-lock.yaml); \
-	if [ -n "$$diff" ]; then \
-		echo "pnpm-lock.yaml is inconsistent with package.json"; \
-		echo "Please run 'pnpm install --frozen-lockfile' and commit the result:"; \
-		printf "%s" "$${diff}"; \
-		exit 1; \
-	fi
-
 .PHONY: generate-gitignore
 generate-gitignore: ## update gitignore files
 	$(GO) run build/generate-gitignores.go
-
-.PHONY: generate-images
-generate-images: | node_modules ## generate images
-	cd tools && node generate-images.ts $(TAGS)
-
-.PHONY: generate-codemirror-languages
-generate-codemirror-languages: | node_modules ## generate codemirror languages
-	node tools/generate-codemirror-languages.ts
 
 .PHONY: generate-manpage
 generate-manpage: ## generate manpage
@@ -667,7 +465,5 @@ generate-manpage: ## generate manpage
 	@gzip -9 man/man1/gitea.1 && echo man/man1/gitea.1.gz created
 	@#TODO A small script that formats config-cheat-sheet.en-us.md nicely for use as a config man page
 
-# Disable parallel execution because it would break some targets that don't
-# specify exact dependencies like 'backend' which does currently not depend
-# on 'frontend' to enable Node.js-less builds from source tarballs.
+# Disable parallel execution because some targets don't specify exact dependencies
 .NOTPARALLEL:

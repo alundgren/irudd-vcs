@@ -166,9 +166,6 @@ func UpdateAssignees(ctx context.Context, issue *issues_model.Issue, oneAssignee
 }
 
 func validateAssignee(ctx context.Context, issue *issues_model.Issue, doer, assignee *user_model.User) error {
-	if user_model.IsUserBlockedBy(ctx, doer, assignee.ID) {
-		return user_model.ErrBlockedUser
-	}
 
 	valid, err := access_model.CanBeAssigned(ctx, assignee, issue.Repo)
 	if err != nil {

@@ -155,10 +155,6 @@ linters:
           - gocritic
         text: '(?i)exitAfterDefer:'
     paths:
-      - node_modules
-      - .venv
-      - public
-      - web_src
       - third_party$
       - builtin$
       - examples$
@@ -181,11 +177,6 @@ formatters:
       extra-rules: true
   exclusions:
     generated: lax
-    paths:
-      - node_modules
-      - .venv
-      - public
-      - web_src
 
 run:
   timeout: 10m

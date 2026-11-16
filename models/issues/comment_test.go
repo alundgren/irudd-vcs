@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
@@ -43,39 +42,6 @@ func TestCreateComment(t *testing.T) {
 
 	updatedIssue := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: issue.ID})
 	unittest.AssertInt64InRange(t, now, then, int64(updatedIssue.UpdatedUnix))
-}
-
-func TestLoadAssigneeUserAndTeam_DeletedTeamBecomesGhostTeam(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-	issue := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: 15})
-	comment := &issues_model.Comment{
-		Type:           issues_model.CommentTypeAssignees,
-		IssueID:        issue.ID,
-		AssigneeTeamID: 999999, // non-existing team ID
-	}
-	assert.NoError(t, comment.LoadAssigneeUserAndTeam(t.Context()))
-	assert.NotNil(t, comment.AssigneeTeam)
-	assert.EqualValues(t, -1, comment.AssigneeTeam.ID)
-}
-
-func Test_UpdateCommentAttachment(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	comment := unittest.AssertExistsAndLoadBean(t, &issues_model.Comment{ID: 1})
-	issue := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: comment.IssueID})
-	attachment := repo_model.Attachment{
-		RepoID: issue.RepoID, // must match the comment's repo, else the cross-repo guard rejects it
-		Name:   "test.txt",
-	}
-	assert.NoError(t, db.Insert(t.Context(), &attachment))
-
-	err := issues_model.UpdateCommentAttachments(t.Context(), comment, []string{attachment.UUID})
-	assert.NoError(t, err)
-
-	attachment2 := unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: attachment.ID})
-	assert.Equal(t, attachment.Name, attachment2.Name)
-	assert.Equal(t, comment.ID, attachment2.CommentID)
-	assert.Equal(t, comment.IssueID, attachment2.IssueID)
 }
 
 func TestFetchCodeComments(t *testing.T) {

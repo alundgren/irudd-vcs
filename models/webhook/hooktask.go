@@ -16,7 +16,6 @@ import (
 	webhook_module "gitea.dev/modules/webhook"
 
 	gouuid "github.com/google/uuid"
-	"xorm.io/builder"
 )
 
 //   ___ ___                __   ___________              __
@@ -148,26 +147,6 @@ func GetHookTaskByID(ctx context.Context, id int64) (*HookTask, error) {
 func UpdateHookTask(ctx context.Context, t *HookTask) error {
 	_, err := db.GetEngine(ctx).ID(t.ID).AllCols().Update(t)
 	return err
-}
-
-// ReplayHookTask copies a hook task to get re-delivered
-func ReplayHookTask(ctx context.Context, hookID int64, uuid string) (*HookTask, error) {
-	task, exist, err := db.Get[HookTask](ctx, builder.Eq{"hook_id": hookID, "uuid": uuid})
-	if err != nil {
-		return nil, err
-	} else if !exist {
-		return nil, ErrHookTaskNotExist{
-			HookID: hookID,
-			UUID:   uuid,
-		}
-	}
-
-	return CreateHookTask(ctx, &HookTask{
-		HookID:         task.HookID,
-		PayloadContent: task.PayloadContent,
-		EventType:      task.EventType,
-		PayloadVersion: task.PayloadVersion,
-	})
 }
 
 // FindUndeliveredHookTaskIDs will find the next 100 undelivered hook tasks with ID greater than the provided lowerID

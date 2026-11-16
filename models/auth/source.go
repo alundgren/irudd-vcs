@@ -85,11 +85,6 @@ type UseTLSer interface {
 	UseTLS() bool
 }
 
-// SSHKeyProvider configurations provide ProvidesSSHKeys to check if they provide SSHKeys
-type SSHKeyProvider interface {
-	ProvidesSSHKeys() bool
-}
-
 // RegisterableSource configurations provide RegisterSource which needs to be run on creation
 type RegisterableSource interface {
 	RegisterSource() error
@@ -207,10 +202,6 @@ func (source *Source) SkipVerify() bool {
 	return ok && skipVerifiable.IsSkipVerify()
 }
 
-func (source *Source) TwoFactorShouldSkip() bool {
-	return source.TwoFactorPolicy == "skip"
-}
-
 // CreateSource inserts a AuthSource in the DB if not already
 // existing with the given name.
 func CreateSource(ctx context.Context, source *Source) error {
@@ -266,20 +257,6 @@ func (opts FindSourcesOptions) ToConds() builder.Cond {
 		conds = conds.And(builder.Eq{"`type`": opts.LoginType})
 	}
 	return conds
-}
-
-// IsSSPIEnabled returns true if there is at least one activated login
-// source of type LoginSSPI
-func IsSSPIEnabled(ctx context.Context) bool {
-	exist, err := db.Exist[Source](ctx, FindSourcesOptions{
-		IsActive:  optional.Some(true),
-		LoginType: SSPI,
-	}.ToConds())
-	if err != nil {
-		log.Error("IsSSPIEnabled: failed to query active SSPI sources: %v", err)
-		return false
-	}
-	return exist
 }
 
 // GetSourceByID returns login source by given ID.
@@ -371,12 +348,6 @@ type ErrSourceAlreadyExist struct {
 	Name string
 }
 
-// IsErrSourceAlreadyExist checks if an error is a ErrSourceAlreadyExist.
-func IsErrSourceAlreadyExist(err error) bool {
-	_, ok := err.(ErrSourceAlreadyExist)
-	return ok
-}
-
 func (err ErrSourceAlreadyExist) Error() string {
 	return fmt.Sprintf("login source already exists [name: %s]", err.Name)
 }
@@ -384,19 +355,4 @@ func (err ErrSourceAlreadyExist) Error() string {
 // Unwrap unwraps this as a ErrExist err
 func (err ErrSourceAlreadyExist) Unwrap() error {
 	return util.ErrAlreadyExist
-}
-
-// ErrSourceInUse represents a "SourceInUse" kind of error.
-type ErrSourceInUse struct {
-	ID int64
-}
-
-// IsErrSourceInUse checks if an error is a ErrSourceInUse.
-func IsErrSourceInUse(err error) bool {
-	_, ok := err.(ErrSourceInUse)
-	return ok
-}
-
-func (err ErrSourceInUse) Error() string {
-	return fmt.Sprintf("login source is still used by some users [id: %d]", err.ID)
 }

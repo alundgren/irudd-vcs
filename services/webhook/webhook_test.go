@@ -24,25 +24,12 @@ import (
 
 func TestWebhookService(t *testing.T) {
 	unittest.PrepareTestEnv(t)
-	t.Run("GetSlackHook", testWebhookGetSlackHook)
 	t.Run("PrepareWebhooks", testWebhookPrepare)
 	t.Run("PrepareBranchFilterMatch", testWebhookPrepareBranchFilterMatch)
 	t.Run("PrepareBranchFilterNoMatch", testWebhookPrepareBranchFilterNoMatch)
 	t.Run("WebhookUserMail", testWebhookUserMail)
 	t.Run("CheckBranchFilter", testWebhookCheckBranchFilter)
 	t.Run("PrepareTestWebhookIgnoresGates", testPrepareTestWebhookIgnoresGates)
-}
-
-func testWebhookGetSlackHook(t *testing.T) {
-	w := &webhook_model.Webhook{
-		Meta: `{"channel": "foo", "username": "username", "color": "blue"}`,
-	}
-	slackHook := GetSlackHook(w)
-	assert.Equal(t, SlackMeta{
-		Channel:  "foo",
-		Username: "username",
-		Color:    "blue",
-	}, *slackHook)
 }
 
 func testWebhookPrepare(t *testing.T) {
@@ -145,7 +132,7 @@ func testPrepareTestWebhookIgnoresGates(t *testing.T) {
 			ChooseEvents: true,
 			BranchFilter: "dev",
 			HookEvents: webhook_module.HookEvents{
-				webhook_module.HookEventWorkflowRun: true,
+				webhook_module.HookEventIssues: true,
 			},
 		},
 	}

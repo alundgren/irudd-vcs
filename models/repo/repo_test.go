@@ -6,13 +6,8 @@ package repo
 import (
 	"testing"
 
-	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
-	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/markup"
 	"gitea.dev/modules/optional"
-	"gitea.dev/modules/setting"
-	"gitea.dev/modules/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,72 +56,6 @@ func TestRepoAPIURL(t *testing.T) {
 	assert.Equal(t, "https://try.gitea.io/api/v1/repos/user12/repo10", repo.APIURL())
 }
 
-func TestWatchRepo(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	repo := unittest.AssertExistsAndLoadBean(t, &Repository{ID: 3})
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-
-	assert.NoError(t, WatchRepo(t.Context(), user, repo, true))
-	unittest.AssertExistsAndLoadBean(t, &Watch{RepoID: repo.ID, UserID: user.ID})
-	unittest.CheckConsistencyFor(t, &Repository{ID: repo.ID})
-
-	assert.NoError(t, WatchRepo(t.Context(), user, repo, false))
-	unittest.AssertNotExistsBean(t, &Watch{RepoID: repo.ID, UserID: user.ID})
-	unittest.CheckConsistencyFor(t, &Repository{ID: repo.ID})
-}
-
-func TestMetas(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	repo := &Repository{Name: "testRepo"}
-	repo.Owner = &user_model.User{Name: "testOwner"}
-	repo.OwnerName = repo.Owner.Name
-
-	repo.Units = nil
-
-	metas := repo.ComposeCommentMetas(t.Context())
-	assert.Equal(t, "testRepo", metas["repo"])
-	assert.Equal(t, "testOwner", metas["user"])
-
-	externalTracker := RepoUnit{
-		Type: unit.TypeExternalTracker,
-		Config: &ExternalTrackerConfig{
-			ExternalTrackerFormat: "https://someurl.com/{user}/{repo}/{issue}",
-		},
-	}
-
-	testSuccess := func(expectedStyle string) {
-		repo.Units = []*RepoUnit{&externalTracker}
-		repo.commonRenderingMetas = nil
-		metas := repo.ComposeCommentMetas(t.Context())
-		assert.Equal(t, expectedStyle, metas["style"])
-		assert.Equal(t, "testRepo", metas["repo"])
-		assert.Equal(t, "testOwner", metas["user"])
-		assert.Equal(t, "https://someurl.com/{user}/{repo}/{issue}", metas["format"])
-	}
-
-	testSuccess(markup.IssueNameStyleNumeric)
-
-	externalTracker.ExternalTrackerConfig().ExternalTrackerStyle = markup.IssueNameStyleAlphanumeric
-	testSuccess(markup.IssueNameStyleAlphanumeric)
-
-	externalTracker.ExternalTrackerConfig().ExternalTrackerStyle = markup.IssueNameStyleNumeric
-	testSuccess(markup.IssueNameStyleNumeric)
-
-	externalTracker.ExternalTrackerConfig().ExternalTrackerStyle = markup.IssueNameStyleRegexp
-	testSuccess(markup.IssueNameStyleRegexp)
-
-	repo, err := GetRepositoryByID(t.Context(), 3)
-	assert.NoError(t, err)
-
-	metas = repo.ComposeCommentMetas(t.Context())
-	assert.Contains(t, metas, "org")
-	assert.Contains(t, metas, "teams")
-	assert.Equal(t, "org3", metas["org"])
-	assert.Equal(t, ",owners,team1,", metas["teams"])
-}
-
 func TestGetRepositoryByURL(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 
@@ -172,42 +101,6 @@ func TestGetRepositoryByURL(t *testing.T) {
 	})
 }
 
-func TestComposeSSHCloneURL(t *testing.T) {
-	defer test.MockVariableValue(&setting.SSH, setting.SSH)()
-	defer test.MockVariableValue(&setting.Repository, setting.Repository)()
-
-	setting.SSH.User = "git"
-
-	// test SSH_DOMAIN
-	setting.SSH.Domain = "domain"
-	setting.SSH.Port = 22
-	setting.Repository.UseCompatSSHURI = false
-	assert.Equal(t, "git@domain:user/repo.git", ComposeSSHCloneURL(&user_model.User{Name: "doer"}, "user", "repo"))
-	setting.Repository.UseCompatSSHURI = true
-	assert.Equal(t, "ssh://git@domain/user/repo.git", ComposeSSHCloneURL(&user_model.User{Name: "doer"}, "user", "repo"))
-	// test SSH_DOMAIN while use non-standard SSH port
-	setting.SSH.Port = 123
-	setting.Repository.UseCompatSSHURI = false
-	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(nil, "user", "repo"))
-	setting.Repository.UseCompatSSHURI = true
-	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(nil, "user", "repo"))
-
-	// test IPv6 SSH_DOMAIN
-	setting.Repository.UseCompatSSHURI = false
-	setting.SSH.Domain = "::1"
-	setting.SSH.Port = 22
-	assert.Equal(t, "git@[::1]:user/repo.git", ComposeSSHCloneURL(nil, "user", "repo"))
-	setting.SSH.Port = 123
-	assert.Equal(t, "ssh://git@[::1]:123/user/repo.git", ComposeSSHCloneURL(nil, "user", "repo"))
-
-	setting.SSH.User = "(DOER_USERNAME)"
-	setting.SSH.Domain = "domain"
-	setting.SSH.Port = 22
-	assert.Equal(t, "doer@domain:user/repo.git", ComposeSSHCloneURL(&user_model.User{Name: "doer"}, "user", "repo"))
-	setting.SSH.Port = 123
-	assert.Equal(t, "ssh://doer@domain:123/user/repo.git", ComposeSSHCloneURL(&user_model.User{Name: "doer"}, "user", "repo"))
-}
-
 func TestIsUsableRepoName(t *testing.T) {
 	assert.NoError(t, IsUsableRepoName("a"))
 	assert.NoError(t, IsUsableRepoName("-1_."))
@@ -220,18 +113,4 @@ func TestIsUsableRepoName(t *testing.T) {
 	assert.Error(t, IsUsableRepoName("foo.wiki"))
 	assert.Error(t, IsUsableRepoName("foo.git"))
 	assert.Error(t, IsUsableRepoName("foo.RSS"))
-}
-
-func TestIsValidSSHAccessRepoName(t *testing.T) {
-	assert.True(t, IsValidSSHAccessRepoName("a"))
-	assert.True(t, IsValidSSHAccessRepoName("-1_."))
-	assert.True(t, IsValidSSHAccessRepoName(".profile"))
-	assert.True(t, IsValidSSHAccessRepoName("foo.wiki"))
-
-	assert.False(t, IsValidSSHAccessRepoName("-"))
-	assert.False(t, IsValidSSHAccessRepoName("🌞"))
-	assert.False(t, IsValidSSHAccessRepoName("the/repo"))
-	assert.False(t, IsValidSSHAccessRepoName("the..repo"))
-	assert.False(t, IsValidSSHAccessRepoName("foo.git"))
-	assert.False(t, IsValidSSHAccessRepoName("foo.RSS"))
 }

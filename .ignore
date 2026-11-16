@@ -1,8 +1,4 @@
-*.min.css
-*.min.js
 /assets/*.json
 /options/gitignore
 /options/license
-/public/assets
 /vendor
-node_modules

@@ -15,31 +15,23 @@ const (
 	HookEventIssues                    HookEventType = "issues"
 	HookEventIssueAssign               HookEventType = "issue_assign"
 	HookEventIssueLabel                HookEventType = "issue_label"
-	HookEventIssueMilestone            HookEventType = "issue_milestone"
 	HookEventIssueComment              HookEventType = "issue_comment"
 	HookEventPullRequest               HookEventType = "pull_request"
 	HookEventPullRequestAssign         HookEventType = "pull_request_assign"
 	HookEventPullRequestLabel          HookEventType = "pull_request_label"
-	HookEventPullRequestMilestone      HookEventType = "pull_request_milestone"
 	HookEventPullRequestComment        HookEventType = "pull_request_comment"
 	HookEventPullRequestReviewApproved HookEventType = "pull_request_review_approved"
 	HookEventPullRequestReviewRejected HookEventType = "pull_request_review_rejected"
 	HookEventPullRequestReviewComment  HookEventType = "pull_request_review_comment"
 	HookEventPullRequestSync           HookEventType = "pull_request_sync"
 	HookEventPullRequestReviewRequest  HookEventType = "pull_request_review_request"
-	HookEventWiki                      HookEventType = "wiki"
 	HookEventRepository                HookEventType = "repository"
 	HookEventRelease                   HookEventType = "release"
-	HookEventPackage                   HookEventType = "package"
 	HookEventStatus                    HookEventType = "status"
 	// once a new event added here, please also added to AllEvents() function
 
 	// FIXME: This event should be a group of pull_request_review_xxx events
 	HookEventPullRequestReview HookEventType = "pull_request_review"
-	// Actions event only
-	HookEventSchedule    HookEventType = "schedule"
-	HookEventWorkflowRun HookEventType = "workflow_run"
-	HookEventWorkflowJob HookEventType = "workflow_job"
 )
 
 func AllEvents() []HookEventType {
@@ -51,34 +43,28 @@ func AllEvents() []HookEventType {
 		HookEventIssues,
 		HookEventIssueAssign,
 		HookEventIssueLabel,
-		HookEventIssueMilestone,
 		HookEventIssueComment,
 		HookEventPullRequest,
 		HookEventPullRequestAssign,
 		HookEventPullRequestLabel,
-		HookEventPullRequestMilestone,
 		HookEventPullRequestComment,
 		HookEventPullRequestReviewApproved,
 		HookEventPullRequestReviewRejected,
 		HookEventPullRequestReviewComment,
 		HookEventPullRequestSync,
 		HookEventPullRequestReviewRequest,
-		HookEventWiki,
 		HookEventRepository,
 		HookEventRelease,
-		HookEventPackage,
 		HookEventStatus,
-		HookEventWorkflowRun,
-		HookEventWorkflowJob,
 	}
 }
 
 // Event returns the HookEventType as an event string
 func (h HookEventType) Event() string {
 	switch h {
-	case HookEventIssues, HookEventIssueAssign, HookEventIssueLabel, HookEventIssueMilestone:
+	case HookEventIssues, HookEventIssueAssign, HookEventIssueLabel:
 		return "issues"
-	case HookEventPullRequest, HookEventPullRequestAssign, HookEventPullRequestLabel, HookEventPullRequestMilestone,
+	case HookEventPullRequest, HookEventPullRequestAssign, HookEventPullRequestLabel,
 		HookEventPullRequestSync, HookEventPullRequestReviewRequest:
 		return "pull_request"
 	case HookEventIssueComment, HookEventPullRequestComment:

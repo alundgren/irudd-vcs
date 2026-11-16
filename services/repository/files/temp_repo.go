@@ -21,10 +21,7 @@ import (
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
 	repo_module "gitea.dev/modules/repository"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
-	asymkey_service "gitea.dev/services/asymkey"
-	"gitea.dev/services/gitdiff"
 )
 
 // TemporaryUploadRepository is a type to wrap our upload repositories as a shallow clone
@@ -101,14 +98,6 @@ func (t *TemporaryUploadRepository) Init(ctx context.Context, objectFormatName s
 func (t *TemporaryUploadRepository) SetDefaultIndex(ctx context.Context) error {
 	if err := gitcmd.NewCommand("read-tree", "HEAD").WithDir(t.basePath).RunWithStderr(ctx); err != nil {
 		return fmt.Errorf("SetDefaultIndex: %w", err)
-	}
-	return nil
-}
-
-// RefreshIndex looks at the current index and checks to see if merges or updates are needed by checking stat() information.
-func (t *TemporaryUploadRepository) RefreshIndex(ctx context.Context) error {
-	if err := gitcmd.NewCommand("update-index", "--refresh").WithDir(t.basePath).RunWithStderr(ctx); err != nil {
-		return fmt.Errorf("RefreshIndex: %w", err)
 	}
 	return nil
 }
@@ -286,30 +275,7 @@ func (t *TemporaryUploadRepository) CommitTree(ctx context.Context, opts *Commit
 		cmdCommitTree.AddOptionValues("-p", opts.ParentCommitID)
 	}
 
-	var sign bool
-	var key *git.SigningKey
-	var signer *git.Signature
-	if opts.ParentCommitID != "" {
-		sign, key, signer, _ = asymkey_service.SignCRUDAction(ctx, opts.DoerUser, t.gitRepo, opts.ParentCommitID)
-	} else {
-		sign, key, signer, _ = asymkey_service.SignInitialCommit(ctx, opts.DoerUser)
-	}
-	if sign {
-		if key.Format != "" {
-			cmdCommitTree.AddConfig("gpg.format", key.Format)
-		}
-		cmdCommitTree.AddOptionFormat("-S%s", key.KeyID)
-		if t.repo.GetTrustModel() == repo_model.CommitterTrustModel || t.repo.GetTrustModel() == repo_model.CollaboratorCommitterTrustModel {
-			if committerSig.Name != authorSig.Name || committerSig.Email != authorSig.Email {
-				_, _ = messageBytes.WriteString("\n" + git.CoAuthoredByTrailer + ": ")
-				_, _ = messageBytes.WriteString(committerSig.String())
-				_, _ = messageBytes.WriteString("\n")
-			}
-			committerSig = signer
-		}
-	} else {
-		cmdCommitTree.AddArguments("--no-gpg-sign")
-	}
+	cmdCommitTree.AddArguments("--no-gpg-sign") // commits are never signed
 
 	if opts.SignOff {
 		// Signed-off-by
@@ -355,35 +321,6 @@ func (t *TemporaryUploadRepository) Push(ctx context.Context, doer *user_model.U
 			t.repo.FullName(), t.basePath, err)
 	}
 	return nil
-}
-
-// DiffIndex returns a Diff of the current index to the head
-func (t *TemporaryUploadRepository) DiffIndex(ctx context.Context, oldContent, newContent string) (*gitdiff.Diff, error) {
-	var diff *gitdiff.Diff
-	cmd := gitcmd.NewCommand("diff-index", "--src-prefix=\\a/", "--dst-prefix=\\b/", "--cached", "-p", "HEAD")
-	stdoutReader, stdoutReaderClose := cmd.MakeStdoutPipe()
-	defer stdoutReaderClose()
-
-	err := cmd.WithTimeout(30 * time.Second).
-		WithDir(t.basePath).
-		WithPipelineFunc(func(ctx gitcmd.Context) error {
-			var diffErr error
-			diff, diffErr = gitdiff.ParsePatch(ctx, setting.Git.MaxGitDiffLines, setting.Git.MaxGitDiffLineCharacters, setting.Git.MaxGitDiffFiles, stdoutReader, "")
-			if diffErr != nil {
-				// if the diffErr is not nil, it will be returned as the error of "Run()"
-				return fmt.Errorf("ParsePatch: %w", diffErr)
-			}
-			return nil
-		}).
-		RunWithStderr(ctx)
-	if err != nil && !gitcmd.IsErrorCanceledOrKilled(err) {
-		return nil, fmt.Errorf("unable to run diff-index pipeline in temporary repo: %w", err)
-	}
-
-	if len(diff.Files) > 0 {
-		gitdiff.FillDiffFileHighlightLinesByContent(diff.Files[0], util.UnsafeStringToBytes(oldContent), util.UnsafeStringToBytes(newContent))
-	}
-	return diff, nil
 }
 
 // GetBranchCommit Gets the commit object of the given branch

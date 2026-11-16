@@ -196,15 +196,6 @@ func Compile(pattern string, separators ...rune) (Glob, error) {
 	return initGlobCompiler(&globCompiler{}, pattern, separators)
 }
 
-func CompileWorkflow(pattern string) (Glob, error) {
-	return initGlobCompiler(&globCompiler{
-		regexpQuestion:     true,
-		regexpPlus:         true,
-		superWildcardRight: true,
-		supportNegative:    true,
-	}, pattern, []rune{'/'})
-}
-
 func MustCompile(pattern string, separators ...rune) Glob {
 	g, err := Compile(pattern, separators...)
 	if err != nil {

@@ -11,22 +11,6 @@ import (
 	user_model "gitea.dev/models/user"
 )
 
-// UserAssignmentWeb returns a middleware to handle context-user assignment for web routes
-func UserAssignmentWeb() func(ctx *Context) {
-	return func(ctx *Context) {
-		errorFn := func(status int, msg string) {
-			err := fmt.Errorf("%s", msg)
-			if status == http.StatusNotFound {
-				ctx.NotFound(err)
-			} else {
-				ctx.ServerError("UserAssignmentWeb", err)
-			}
-		}
-		ctx.ContextUser = userAssignment(ctx.Base, ctx.Doer, errorFn)
-		ctx.Data["ContextUser"] = ctx.ContextUser
-	}
-}
-
 // UserAssignmentAPI returns a middleware to handle context-user assignment for api routes
 func UserAssignmentAPI() func(ctx *APIContext) {
 	return func(ctx *APIContext) {
@@ -57,4 +41,20 @@ func userAssignment(ctx *Base, doer *user_model.User, errCb func(int, string)) (
 		}
 	}
 	return contextUser
+}
+
+// UserAssignmentWeb returns a middleware to handle context-user assignment for web routes
+func UserAssignmentWeb() func(ctx *Context) {
+	return func(ctx *Context) {
+		errorFn := func(status int, msg string) {
+			err := fmt.Errorf("%s", msg)
+			if status == http.StatusNotFound {
+				ctx.NotFound(err)
+			} else {
+				ctx.ServerError("UserAssignmentWeb", err)
+			}
+		}
+		ctx.ContextUser = userAssignment(ctx.Base, ctx.Doer, errorFn)
+		ctx.Data["ContextUser"] = ctx.ContextUser
+	}
 }

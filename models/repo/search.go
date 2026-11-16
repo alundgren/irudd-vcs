@@ -30,24 +30,3 @@ var OrderByMap = map[string]map[string]db.SearchOrderBy{
 		"forks":    db.SearchOrderByForksReverse,
 	},
 }
-
-// OrderByFlatMap is similar to OrderByMap but use human language keywords
-// to decide between asc and desc
-var OrderByFlatMap = map[string]db.SearchOrderBy{
-	"newest":                OrderByMap["desc"]["created"],
-	"oldest":                OrderByMap["asc"]["created"],
-	"recentupdate":          OrderByMap["desc"]["updated"],
-	"leastupdate":           OrderByMap["asc"]["updated"],
-	"reversealphabetically": OrderByMap["desc"]["alpha"],
-	"alphabetically":        OrderByMap["asc"]["alpha"],
-	"reversesize":           OrderByMap["desc"]["size"],
-	"size":                  OrderByMap["asc"]["size"],
-	"reversegitsize":        OrderByMap["desc"]["git_size"],
-	"gitsize":               OrderByMap["asc"]["git_size"],
-	"reverselfssize":        OrderByMap["desc"]["lfs_size"],
-	"lfssize":               OrderByMap["asc"]["lfs_size"],
-	"moststars":             OrderByMap["desc"]["stars"],
-	"feweststars":           OrderByMap["asc"]["stars"],
-	"mostforks":             OrderByMap["desc"]["forks"],
-	"fewestforks":           OrderByMap["asc"]["forks"],
-}

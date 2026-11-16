@@ -9,8 +9,6 @@ import (
 	"gitea.dev/models/db"
 	"gitea.dev/modules/commitstatus"
 	"gitea.dev/modules/setting"
-
-	"xorm.io/builder"
 )
 
 // CommitStatusSummary holds the latest commit Status of a single Commit
@@ -26,34 +24,6 @@ func init() {
 	db.RegisterModel(new(CommitStatusSummary))
 }
 
-type RepoSHA struct {
-	RepoID int64
-	SHA    string
-}
-
-func GetLatestCommitStatusForRepoAndSHAs(ctx context.Context, repoSHAs []RepoSHA) ([]*CommitStatus, error) {
-	cond := builder.NewCond()
-	for _, rs := range repoSHAs {
-		cond = cond.Or(builder.Eq{"repo_id": rs.RepoID, "sha": rs.SHA})
-	}
-
-	var summaries []CommitStatusSummary
-	if err := db.GetEngine(ctx).Where(cond).Find(&summaries); err != nil {
-		return nil, err
-	}
-
-	commitStatuses := make([]*CommitStatus, 0, len(repoSHAs))
-	for _, summary := range summaries {
-		commitStatuses = append(commitStatuses, &CommitStatus{
-			RepoID:    summary.RepoID,
-			SHA:       summary.SHA,
-			State:     summary.State,
-			TargetURL: summary.TargetURL,
-		})
-	}
-	return commitStatuses, nil
-}
-
 func UpdateCommitStatusSummary(ctx context.Context, repoID int64, sha string) error {
 	commitStatuses, err := GetLatestCommitStatus(ctx, repoID, sha, db.ListOptionsAll)
 	if err != nil {
@@ -64,14 +34,6 @@ func UpdateCommitStatusSummary(ctx context.Context, repoID int64, sha string) er
 		setting.PanicInDevOrTesting("no commit statuses found for repo %d and sha %s", repoID, sha)
 	}
 	state := CalcCommitStatus(commitStatuses) // non-empty commitStatuses is guaranteed
-	// mysql will return 0 when update a record which state hasn't been changed which behaviour is different from other database,
-	// so we need to use insert in on duplicate
-	if setting.Database.Type.IsMySQL() {
-		_, err := db.GetEngine(ctx).Exec("INSERT INTO commit_status_summary (repo_id,sha,state,target_url) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE state=?",
-			repoID, sha, state.State, state.TargetURL, state.State)
-		return err
-	}
-
 	if cnt, err := db.GetEngine(ctx).Where("repo_id=? AND sha=?", repoID, sha).
 		Cols("state, target_url").
 		Update(&CommitStatusSummary{

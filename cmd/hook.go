@@ -39,7 +39,6 @@ func newHookCommand() *cli.Command {
 			newHookPreReceiveCommand(),
 			newHookUpdateCommand(),
 			newHookPostReceiveCommand(),
-			newHookProcReceiveCommand(),
 		},
 	}
 }
@@ -78,21 +77,6 @@ func newHookPostReceiveCommand() *cli.Command {
 		Usage:       "Delegate post-receive Git hook",
 		Description: "This command should only be called by Git",
 		Action:      runHookPostReceive,
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name: "debug",
-			},
-		},
-	}
-}
-
-// Note: new hook since git 2.29
-func newHookProcReceiveCommand() *cli.Command {
-	return &cli.Command{
-		Name:        "proc-receive",
-		Usage:       "Delegate proc-receive Git hook",
-		Description: "This command should only be called by Git",
-		Action:      runHookProcReceive,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name: "debug",
@@ -185,7 +169,6 @@ Gitea or set your environment appropriately.`, "")
 	}
 
 	// the environment is set by serv command
-	isWiki, _ := strconv.ParseBool(os.Getenv(repo_module.EnvRepoIsWiki))
 	username := os.Getenv(repo_module.EnvRepoUsername)
 	reponame := os.Getenv(repo_module.EnvRepoName)
 	userID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPusherID), 10, 64)
@@ -202,7 +185,6 @@ Gitea or set your environment appropriately.`, "")
 		PullRequestID:                   prID,
 		DeployKeyID:                     deployKeyID,
 		ActionsTaskID:                   actionsTaskID,
-		IsWiki:                          isWiki,
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -225,14 +207,7 @@ Gitea or set your environment appropriately.`, "")
 		}
 	}
 
-	supportProcReceive := git.DefaultFeatures().SupportProcReceive
-
 	for scanner.Scan() {
-		// TODO: support news feeds for wiki
-		if isWiki {
-			continue
-		}
-
 		oldCommitID, newCommitID, refFullName, ok := parseGitHookCommitRefLine(scanner.Text())
 		if !ok {
 			continue
@@ -241,10 +216,8 @@ Gitea or set your environment appropriately.`, "")
 		total++
 		lastline++
 
-		// If the ref is a branch or tag, check if it's protected
-		// if supportProcReceive all ref should be checked because
-		// permission check was delayed
-		if supportProcReceive || refFullName.IsBranch() || refFullName.IsTag() {
+		// check every ref, not only branches and tags, so the server can reject writes to refs like refs/pull/*
+		{
 			oldCommitIDs[count] = oldCommitID
 			newCommitIDs[count] = newCommitID
 			refFullNames[count] = refFullName
@@ -264,8 +237,6 @@ Gitea or set your environment appropriately.`, "")
 				count = 0
 				lastline = 0
 			}
-		} else {
-			fmt.Fprintf(out, ".")
 		}
 		if lastline >= hookBatchSize {
 			fmt.Fprintf(out, "\n")
@@ -349,7 +320,6 @@ Gitea or set your environment appropriately.`, "")
 
 	// the environment is set by serv command
 	repoUser := os.Getenv(repo_module.EnvRepoUsername)
-	isWiki, _ := strconv.ParseBool(os.Getenv(repo_module.EnvRepoIsWiki))
 	repoName := os.Getenv(repo_module.EnvRepoName)
 	pusherID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPusherID), 10, 64)
 	prID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPRID), 10, 64)
@@ -364,7 +334,6 @@ Gitea or set your environment appropriately.`, "")
 		GitPushOptions:                  pushOptions(),
 		PullRequestID:                   prID,
 		PushTrigger:                     repo_module.PushTrigger(os.Getenv(repo_module.EnvPushTrigger)),
-		IsWiki:                          isWiki,
 	}
 
 	oldCommitIDs := make([]string, 0, hookBatchSize)
@@ -397,11 +366,6 @@ Gitea or set your environment appropriately.`, "")
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		// wiki doesn't need "post-receive" at the moment
-		if isWiki {
-			continue
-		}
-
 		oldCommitID, newCommitID, refFullName, ok := parseGitHookCommitRefLine(scanner.Text())
 		if !ok {
 			continue
@@ -458,221 +422,6 @@ func pushOptions() map[string]string {
 		}
 	}
 	return opts
-}
-
-func runHookProcReceive(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
-
-	if len(os.Getenv("SSH_ORIGINAL_COMMAND")) == 0 {
-		if setting.OnlyAllowPushIfGiteaEnvironmentSet {
-			return fail(ctx, `Rejecting changes as Gitea environment not set.
-If you are pushing over SSH you must push with a key managed by
-Gitea or set your environment appropriately.`, "")
-		}
-		return nil
-	}
-
-	if !git.DefaultFeatures().SupportProcReceive {
-		return fail(ctx, "No proc-receive support", "current git version doesn't support proc-receive.")
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-	repoUser := os.Getenv(repo_module.EnvRepoUsername)
-	isWiki, _ := strconv.ParseBool(os.Getenv(repo_module.EnvRepoIsWiki))
-	repoName := os.Getenv(repo_module.EnvRepoName)
-	pusherID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPusherID), 10, 64)
-	pusherName := os.Getenv(repo_module.EnvPusherName)
-
-	// 1. Version and features negotiation.
-	// S: PKT-LINE(version=1\0push-options atomic...) / PKT-LINE(version=1\n)
-	// S: flush-pkt
-	// H: PKT-LINE(version=1\0push-options...)
-	// H: flush-pkt
-
-	rs, err := readPktLine(ctx, reader, pktLineTypeData)
-	if err != nil {
-		return err
-	}
-
-	const VersionHead string = "version=1"
-
-	var (
-		hasPushOptions bool
-		response       = []byte(VersionHead)
-		requestOptions []string
-	)
-
-	index := bytes.IndexByte(rs.Data, byte(0))
-	if index >= len(rs.Data) {
-		return fail(ctx, "Protocol: format error", "pkt-line: format error %s", rs.Data)
-	}
-
-	if index < 0 {
-		if len(rs.Data) == 10 && rs.Data[9] == '\n' {
-			index = 9
-		} else {
-			return fail(ctx, "Protocol: format error", "pkt-line: format error %s", rs.Data)
-		}
-	}
-
-	if string(rs.Data[0:index]) != VersionHead {
-		return fail(ctx, "Protocol: version error", "Received unsupported version: %s", string(rs.Data[0:index]))
-	}
-	requestOptions = strings.Split(string(rs.Data[index+1:]), " ")
-
-	for _, option := range requestOptions {
-		if strings.HasPrefix(option, "push-options") {
-			response = append(response, byte(0))
-			response = append(response, []byte("push-options")...)
-			hasPushOptions = true
-		}
-	}
-	response = append(response, '\n')
-
-	_, err = readPktLine(ctx, reader, pktLineTypeFlush)
-	if err != nil {
-		return err
-	}
-
-	err = writeDataPktLine(ctx, os.Stdout, response)
-	if err != nil {
-		return err
-	}
-
-	err = writeFlushPktLine(ctx, os.Stdout)
-	if err != nil {
-		return err
-	}
-
-	// 2. receive commands from server.
-	// S: PKT-LINE(<old-oid> <new-oid> <ref>)
-	// S: ... ...
-	// S: flush-pkt
-	// # [receive push-options]
-	// S: PKT-LINE(push-option)
-	// S: ... ...
-	// S: flush-pkt
-	hookOptions := private.HookOptions{
-		UserName:       pusherName,
-		UserID:         pusherID,
-		GitPushOptions: make(map[string]string),
-		IsWiki:         isWiki,
-	}
-	hookOptions.OldCommitIDs = make([]string, 0, hookBatchSize)
-	hookOptions.NewCommitIDs = make([]string, 0, hookBatchSize)
-	hookOptions.RefFullNames = make([]git.RefName, 0, hookBatchSize)
-
-	for {
-		// note: pktLineTypeUnknown means pktLineTypeFlush and pktLineTypeData all allowed
-		rs, err = readPktLine(ctx, reader, pktLineTypeUnknown)
-		if err != nil {
-			return err
-		}
-
-		if rs.Type == pktLineTypeFlush {
-			break
-		}
-		t := strings.SplitN(string(rs.Data), " ", 3)
-		if len(t) != 3 {
-			continue
-		}
-		hookOptions.OldCommitIDs = append(hookOptions.OldCommitIDs, t[0])
-		hookOptions.NewCommitIDs = append(hookOptions.NewCommitIDs, t[1])
-		hookOptions.RefFullNames = append(hookOptions.RefFullNames, git.RefName(t[2]))
-	}
-
-	if hasPushOptions {
-		for {
-			rs, err = readPktLine(ctx, reader, pktLineTypeUnknown)
-			if err != nil {
-				return err
-			}
-
-			if rs.Type == pktLineTypeFlush {
-				break
-			}
-			hookOptions.GitPushOptions.AddFromKeyValue(string(rs.Data))
-		}
-	}
-
-	// 3. run hook
-	resp, extra := private.HookProcReceive(ctx, repoUser, repoName, hookOptions)
-	if extra.HasError() {
-		return fail(ctx, extra.UserMsg, "HookProcReceive failed: %v", extra.Error)
-	}
-
-	// 4. response result to service
-	// # a. OK, but has an alternate reference.  The alternate reference name
-	// # and other status can be given in option directives.
-	// H: PKT-LINE(ok <ref>)
-	// H: PKT-LINE(option refname <refname>)
-	// H: PKT-LINE(option old-oid <old-oid>)
-	// H: PKT-LINE(option new-oid <new-oid>)
-	// H: PKT-LINE(option forced-update)
-	// H: ... ...
-	// H: flush-pkt
-	// # b. NO, I reject it.
-	// H: PKT-LINE(ng <ref> <reason>)
-	// # c. Fall through, let 'receive-pack' to execute it.
-	// H: PKT-LINE(ok <ref>)
-	// H: PKT-LINE(option fall-through)
-
-	for _, rs := range resp.Results {
-		if len(rs.Err) > 0 {
-			err = writeDataPktLine(ctx, os.Stdout, []byte("ng "+rs.OriginalRef.String()+" "+rs.Err))
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		if rs.IsNotMatched {
-			err = writeDataPktLine(ctx, os.Stdout, []byte("ok "+rs.OriginalRef.String()))
-			if err != nil {
-				return err
-			}
-			err = writeDataPktLine(ctx, os.Stdout, []byte("option fall-through"))
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		err = writeDataPktLine(ctx, os.Stdout, []byte("ok "+rs.OriginalRef))
-		if err != nil {
-			return err
-		}
-		err = writeDataPktLine(ctx, os.Stdout, []byte("option refname "+rs.Ref))
-		if err != nil {
-			return err
-		}
-		commitID, _ := git.NewIDFromString(rs.OldOID)
-		if !commitID.IsZero() {
-			err = writeDataPktLine(ctx, os.Stdout, []byte("option old-oid "+rs.OldOID))
-			if err != nil {
-				return err
-			}
-		}
-		err = writeDataPktLine(ctx, os.Stdout, []byte("option new-oid "+rs.NewOID))
-		if err != nil {
-			return err
-		}
-		if rs.IsForcePush {
-			err = writeDataPktLine(ctx, os.Stdout, []byte("option forced-update"))
-			if err != nil {
-				return err
-			}
-		}
-	}
-	err = writeFlushPktLine(ctx, os.Stdout)
-
-	if err == nil {
-		for _, res := range resp.Results {
-			hookPrintResult(res.ShouldShowMessage, res.IsCreatePR, res.HeadBranch, res.URL)
-		}
-	}
-
-	return err
 }
 
 // git PKT-Line api

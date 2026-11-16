@@ -27,7 +27,6 @@ func TestRepoEdit(t *testing.T) {
 	website := "http://wwww.newwebsite.com"
 	private := true
 	hasIssues := false
-	hasWiki := false
 	defaultBranch := "master"
 	hasPullRequests := true
 	ignoreWhitespaceConflicts := true
@@ -43,7 +42,6 @@ func TestRepoEdit(t *testing.T) {
 		Website:                   &website,
 		Private:                   &private,
 		HasIssues:                 &hasIssues,
-		HasWiki:                   &hasWiki,
 		DefaultBranch:             &defaultBranch,
 		HasPullRequests:           &hasPullRequests,
 		IgnoreWhitespaceConflicts: &ignoreWhitespaceConflicts,

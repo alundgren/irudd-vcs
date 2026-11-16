@@ -44,71 +44,6 @@ func Test_IsValidURL(t *testing.T) {
 	}
 }
 
-func Test_IsValidExternalTrackerURLFormat(t *testing.T) {
-	cases := []struct {
-		description string
-		url         string
-		valid       bool
-	}{
-		{
-			description: "Correct external tracker URL with all placeholders",
-			url:         "https://github.com/{user}/{repo}/issues/{index}",
-			valid:       true,
-		},
-		{
-			description: "Local external tracker URL with all placeholders",
-			url:         "https://127.0.0.1/{user}/{repo}/issues/{index}",
-			valid:       true,
-		},
-		{
-			description: "External tracker URL with typo placeholder",
-			url:         "https://github.com/{user}/{repo/issues/{index}",
-			valid:       false,
-		},
-		{
-			description: "External tracker URL with typo placeholder",
-			url:         "https://github.com/[user}/{repo/issues/{index}",
-			valid:       false,
-		},
-		{
-			description: "External tracker URL with typo placeholder",
-			url:         "https://github.com/{user}/repo}/issues/{index}",
-			valid:       false,
-		},
-		{
-			description: "External tracker URL missing optional placeholder",
-			url:         "https://github.com/{user}/issues/{index}",
-			valid:       true,
-		},
-		{
-			description: "External tracker URL missing optional placeholder",
-			url:         "https://github.com/{repo}/issues/{index}",
-			valid:       true,
-		},
-		{
-			description: "External tracker URL missing optional placeholder",
-			url:         "https://github.com/issues/{index}",
-			valid:       true,
-		},
-		{
-			description: "External tracker URL missing optional placeholder",
-			url:         "https://github.com/issues/{user}",
-			valid:       true,
-		},
-		{
-			description: "External tracker URL with similar placeholder names test",
-			url:         "https://github.com/user/repo/issues/{index}",
-			valid:       true,
-		},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.description, func(t *testing.T) {
-			assert.Equal(t, testCase.valid, IsValidExternalTrackerURLFormat(testCase.url))
-		})
-	}
-}
-
 func TestIsValidUsername(t *testing.T) {
 	tests := []struct {
 		arg  string
@@ -136,27 +71,6 @@ func TestIsValidUsername(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.arg, func(t *testing.T) {
 			assert.Equalf(t, tt.want, IsValidUsername(tt.arg), "IsValidUsername(%v)", tt.arg)
-		})
-	}
-}
-
-func TestIsValidBadgeSlug(t *testing.T) {
-	tests := []struct {
-		arg  string
-		want bool
-	}{
-		{arg: "badge-1", want: true},
-		{arg: "badge.slug", want: true},
-		{arg: "new", want: true},
-		{arg: "Badge_1", want: true},
-		{arg: "a..b", want: false},
-		{arg: "a/b", want: false},
-		{arg: "Awesome!", want: false},
-		{arg: "Emoji 💯", want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.arg, func(t *testing.T) {
-			assert.Equalf(t, tt.want, IsValidBadgeSlug(tt.arg), "IsValidBadgeSlug(%v)", tt.arg)
 		})
 	}
 }

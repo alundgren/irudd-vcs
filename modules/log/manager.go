@@ -89,22 +89,6 @@ func (m *LoggerManager) Close() {
 	m.ctxCancel()
 }
 
-// DumpLoggers returns a map of all loggers and their event writers, for debugging and display purposes.
-func (m *LoggerManager) DumpLoggers() map[string]any {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	dump := map[string]any{}
-	for name, logger := range m.loggers {
-		loggerDump := map[string]any{
-			"IsEnabled":    logger.IsEnabled(),
-			"EventWriters": logger.DumpWriters(),
-		}
-		dump[name] = loggerDump
-	}
-	return dump
-}
-
 // NewSharedWriter creates a new shared event writer, it can be used by multiple loggers, and a shared writer won't be closed if a logger is closed.
 func (m *LoggerManager) NewSharedWriter(writerName, writerType string, mode WriterMode) (writer EventWriter, err error) {
 	m.mu.Lock()

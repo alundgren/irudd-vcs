@@ -49,19 +49,14 @@ func init() {
 
 // IsRunUserMatchCurrentUser returns false if configured run user does not match
 // actual user that runs the app. The first return value is the actual user name.
-// This check is ignored under Windows since SSH remote login is not the main
-// method to login on Windows.
+// This check is ignored under Windows.
 func IsRunUserMatchCurrentUser(runUser string) (string, bool) {
-	if IsWindows || SSH.StartBuiltinServer {
+	if IsWindows {
 		return "", true
 	}
 
 	currentUser := user.CurrentUsername()
 	return currentUser, runUser == currentUser
-}
-
-func IsInE2eTesting() bool {
-	return os.Getenv("GITEA_TEST_E2E") == "true"
 }
 
 // PrepareAppDataPath creates app data directory if necessary
@@ -122,43 +117,20 @@ func loadCommonSettingsFrom(cfg ConfigProvider) error {
 	loadRunModeFrom(cfg)
 	loadLogGlobalFrom(cfg)
 	loadServerFrom(cfg)
-	loadSSHFrom(cfg)
 
-	mustCurrentRunUserMatch(cfg) // it depends on the SSH config, only non-builtin SSH server requires this check
+	mustCurrentRunUserMatch(cfg)
 
-	loadOAuth2From(cfg)
 	loadSecurityFrom(cfg)
-	if err := loadAttachmentFrom(cfg); err != nil {
-		return err
-	}
 	if err := loadLFSFrom(cfg); err != nil {
 		return err
 	}
 	loadTimeFrom(cfg)
 	loadRepositoryFrom(cfg)
-	if err := loadAvatarsFrom(cfg); err != nil {
-		return err
-	}
-	if err := loadRepoAvatarFrom(cfg); err != nil {
-		return err
-	}
-	if err := loadPackagesFrom(cfg); err != nil {
-		return err
-	}
-	if err := loadActionsFrom(cfg); err != nil {
-		return err
-	}
 	loadUIFrom(cfg)
 	loadAdminFrom(cfg)
 	loadAPIFrom(cfg)
-	loadMetricsFrom(cfg)
-	loadCamoFrom(cfg)
-	loadI18nFrom(cfg)
 	loadGitFrom(cfg)
-	loadMirrorFrom(cfg)
-	loadMarkupFrom(cfg)
 	loadGlobalLockFrom(cfg)
-	loadOtherFrom(cfg)
 	return nil
 }
 
@@ -219,27 +191,12 @@ func LoadSettings() {
 
 	loadDBSetting(CfgProvider)
 	loadServiceFrom(CfgProvider)
-	loadOAuth2ClientFrom(CfgProvider)
 	loadCacheFrom(CfgProvider)
-	loadSessionFrom(CfgProvider)
 	loadCorsFrom(CfgProvider)
-	loadMailsFrom(CfgProvider)
 	loadProxyFrom(CfgProvider)
 	loadWebhookFrom(CfgProvider)
-	loadMigrationsFrom(CfgProvider)
-	loadIndexerFrom(CfgProvider)
-	loadTaskFrom(CfgProvider)
 	LoadQueueSettings()
-	loadProjectFrom(CfgProvider)
 	loadMimeTypeMapFrom(CfgProvider)
-	loadFederationFrom(CfgProvider)
-}
-
-// LoadSettingsForInstall initializes the settings for install
-func LoadSettingsForInstall() {
-	loadDBSetting(CfgProvider)
-	loadServiceFrom(CfgProvider)
-	loadMailsFrom(CfgProvider)
 }
 
 var configuredPaths = make(map[string]string)

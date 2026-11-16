@@ -5,13 +5,9 @@ package webhook
 
 import (
 	"context"
-	"errors"
 
-	actions_model "gitea.dev/models/actions"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/organization"
-	packages_model "gitea.dev/models/packages"
 	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
@@ -22,7 +18,6 @@ import (
 	"gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
-	"gitea.dev/modules/util"
 	webhook_module "gitea.dev/modules/webhook"
 	"gitea.dev/services/convert"
 	notify_service "gitea.dev/services/notify"
@@ -128,18 +123,6 @@ func (m *webhookNotifier) DeleteRepository(ctx context.Context, doer *user_model
 		Action:       api.HookRepoDeleted,
 		Repository:   convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
 		Organization: convert.ToUser(ctx, repo.MustOwner(ctx), nil),
-		Sender:       convert.ToUser(ctx, doer, nil),
-	}); err != nil {
-		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
-	}
-}
-
-func (m *webhookNotifier) MigrateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository) {
-	// Add to hook queue for created repo after session commit.
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventRepository, &api.RepositoryPayload{
-		Action:       api.HookRepoCreated,
-		Repository:   convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Organization: convert.ToUser(ctx, u, nil),
 		Sender:       convert.ToUser(ctx, doer, nil),
 	}); err != nil {
 		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
@@ -516,44 +499,6 @@ func (m *webhookNotifier) DeleteComment(ctx context.Context, doer *user_model.Us
 	}
 }
 
-func (m *webhookNotifier) NewWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-	// Add to hook queue for created wiki page.
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventWiki, &api.WikiPayload{
-		Action:     api.HookWikiCreated,
-		Repository: convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Sender:     convert.ToUser(ctx, doer, nil),
-		Page:       page,
-		Comment:    comment,
-	}); err != nil {
-		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
-	}
-}
-
-func (m *webhookNotifier) EditWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-	// Add to hook queue for edit wiki page.
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventWiki, &api.WikiPayload{
-		Action:     api.HookWikiEdited,
-		Repository: convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Sender:     convert.ToUser(ctx, doer, nil),
-		Page:       page,
-		Comment:    comment,
-	}); err != nil {
-		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
-	}
-}
-
-func (m *webhookNotifier) DeleteWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page string) {
-	// Add to hook queue for edit wiki page.
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventWiki, &api.WikiPayload{
-		Action:     api.HookWikiDeleted,
-		Repository: convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Sender:     convert.ToUser(ctx, doer, nil),
-		Page:       page,
-	}); err != nil {
-		log.Error("PrepareWebhooks [repo_id: %d]: %v", repo.ID, err)
-	}
-}
-
 func (m *webhookNotifier) IssueChangeLabels(ctx context.Context, doer *user_model.User, issue *issues_model.Issue,
 	addedLabels, removedLabels []*issues_model.Label,
 ) {
@@ -589,48 +534,6 @@ func (m *webhookNotifier) IssueChangeLabels(ctx context.Context, doer *user_mode
 	} else {
 		err = PrepareWebhooks(ctx, EventSource{Repository: issue.Repo}, webhook_module.HookEventIssueLabel, &api.IssuePayload{
 			Action:     api.HookIssueLabelUpdated,
-			Index:      issue.Index,
-			Issue:      convert.ToAPIIssue(ctx, doer, issue),
-			Repository: convert.ToRepo(ctx, issue.Repo, permission),
-			Sender:     convert.ToUser(ctx, doer, nil),
-		})
-	}
-	if err != nil {
-		log.Error("PrepareWebhooks [is_pull: %v]: %v", issue.IsPull, err)
-	}
-}
-
-func (m *webhookNotifier) IssueChangeMilestone(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldMilestoneID int64) {
-	var hookAction api.HookIssueAction
-	var err error
-	if issue.MilestoneID > 0 {
-		hookAction = api.HookIssueMilestoned
-	} else {
-		hookAction = api.HookIssueDemilestoned
-	}
-
-	if err = issue.LoadAttributes(ctx); err != nil {
-		log.Error("issue.LoadAttributes failed: %v", err)
-		return
-	}
-
-	permission, _ := access_model.GetDoerRepoPermission(ctx, issue.Repo, doer)
-	if issue.IsPull {
-		err = issue.PullRequest.LoadIssue(ctx)
-		if err != nil {
-			log.Error("LoadIssue: %v", err)
-			return
-		}
-		err = PrepareWebhooks(ctx, EventSource{Repository: issue.Repo}, webhook_module.HookEventPullRequestMilestone, &api.PullRequestPayload{
-			Action:      hookAction,
-			Index:       issue.Index,
-			PullRequest: convert.ToAPIPullRequest(ctx, issue.PullRequest, doer),
-			Repository:  convert.ToRepo(ctx, issue.Repo, permission),
-			Sender:      convert.ToUser(ctx, doer, nil),
-		})
-	} else {
-		err = PrepareWebhooks(ctx, EventSource{Repository: issue.Repo}, webhook_module.HookEventIssueMilestone, &api.IssuePayload{
-			Action:     hookAction,
 			Index:      issue.Index,
 			Issue:      convert.ToAPIIssue(ctx, doer, issue),
 			Repository: convert.ToRepo(ctx, issue.Repo, permission),
@@ -871,40 +774,12 @@ func sendReleaseHook(ctx context.Context, doer *user_model.User, rel *repo_model
 	}
 }
 
-func (m *webhookNotifier) NewRelease(ctx context.Context, rel *repo_model.Release) {
-	sendReleaseHook(ctx, rel.Publisher, rel, api.HookReleasePublished)
-}
-
 func (m *webhookNotifier) UpdateRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
 	sendReleaseHook(ctx, doer, rel, api.HookReleaseUpdated)
 }
 
 func (m *webhookNotifier) DeleteRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
 	sendReleaseHook(ctx, doer, rel, api.HookReleaseDeleted)
-}
-
-func (m *webhookNotifier) SyncPushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits) {
-	apiPusher := convert.ToUser(ctx, pusher, nil)
-	apiCommits, apiHeadCommit, err := commits.ToAPIPayloadCommits(ctx, repo)
-	if err != nil {
-		log.Error("commits.ToAPIPayloadCommits failed: %v", err)
-		return
-	}
-
-	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventPush, &api.PushPayload{
-		Ref:          opts.RefFullName.String(),
-		Before:       opts.OldCommitID,
-		After:        opts.NewCommitID,
-		CompareURL:   setting.AppURL + commits.CompareURL,
-		Commits:      apiCommits,
-		TotalCommits: commits.Len,
-		HeadCommit:   apiHeadCommit,
-		Repo:         convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Pusher:       apiPusher,
-		Sender:       apiPusher,
-	}); err != nil {
-		log.Error("PrepareWebhooks: %v", err)
-	}
 }
 
 func (m *webhookNotifier) CreateCommitStatus(ctx context.Context, repo *repo_model.Repository, commit *repository.PushCommit, sender *user_model.User, status *git_model.CommitStatus) {
@@ -938,122 +813,6 @@ func (m *webhookNotifier) CreateCommitStatus(ctx context.Context, repo *repo_mod
 		payload.UpdatedAt = &t
 	}
 	if err := PrepareWebhooks(ctx, EventSource{Repository: repo}, webhook_module.HookEventStatus, &payload); err != nil {
-		log.Error("PrepareWebhooks: %v", err)
-	}
-}
-
-func (m *webhookNotifier) SyncCreateRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string) {
-	m.CreateRef(ctx, pusher, repo, refFullName, refID)
-}
-
-func (m *webhookNotifier) SyncDeleteRef(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, refFullName git.RefName) {
-	m.DeleteRef(ctx, pusher, repo, refFullName)
-}
-
-func (m *webhookNotifier) PackageCreate(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-	notifyPackage(ctx, doer, pd, api.HookPackageCreated)
-}
-
-func (m *webhookNotifier) PackageDelete(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-	notifyPackage(ctx, doer, pd, api.HookPackageDeleted)
-}
-
-func notifyPackage(ctx context.Context, sender *user_model.User, pd *packages_model.PackageDescriptor, action api.HookPackageAction) {
-	source := EventSource{
-		Repository: pd.Repository,
-		Owner:      pd.Owner,
-	}
-
-	apiPackage, err := convert.ToPackage(ctx, pd, sender)
-	if err != nil {
-		log.Error("Error converting package: %v", err)
-		return
-	}
-
-	var org *api.Organization
-	if pd.Owner.IsOrganization() {
-		org = convert.ToOrganization(ctx, organization.OrgFromUser(pd.Owner))
-	}
-
-	if err := PrepareWebhooks(ctx, source, webhook_module.HookEventPackage, &api.PackagePayload{
-		Action:       action,
-		Package:      apiPackage,
-		Organization: org,
-		Sender:       convert.ToUser(ctx, sender, nil),
-	}); err != nil {
-		log.Error("PrepareWebhooks: %v", err)
-	}
-}
-
-func (*webhookNotifier) WorkflowJobStatusUpdate(ctx context.Context, repo *repo_model.Repository, sender *user_model.User, job *actions_model.ActionRunJob, task *actions_model.ActionTask) {
-	source := EventSource{
-		Repository: repo,
-		Owner:      repo.Owner,
-	}
-
-	var org *api.Organization
-	if repo.Owner.IsOrganization() {
-		org = convert.ToOrganization(ctx, organization.OrgFromUser(repo.Owner))
-	}
-
-	status, _ := convert.ToActionsStatus(job.Status)
-
-	convertedJob, err := convert.ToActionWorkflowJob(ctx, repo, task, job)
-	if err != nil {
-		log.Error("ToActionWorkflowJob: %v", err)
-		return
-	}
-
-	if err := PrepareWebhooks(ctx, source, webhook_module.HookEventWorkflowJob, &api.WorkflowJobPayload{
-		Action:       status,
-		WorkflowJob:  convertedJob,
-		Organization: org,
-		Repo:         convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Sender:       convert.ToUser(ctx, sender, nil),
-	}); err != nil {
-		log.Error("PrepareWebhooks: %v", err)
-	}
-}
-
-func (*webhookNotifier) WorkflowRunStatusUpdate(ctx context.Context, repo *repo_model.Repository, sender *user_model.User, run *actions_model.ActionRun) {
-	source := EventSource{
-		Repository: repo,
-		Owner:      repo.Owner,
-	}
-
-	var org *api.Organization
-	if repo.Owner.IsOrganization() {
-		org = convert.ToOrganization(ctx, organization.OrgFromUser(repo.Owner))
-	}
-
-	status := convert.ToWorkflowRunAction(run.Status)
-
-	// Resolve the workflow definition from its source repo.
-	convertedWorkflow, err := convert.ResolveActionWorkflowForRun(ctx, repo, run)
-	if err != nil {
-		if errors.Is(err, util.ErrNotExist) {
-			log.Debug("WorkflowRunStatusUpdate: workflow %q for run %d not found: %v", run.WorkflowID, run.ID, err)
-			return
-		}
-		log.Error("ResolveActionWorkflowForRun: %v", err)
-		return
-	}
-
-	run.Repo = repo
-	convertedRun, err := convert.ToActionWorkflowRun(ctx, run, nil, false)
-	if err != nil {
-		log.Error("ToActionWorkflowRun: %v", err)
-		return
-	}
-
-	if err := PrepareWebhooks(ctx, source, webhook_module.HookEventWorkflowRun, &api.WorkflowRunPayload{
-		Action:       status,
-		Workflow:     convertedWorkflow,
-		WorkflowRun:  convertedRun,
-		Organization: org,
-		Repo:         convert.ToRepo(ctx, repo, access_model.Permission{AccessMode: perm.AccessModeOwner}),
-		Sender:       convert.ToUser(ctx, sender, nil),
-	}); err != nil {
 		log.Error("PrepareWebhooks: %v", err)
 	}
 }

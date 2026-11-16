@@ -24,7 +24,6 @@ import (
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
-	issue_service "gitea.dev/services/issue"
 	notify_service "gitea.dev/services/notify"
 	pull_service "gitea.dev/services/pull"
 )
@@ -181,9 +180,6 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 					if err := DelRepoDivergenceFromCache(ctx, repo.ID); err != nil {
 						log.Error("DelRepoDivergenceFromCache: %v", err)
 					}
-					if err := AddRepoToLicenseUpdaterQueue(&LicenseUpdaterOptions{RepoID: repo.ID}); err != nil {
-						log.Error("AddRepoToLicenseUpdaterQueue: %v", err)
-					}
 				} else {
 					if err := DelDivergenceFromCache(repo.ID, branch); err != nil {
 						log.Error("DelDivergenceFromCache: %v", err)
@@ -192,10 +188,6 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 
 				commits := repo_module.GitToPushCommits(l)
 				commits.HeadCommit = repo_module.CommitToPushCommit(newCommit)
-
-				if err := issue_service.UpdateIssuesCommit(ctx, pusher, repo, commits.Commits, opts.RefName()); err != nil {
-					log.Error("updateIssuesCommit: %v", err)
-				}
 
 				commits.CompareURL = getCompareURL(repo, gitRepo, objectFormat, commits.Commits, opts)
 
@@ -214,9 +206,6 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 			}
 
 			// Even if user delete a branch on a repository which he didn't watch, he will be watch that.
-			if err = repo_model.WatchIfAuto(ctx, opts.PusherID, repo.ID, true); err != nil {
-				log.Warn("Fail to perform auto watch on user %v for repo %v: %v", opts.PusherID, repo.ID, err)
-			}
 		} else {
 			log.Trace("Non-tag and non-branch commits pushed.")
 		}

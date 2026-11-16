@@ -18,7 +18,7 @@ func TestAPIGetRawFileOrLFS(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 
 	// Test with raw file
-	req := NewRequest(t, "GET", "/api/v1/repos/user2/repo1/media/README.md")
+	req := NewRequest(t, "GET", "/api/v1/repos/user2/repo1/media/README.md").AddTokenAuth(getUserToken(t, "user2", auth_model.AccessTokenScopeReadRepository))
 	resp := MakeRequest(t, req, http.StatusOK)
 	assert.Equal(t, "# repo1\n\nDescription for repo1", resp.Body.String())
 
@@ -31,7 +31,7 @@ func TestAPIGetRawFileOrLFS(t *testing.T) {
 			dstPath := t.TempDir()
 
 			u.Path = httpContext.GitPath()
-			u.User = url.UserPassword("user2", userPassword)
+			u.User = gitUserInfo(t, "user2")
 
 			t.Run("Clone", doGitClone(dstPath, u))
 

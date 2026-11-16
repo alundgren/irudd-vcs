@@ -41,14 +41,6 @@ func TestIsUsableUsername(t *testing.T) {
 	assert.Error(t, user_model.IsUsableUsername("foo.PnG"))
 }
 
-func TestOAuth2Application_LoadUser(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-	app := unittest.AssertExistsAndLoadBean(t, &auth.OAuth2Application{ID: 1})
-	user, err := user_model.GetUserByID(t.Context(), app.UID)
-	assert.NoError(t, err)
-	assert.NotNil(t, user)
-}
-
 func TestUserEmails(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 	defer test.MockVariableValue(&setting.Service.NoReplyAddress, "NoReply.gitea.internal")()
@@ -205,9 +197,6 @@ func TestSearchUsers(t *testing.T) {
 
 	testUserSuccess(user_model.SearchUserOptions{ListOptions: db.ListOptions{Page: 1}, IsProhibitLogin: optional.Some(true)},
 		[]int64{37})
-
-	testUserSuccess(user_model.SearchUserOptions{ListOptions: db.ListOptions{Page: 1}, IsTwoFactorEnabled: optional.Some(true)},
-		[]int64{24})
 }
 
 func TestEmailNotificationPreferences(t *testing.T) {
@@ -303,7 +292,6 @@ func TestCreateUserInvalidEmail(t *testing.T) {
 		Email:              "GiteaBot@gitea.io\r\n",
 		Passwd:             ";p['////..-++']",
 		IsAdmin:            false,
-		Theme:              setting.UI.DefaultTheme,
 		MustChangePassword: false,
 	}
 
@@ -458,68 +446,15 @@ func TestNewUserRedirect3(t *testing.T) {
 	})
 }
 
-func TestGetUserByOpenID(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	_, err := user_model.GetUserByOpenID(t.Context(), "https://unknown")
-	if assert.Error(t, err) {
-		assert.True(t, user_model.IsErrUserNotExist(err))
-	}
-
-	user, err := user_model.GetUserByOpenID(t.Context(), "https://user1.domain1.tld")
-	if assert.NoError(t, err) {
-		assert.Equal(t, int64(1), user.ID)
-	}
-
-	user, err = user_model.GetUserByOpenID(t.Context(), "https://domain1.tld/user2/")
-	if assert.NoError(t, err) {
-		assert.Equal(t, int64(2), user.ID)
-	}
-}
-
-func TestFollowUser(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	testSuccess := func(follower, followed *user_model.User) {
-		assert.NoError(t, user_model.FollowUser(t.Context(), follower, followed))
-		unittest.AssertExistsAndLoadBean(t, &user_model.Follow{UserID: follower.ID, FollowID: followed.ID})
-	}
-
-	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-	user4 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
-	user5 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 5})
-
-	testSuccess(user4, user2)
-	testSuccess(user5, user2)
-
-	assert.NoError(t, user_model.FollowUser(t.Context(), user2, user2))
-
-	unittest.CheckConsistencyFor(t, &user_model.User{})
-}
-
-func TestUnfollowUser(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	testSuccess := func(followerID, followedID int64) {
-		assert.NoError(t, user_model.UnfollowUser(t.Context(), followerID, followedID))
-		unittest.AssertNotExistsBean(t, &user_model.Follow{UserID: followerID, FollowID: followedID})
-	}
-	testSuccess(4, 2)
-	testSuccess(5, 2)
-	testSuccess(2, 2)
-
-	unittest.CheckConsistencyFor(t, &user_model.User{})
-}
-
 func TestIsUserVisibleToViewer(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 
 	user1 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})   // admin, public
 	user4 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})   // normal, public
-	user20 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 20}) // public, same team as user31
+	user20 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 20}) // public
 	user29 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 29}) // public, is restricted
-	user31 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 31}) // private, same team as user20
-	user33 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 33}) // limited, follows 31
+	user31 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 31}) // private
+	user33 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 33}) // limited, followed 31 before follows were removed
 
 	test := func(u, viewer *user_model.User, expected bool) {
 		name := func(u *user_model.User) string {
@@ -558,9 +493,9 @@ func TestIsUserVisibleToViewer(t *testing.T) {
 	// private user
 	test(user31, user31, true)
 	test(user31, user4, false)
-	test(user31, user20, true)
+	test(user31, user20, false) // sharing a team no longer grants visibility, there are no teams
 	test(user31, user29, false)
-	test(user31, user33, true)
+	test(user31, user33, false) // following no longer grants visibility
 	test(user31, nil, false)
 }
 
@@ -632,9 +567,7 @@ func TestEmailTo(t *testing.T) {
 func TestDisabledUserFeatures(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 
-	testValues := container.SetOf(setting.UserFeatureDeletion,
-		setting.UserFeatureManageSSHKeys,
-		setting.UserFeatureManageGPGKeys)
+	testValues := container.SetOf(setting.UserFeatureManageCredentials)
 	defer test.MockVariableValue(&setting.Admin.ExternalUserDisableFeatures, testValues)()
 
 	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})

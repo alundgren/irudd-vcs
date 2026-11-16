@@ -40,13 +40,6 @@ func SetCacheControlInHeader(h http.Header, opts *CacheControlOptions) {
 	h.Set("Cache-Control", strings.Join(directives, ", "))
 }
 
-func CacheControlForPublicStatic() *CacheControlOptions {
-	return &CacheControlOptions{
-		IsPublic: true,
-		MaxAge:   setting.StaticCacheTime,
-	}
-}
-
 func CacheControlForPrivateStatic() *CacheControlOptions {
 	return &CacheControlOptions{
 		MaxAge: setting.StaticCacheTime,
@@ -65,10 +58,6 @@ func checkIfNoneMatchIsValid(req *http.Request, etag string) bool {
 		}
 	}
 	return false
-}
-
-func HandleGenericETagPublicCache(req *http.Request, w http.ResponseWriter, etag string, lastModified *time.Time) bool {
-	return handleGenericETagTimeCache(req, w, etag, lastModified, CacheControlForPublicStatic())
 }
 
 func HandleGenericETagPrivateCache(req *http.Request, w http.ResponseWriter, etag string, lastModified *time.Time) bool {

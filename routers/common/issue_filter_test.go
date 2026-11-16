@@ -8,7 +8,6 @@ import (
 
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/util"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,11 +61,6 @@ func TestSearchIssuesRepoIDs(t *testing.T) {
 			doerID: 2,
 			opts:   SearchIssuesRepoIDsOptions{OwnerName: "user2"},
 			want:   []int64{1, 2},
-		},
-		{
-			name:    "team without owner",
-			opts:    SearchIssuesRepoIDsOptions{TeamName: "team1"},
-			wantErr: util.ErrInvalidArgument,
 		},
 	}
 

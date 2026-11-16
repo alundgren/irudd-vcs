@@ -12,11 +12,9 @@ import (
 	"strings"
 	"time"
 
-	activities_model "gitea.dev/models/activities"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
-	pull_model "gitea.dev/models/pull"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
@@ -33,8 +31,6 @@ import (
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/api/v1/utils"
 	"gitea.dev/routers/common"
-	asymkey_service "gitea.dev/services/asymkey"
-	"gitea.dev/services/automerge"
 	"gitea.dev/services/context"
 	"gitea.dev/services/convert"
 	"gitea.dev/services/forms"
@@ -68,6 +64,10 @@ func ListPullRequests(ctx *context.APIContext) {
 	//   in: query
 	//   description: Filter by target base branch of the pull request
 	//   type: string
+	// - name: head
+	//   in: query
+	//   description: Filter by head branch of the pull request, as `branch` or `owner:branch`
+	//   type: string
 	// - name: state
 	//   in: query
 	//   description: State of pull request
@@ -79,11 +79,6 @@ func ListPullRequests(ctx *context.APIContext) {
 	//   description: Type of sort
 	//   type: string
 	//   enum: [oldest, recentupdate, recentclose, leastupdate, mostcomment, leastcomment, priority]
-	// - name: milestone
-	//   in: query
-	//   description: ID of the milestone
-	//   type: integer
-	//   format: int64
 	// - name: labels
 	//   in: query
 	//   description: Label IDs
@@ -133,15 +128,31 @@ func ListPullRequests(ctx *context.APIContext) {
 		}
 		posterID = poster.ID
 	}
+	headBranch := ctx.FormTrim("head")
+	var headOwnerID int64
+	if owner, branch, ok := strings.Cut(headBranch, ":"); ok {
+		headOwner, err := user_model.GetUserByName(ctx, owner)
+		if err != nil {
+			if user_model.IsErrUserNotExist(err) {
+				ctx.SetTotalCountHeader(0)
+				ctx.JSON(http.StatusOK, []*api.PullRequest{}) // no such head owner, so nothing matches
+			} else {
+				ctx.APIErrorInternal(err)
+			}
+			return
+		}
+		headBranch, headOwnerID = branch, headOwner.ID
+	}
 	listOptions := utils.GetListOptions(ctx)
 	prs, maxResults, err := issues_model.PullRequests(ctx, ctx.Repo.Repository.ID, &issues_model.PullRequestsOptions{
 		ListOptions: listOptions,
 		State:       ctx.FormTrim("state"),
 		SortType:    ctx.FormTrim("sort"),
 		Labels:      labelIDs,
-		MilestoneID: ctx.FormInt64("milestone"),
 		PosterID:    posterID,
 		BaseBranch:  ctx.FormTrim("base_branch"),
+		HeadBranch:  headBranch,
+		HeadOwnerID: headOwnerID,
 	})
 	if err != nil {
 		ctx.APIErrorInternal(err)
@@ -411,9 +422,8 @@ func CreatePullRequest(ctx *context.APIContext) {
 	}
 
 	var (
-		repo        = ctx.Repo.Repository
-		labelIDs    []int64
-		milestoneID int64
+		repo     = ctx.Repo.Repository
+		labelIDs []int64
 	)
 
 	// Get repo/branch information
@@ -478,20 +488,6 @@ func CreatePullRequest(ctx *context.APIContext) {
 		}
 	}
 
-	if form.Milestone > 0 {
-		milestone, err := issues_model.GetMilestoneByRepoID(ctx, ctx.Repo.Repository.ID, form.Milestone)
-		if err != nil {
-			if issues_model.IsErrMilestoneNotExist(err) {
-				ctx.APIErrorNotFound()
-			} else {
-				ctx.APIErrorInternal(fmt.Errorf("GetMilestoneByRepoID: %w", err))
-			}
-			return
-		}
-
-		milestoneID = milestone.ID
-	}
-
 	var deadlineUnix timeutil.TimeStamp
 	if form.Deadline != nil {
 		deadlineUnix = timeutil.TimeStamp(form.Deadline.Unix())
@@ -508,7 +504,6 @@ func CreatePullRequest(ctx *context.APIContext) {
 		Title:        form.Title,
 		PosterID:     ctx.Doer.ID,
 		Poster:       ctx.Doer,
-		MilestoneID:  milestoneID,
 		IsPull:       true,
 		Content:      form.Body,
 		DeadlineUnix: deadlineUnix,
@@ -562,7 +557,7 @@ func CreatePullRequest(ctx *context.APIContext) {
 		PullRequest: pr,
 		AssigneeIDs: assigneeIDs,
 	}
-	prOpts.Reviewers, prOpts.TeamReviewers = parseReviewersByNames(ctx, form.Reviewers, form.TeamReviewers)
+	prOpts.Reviewers = parseReviewersByNames(ctx, form.Reviewers)
 	if ctx.Written() {
 		return
 	}
@@ -570,8 +565,6 @@ func CreatePullRequest(ctx *context.APIContext) {
 	if err := pull_service.NewPullRequest(ctx, prOpts); err != nil {
 		if repo_model.IsErrUserDoesNotHaveAccessToRepo(err) {
 			ctx.APIError(http.StatusBadRequest, err.Error())
-		} else if errors.Is(err, user_model.ErrBlockedUser) {
-			ctx.APIError(http.StatusForbidden, err.Error())
 		} else if errors.Is(err, issues_model.ErrMustCollaborator) {
 			ctx.APIError(http.StatusForbidden, err.Error())
 		} else {
@@ -719,26 +712,9 @@ func EditPullRequest(ctx *context.APIContext) {
 		if err != nil {
 			if user_model.IsErrUserNotExist(err) {
 				ctx.APIError(http.StatusUnprocessableEntity, fmt.Sprintf("Assignee does not exist: [name: %s]", err))
-			} else if errors.Is(err, user_model.ErrBlockedUser) {
-				ctx.APIError(http.StatusForbidden, err.Error())
 			} else {
 				ctx.APIErrorInternal(err)
 			}
-			return
-		}
-	}
-
-	if ctx.Repo.Permission.CanWrite(unit.TypePullRequests) && form.Milestone != 0 &&
-		issue.MilestoneID != form.Milestone {
-		oldMilestoneID := issue.MilestoneID
-		issue.MilestoneID = form.Milestone
-		issue.Milestone, err = issues_model.GetMilestoneByRepoID(ctx, ctx.Repo.Repository.ID, form.Milestone)
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		}
-		if err = issue_service.ChangeMilestoneAssign(ctx, issue, ctx.Doer, oldMilestoneID); err != nil {
-			ctx.APIErrorInternal(err)
 			return
 		}
 	}
@@ -941,20 +917,14 @@ func MergePullRequest(ctx *context.APIContext) {
 	}
 	pr.Issue.Repo = ctx.Repo.Repository
 
-	if ctx.IsSigned {
-		// Update issue-user.
-		if err = activities_model.SetIssueReadBy(ctx, pr.Issue.ID, ctx.Doer.ID); err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		}
+	if form.MergeWhenChecksSucceed {
+		ctx.APIError(http.StatusUnprocessableEntity, "merging when checks succeed is not supported")
+		return
 	}
 
 	manuallyMerged := repo_model.MergeStyle(form.Do) == repo_model.MergeStyleManuallyMerged
 
 	mergeCheckType := pull_service.MergeCheckTypeGeneral
-	if form.MergeWhenChecksSucceed {
-		mergeCheckType = pull_service.MergeCheckTypeAuto
-	}
 	if manuallyMerged {
 		mergeCheckType = pull_service.MergeCheckTypeManually
 	}
@@ -972,8 +942,6 @@ func MergePullRequest(ctx *context.APIContext) {
 		} else if errors.Is(err, pull_service.ErrNotMergeableState) {
 			ctx.APIError(http.StatusMethodNotAllowed, "Please try again later")
 		} else if errors.Is(err, pull_service.ErrNotReadyToMerge) {
-			ctx.APIError(http.StatusMethodNotAllowed, err.Error())
-		} else if asymkey_service.IsErrWontSign(err) {
 			ctx.APIError(http.StatusMethodNotAllowed, err.Error())
 		} else if errors.Is(err, pull_service.ErrHeadCommitsNotAllVerified) {
 			ctx.APIError(http.StatusMethodNotAllowed, err.Error())
@@ -1023,22 +991,6 @@ func MergePullRequest(ctx *context.APIContext) {
 	if err != nil {
 		ctx.APIErrorInternal(err)
 		return
-	}
-
-	if form.MergeWhenChecksSucceed {
-		scheduled, err := automerge.ScheduleAutoMerge(ctx, ctx.Doer, pr, repo_model.MergeStyle(form.Do), message, deleteBranchAfterMerge)
-		if err != nil {
-			if pull_model.IsErrAlreadyScheduledToAutoMerge(err) {
-				ctx.APIError(http.StatusConflict, err.Error())
-				return
-			}
-			ctx.APIErrorInternal(err)
-			return
-		} else if scheduled {
-			// nothing more to do ...
-			ctx.Status(http.StatusCreated)
-			return
-		}
 	}
 
 	if err := pull_service.Merge(pr, ctx.Doer, repo_model.MergeStyle(form.Do), form.HeadCommitID, message, false); err != nil {
@@ -1292,80 +1244,6 @@ func UpdatePullRequest(ctx *context.APIContext) {
 	}
 
 	ctx.Status(http.StatusOK)
-}
-
-// MergePullRequest cancel an auto merge scheduled for a given PullRequest by index
-func CancelScheduledAutoMerge(ctx *context.APIContext) {
-	// swagger:operation DELETE /repos/{owner}/{repo}/pulls/{index}/merge repository repoCancelScheduledAutoMerge
-	// ---
-	// summary: Cancel the scheduled auto merge for the given pull request
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: owner
-	//   in: path
-	//   description: owner of the repo
-	//   type: string
-	//   required: true
-	// - name: repo
-	//   in: path
-	//   description: name of the repo
-	//   type: string
-	//   required: true
-	// - name: index
-	//   in: path
-	//   description: index of the pull request to merge
-	//   type: integer
-	//   format: int64
-	//   required: true
-	// responses:
-	//   "204":
-	//     "$ref": "#/responses/empty"
-	//   "403":
-	//     "$ref": "#/responses/forbidden"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-	//   "423":
-	//     "$ref": "#/responses/repoArchivedError"
-
-	pullIndex := ctx.PathParamInt64("index")
-	pull, err := issues_model.GetPullRequestByIndex(ctx, ctx.Repo.Repository.ID, pullIndex)
-	if err != nil {
-		if issues_model.IsErrPullRequestNotExist(err) {
-			ctx.APIErrorNotFound()
-			return
-		}
-		ctx.APIErrorInternal(err)
-		return
-	}
-
-	exist, autoMerge, err := pull_model.GetScheduledMergeByPullID(ctx, pull.ID)
-	if err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
-	if !exist {
-		ctx.APIErrorNotFound()
-		return
-	}
-
-	if ctx.Doer.ID != autoMerge.DoerID {
-		allowed, err := pull_service.IsUserAllowedToMerge(ctx, pull, ctx.Repo.Permission, ctx.Doer)
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		}
-		if !allowed {
-			ctx.APIError(http.StatusForbidden, "user has no permission to cancel the scheduled auto merge")
-			return
-		}
-	}
-
-	if err := automerge.RemoveScheduledAutoMerge(ctx, ctx.Doer, pull); err != nil {
-		ctx.APIErrorInternal(err)
-	} else {
-		ctx.Status(http.StatusNoContent)
-	}
 }
 
 // GetPullRequestCommits gets all commits associated with a given PR

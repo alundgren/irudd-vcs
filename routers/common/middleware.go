@@ -11,14 +11,11 @@ import (
 	"gitea.dev/modules/cache"
 	"gitea.dev/modules/gtprof"
 	"gitea.dev/modules/httplib"
-	"gitea.dev/modules/log"
-	"gitea.dev/modules/public"
 	"gitea.dev/modules/reqctx"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/web/routing"
 	"gitea.dev/services/context"
 
-	"gitea.com/go-chi/session"
 	"github.com/chi-middleware/proxy"
 	"github.com/go-chi/chi/v5"
 )
@@ -38,10 +35,6 @@ func ProtocolMiddlewares() (handlers []any) {
 
 	if setting.IsAccessLogEnabled() {
 		handlers = append(handlers, context.AccessLogger())
-	}
-
-	if !setting.IsProd {
-		handlers = append(handlers, public.ViteDevMiddleware)
 	}
 
 	return handlers
@@ -130,29 +123,4 @@ func ForwardedHeadersHandler(limit int, trustedProxies []string) func(h http.Han
 		}
 	}
 	return proxy.ForwardedHeaders(opt)
-}
-
-func MustInitSessioner() func(next http.Handler) http.Handler {
-	// TODO: CHI-SESSION-GOB-REGISTER: chi-session has a design problem: it calls gob.Register for "Set"
-	// But if the server restarts, then the first "Get" will fail to decode the previously stored session data because the structs are not registered yet.
-	// So each package should make sure their structs are registered correctly during startup for session storage.
-
-	middleware, err := session.Sessioner(session.Options{
-		Provider:       setting.SessionConfig.Provider,
-		ProviderConfig: setting.SessionConfig.ProviderConfig,
-		CookieName:     setting.SessionConfig.CookieName,
-		CookiePath:     setting.SessionConfig.CookiePath,
-		Gclifetime:     setting.SessionConfig.Gclifetime,
-		Maxlifetime:    setting.SessionConfig.Maxlifetime,
-		Secure:         setting.SessionConfig.Secure,
-		SameSite:       setting.SessionConfig.SameSite,
-		Domain:         setting.SessionConfig.Domain,
-
-		// in the future, if websocket is used, the websocket handler should manage its own session sync (release)
-		IgnoreReleaseForWebSocket: true,
-	})
-	if err != nil {
-		log.Fatal("common.Sessioner failed: %v", err)
-	}
-	return middleware
 }

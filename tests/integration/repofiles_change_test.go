@@ -100,7 +100,7 @@ func getExpectedFileResponseForRepoFilesCreate(commitID string, lastCommit *git.
 	selfURL := setting.AppURL + "api/v1/repos/user2/repo1/contents/" + treePath + "?ref=master"
 	htmlURL := setting.AppURL + "user2/repo1/src/branch/master/" + treePath
 	gitURL := setting.AppURL + "api/v1/repos/user2/repo1/git/blobs/103ff9234cefeee5ec5361d22b49fbb04d385885"
-	downloadURL := setting.AppURL + "user2/repo1/raw/branch/master/" + treePath
+	downloadURL := setting.AppURL + "api/v1/repos/user2/repo1/raw/" + treePath + "?ref=master"
 	return &api.FileResponse{
 		Content: &api.ContentsResponse{
 			Name:              path.Base(treePath),
@@ -170,7 +170,7 @@ func getExpectedFileResponseForRepoFilesUpdate(commitID, filename, lastCommitSHA
 	selfURL := setting.AppURL + "api/v1/repos/user2/repo1/contents/" + filename + "?ref=master"
 	htmlURL := setting.AppURL + "user2/repo1/src/branch/master/" + filename
 	gitURL := setting.AppURL + "api/v1/repos/user2/repo1/git/blobs/dbf8d00e022e05b7e5cf7e535de857de57925647"
-	downloadURL := setting.AppURL + "user2/repo1/raw/branch/master/" + filename
+	downloadURL := setting.AppURL + "api/v1/repos/user2/repo1/raw/" + filename + "?ref=master"
 	return &api.FileResponse{
 		Content: &api.ContentsResponse{
 			Name:              filename,
@@ -276,7 +276,7 @@ func getExpectedFileResponseForRepoFilesUpdateRename(commitID, lastCommitSHA str
 		selfURL := setting.AppURL + "api/v1/repos/user2/lfs/contents/" + detail.filename + "?ref=master"
 		htmlURL := setting.AppURL + "user2/lfs/src/branch/master/" + detail.filename
 		gitURL := setting.AppURL + "api/v1/repos/user2/lfs/git/blobs/" + detail.sha
-		downloadURL := setting.AppURL + "user2/lfs/raw/branch/master/" + detail.filename
+		downloadURL := setting.AppURL + "api/v1/repos/user2/lfs/raw/" + detail.filename + "?ref=master"
 		// don't set time related fields because there might be different time in one operation
 		responses = append(responses, &api.ContentsResponse{
 			Name:          detail.filename,
@@ -541,7 +541,7 @@ func TestChangeRepoFilesForDelete(t *testing.T) {
 		doer := ctx.Doer
 
 		t.Run("Delete README.md by commit", func(t *testing.T) {
-			urlRaw := "/user2/repo1/raw/branch/branch2/README.md"
+			urlRaw := "/api/v1/repos/user2/repo1/raw/README.md?ref=branch2"
 			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
 			opts := &files_service.ChangeRepoFilesOptions{
 				OldBranch:    "branch2",
@@ -563,7 +563,7 @@ func TestChangeRepoFilesForDelete(t *testing.T) {
 		})
 
 		t.Run("Delete README.md with options", func(t *testing.T) {
-			urlRaw := "/user2/repo1/raw/branch/master/README.md"
+			urlRaw := "/api/v1/repos/user2/repo1/raw/README.md?ref=master"
 			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
 			opts := &files_service.ChangeRepoFilesOptions{
 				Files: []*files_service.ChangeRepoFile{
@@ -590,7 +590,7 @@ func TestChangeRepoFilesForDelete(t *testing.T) {
 		})
 
 		t.Run("Delete directory", func(t *testing.T) {
-			urlRaw := "/user2/repo1/raw/branch/sub-home-md-img-check/docs/README.md"
+			urlRaw := "/api/v1/repos/user2/repo1/raw/docs/README.md?ref=sub-home-md-img-check"
 			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
 			opts := &files_service.ChangeRepoFilesOptions{
 				OldBranch:    "sub-home-md-img-check",

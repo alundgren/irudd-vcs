@@ -121,32 +121,6 @@ func catFileBatchParseInfoLine(rd BufferedReader) (*CatFileObject, error) {
 	return &CatFileObject{ID: sha, Type: typ, Size: size}, err
 }
 
-// ReadTagObjectID reads a tag object ID hash from a cat-file --batch stream, throwing away the rest of the stream.
-func ReadTagObjectID(rd BufferedReader, size int64) (string, error) {
-	var id string
-	var n int64
-headerLoop:
-	for {
-		line, err := rd.ReadBytes('\n')
-		if err != nil {
-			return "", err
-		}
-		n += int64(len(line))
-		idx := bytes.Index(line, []byte{' '})
-		if idx < 0 {
-			continue
-		}
-
-		if string(line[:idx]) == "object" {
-			id = string(line[idx+1 : len(line)-1])
-			break headerLoop
-		}
-	}
-
-	// Discard the rest of the tag
-	return id, DiscardFull(rd, size-n+1)
-}
-
 // ReadTreeID reads a tree ID from a cat-file --batch stream, throwing away the rest of the stream.
 func ReadTreeID(rd BufferedReader, size int64) (string, error) {
 	var id string

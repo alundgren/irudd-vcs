@@ -21,7 +21,6 @@ func newManagerCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newShutdownCommand(),
 			newRestartCommand(),
-			newReloadTemplatesCommand(),
 			newFlushQueuesCommand(),
 			newLoggingCommand(),
 			newProcessesCommand(),
@@ -52,19 +51,6 @@ func newRestartCommand() *cli.Command {
 			},
 		},
 		Action: runRestart,
-	}
-}
-
-func newReloadTemplatesCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "reload-templates",
-		Usage: "Reload template files in the running process",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name: "debug",
-			},
-		},
-		Action: runReloadTemplates,
 	}
 }
 
@@ -132,12 +118,6 @@ func runShutdown(ctx context.Context, c *cli.Command) error {
 func runRestart(ctx context.Context, c *cli.Command) error {
 	setup(ctx, c.Bool("debug"))
 	extra := private.Restart(ctx)
-	return handleCliResponseExtra(extra)
-}
-
-func runReloadTemplates(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
-	extra := private.ReloadTemplates(ctx)
 	return handleCliResponseExtra(extra)
 }
 

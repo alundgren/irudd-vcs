@@ -60,10 +60,6 @@ func ForkRepository(ctx context.Context, doer, owner *user_model.User, opts Fork
 		return nil, err
 	}
 
-	if user_model.IsUserBlockedBy(ctx, doer, opts.BaseRepo.Owner.ID) {
-		return nil, user_model.ErrBlockedUser
-	}
-
 	// Fork is prohibited, if user has reached maximum limit of repositories
 	if !doer.CanForkRepoIn(owner) {
 		return nil, repo_model.ErrReachLimitOfRepo{
@@ -190,13 +186,6 @@ func ForkRepository(ctx context.Context, doer, owner *user_model.User, opts Fork
 		log.Error("Failed to update size for repository: %v", err)
 		err = nil
 	}
-	if err = repo_model.CopyLanguageStat(ctx, opts.BaseRepo, repo); err != nil {
-		log.Error("Copy language stat from oldRepo failed: %v", err)
-		err = nil
-	}
-	if err = repo_model.CopyLicense(ctx, opts.BaseRepo, repo); err != nil {
-		return nil, err
-	}
 
 	// 8 - update repository status to be ready
 	repo.Status = repo_model.RepositoryReady
@@ -207,29 +196,6 @@ func ForkRepository(ctx context.Context, doer, owner *user_model.User, opts Fork
 	notify_service.ForkRepository(ctx, doer, opts.BaseRepo, repo)
 
 	return repo, nil
-}
-
-// ConvertForkToNormalRepository convert the provided repo from a forked repo to normal repo
-func ConvertForkToNormalRepository(ctx context.Context, repo *repo_model.Repository) error {
-	return db.WithTx(ctx, func(ctx context.Context) error {
-		repo, err := repo_model.GetRepositoryByID(ctx, repo.ID)
-		if err != nil {
-			return err
-		}
-
-		if !repo.IsFork {
-			return nil
-		}
-
-		if err := repo_model.DecrementRepoForkNum(ctx, repo.ForkID); err != nil {
-			log.Error("Unable to decrement repo fork num for old root repo %d of repository %-v whilst converting from fork. Error: %v", repo.ForkID, repo, err)
-			return err
-		}
-
-		repo.IsFork = false
-		repo.ForkID = 0
-		return repo_model.UpdateRepositoryColsNoAutoTime(ctx, repo, "is_fork", "fork_id")
-	})
 }
 
 type findForksOptions struct {

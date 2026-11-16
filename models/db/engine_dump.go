@@ -4,13 +4,11 @@
 package db
 
 import (
-	"gitea.dev/modules/setting"
-
 	"xorm.io/xorm/schemas"
 )
 
-// DumpDatabase dumps all data from database according the special database SQL syntax to file system.
-func DumpDatabase(filePath string, dbType setting.DatabaseType) error {
+// DumpDatabase dumps all data from database as SQLite SQL to file system.
+func DumpDatabase(filePath string) error {
 	var tbs []*schemas.Table
 	for _, t := range registeredModels {
 		t, err := xormEngine.TableInfo(t)
@@ -30,8 +28,5 @@ func DumpDatabase(filePath string, dbType setting.DatabaseType) error {
 	}
 	tbs = append(tbs, t)
 
-	if dbType != "" {
-		return xormEngine.DumpTablesToFile(tbs, filePath, schemas.DBType(dbType))
-	}
 	return xormEngine.DumpTablesToFile(tbs, filePath)
 }

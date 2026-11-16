@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	issues_model "gitea.dev/models/issues"
-	repo_model "gitea.dev/models/repo"
-	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
@@ -58,40 +56,6 @@ func TestPullRequest_GetDefaultMergeMessage_InternalTracker(t *testing.T) {
 	mergeMessage, _, err = GetDefaultMergeMessage(t.Context(), gitRepo, pr, "")
 	assert.NoError(t, err)
 	assert.Equal(t, "Merge pull request 'issue3' (#3) from user2/repo1:branch2 into master", mergeMessage)
-}
-
-func TestPullRequest_GetDefaultMergeMessage_ExternalTracker(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	externalTracker := repo_model.RepoUnit{
-		Type: unit.TypeExternalTracker,
-		Config: &repo_model.ExternalTrackerConfig{
-			ExternalTrackerFormat: "https://someurl.com/{user}/{repo}/{issue}",
-		},
-	}
-	baseRepo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
-	baseRepo.Units = []*repo_model.RepoUnit{&externalTracker}
-
-	pr := unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 2, BaseRepo: baseRepo})
-
-	assert.NoError(t, pr.LoadBaseRepo(t.Context()))
-	gitRepo, err := gitrepo.OpenRepository(t.Context(), pr.BaseRepo)
-	assert.NoError(t, err)
-	defer gitRepo.Close()
-
-	mergeMessage, _, err := GetDefaultMergeMessage(t.Context(), gitRepo, pr, "")
-	assert.NoError(t, err)
-
-	assert.Equal(t, "Merge pull request 'issue3' (!3) from branch2 into master", mergeMessage)
-
-	pr.BaseRepoID = 1
-	pr.HeadRepoID = 2
-	pr.BaseRepo = nil
-	pr.HeadRepo = nil
-	mergeMessage, _, err = GetDefaultMergeMessage(t.Context(), gitRepo, pr, "")
-	assert.NoError(t, err)
-
-	assert.Equal(t, "Merge pull request 'issue3' (#3) from user2/repo2:branch2 into master", mergeMessage)
 }
 
 func TestBuildSquashMergeCommitMessages(t *testing.T) {

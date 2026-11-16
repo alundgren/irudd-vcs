@@ -29,13 +29,6 @@ func Restart(ctx context.Context) ResponseExtra {
 	return requestJSONClientMsg(req, "Restarting")
 }
 
-// ReloadTemplates calls the internal reload-templates function
-func ReloadTemplates(ctx context.Context) ResponseExtra {
-	reqURL := setting.LocalURL + "api/internal/manager/reload-templates"
-	req := newInternalRequestAPI(ctx, reqURL, "POST")
-	return requestJSONClientMsg(req, "Reloaded")
-}
-
 // FlushOptions represents the options for the flush call
 type FlushOptions struct {
 	Timeout     time.Duration

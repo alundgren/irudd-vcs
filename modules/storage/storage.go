@@ -15,7 +15,6 @@ import (
 
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/public"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 )
@@ -64,7 +63,7 @@ func prepareServeDirectOptions(optsOptional *ServeDirectOptions, name string) (r
 	name = path.Base(name)
 	if ret.ContentType == "" {
 		ext := path.Ext(name)
-		ret.ContentType = public.DetectWellKnownMimeType(ext)
+		ret.ContentType = DetectWellKnownMimeType(ext)
 	}
 	// When using ServeDirect, the URL is from the object storage's web server,
 	// it is not the same origin as Gitea server, so it should be safe enough to use "inline" to render the content directly.
@@ -126,21 +125,6 @@ func Clean(storage ObjectStorage) error {
 	})
 }
 
-// SaveFrom saves data to the ObjectStorage with path p from the callback
-func SaveFrom(objStorage ObjectStorage, path string, callback func(w io.Writer) error) error {
-	pr, pw := io.Pipe()
-	defer pr.Close()
-	go func() {
-		defer pw.Close()
-		if err := callback(pw); err != nil {
-			_ = pw.CloseWithError(err)
-		}
-	}()
-
-	_, err := objStorage.Save(path, pr, -1)
-	return err
-}
-
 func buildObjectStorePath(base, p string) string {
 	p = strings.TrimPrefix(util.PathJoinRelX(base, p), "/") // object store doesn't use slash for root path
 	if p == "." {
@@ -158,46 +142,12 @@ func buildObjectStorePathPrefix(base, p string) string {
 	return p
 }
 
-var (
-	// Attachments represents attachments storage
-	Attachments ObjectStorage = uninitializedStorage
-
-	// LFS represents lfs storage
-	LFS ObjectStorage = uninitializedStorage
-
-	// Avatars represents user avatars storage
-	Avatars ObjectStorage = uninitializedStorage
-	// RepoAvatars represents repository avatars storage
-	RepoAvatars ObjectStorage = uninitializedStorage
-
-	// RepoArchives represents repository archives storage
-	RepoArchives ObjectStorage = uninitializedStorage
-
-	// Packages represents packages storage
-	Packages ObjectStorage = uninitializedStorage
-
-	// Actions represents actions storage
-	Actions ObjectStorage = uninitializedStorage
-	// ActionsArtifacts Artifacts represents actions artifacts storage
-	ActionsArtifacts ObjectStorage = uninitializedStorage
-)
+// LFS represents lfs storage
+var LFS ObjectStorage = uninitializedStorage
 
 // Init init the storage
 func Init() error {
-	for _, f := range []func() error{
-		initAttachments,
-		initAvatars,
-		initRepoAvatars,
-		initLFS,
-		initRepoArchives,
-		initPackages,
-		initActions,
-	} {
-		if err := f(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return initLFS()
 }
 
 // NewStorage takes a storage type and some config and returns an ObjectStorage or an error
@@ -213,22 +163,6 @@ func NewStorage(typStr Type, cfg *setting.Storage) (ObjectStorage, error) {
 	return fn(context.Background(), cfg)
 }
 
-func initAvatars() (err error) {
-	log.Info("Initialising Avatar storage with type: %s", setting.Avatar.Storage.Type)
-	Avatars, err = NewStorage(setting.Avatar.Storage.Type, setting.Avatar.Storage)
-	return err
-}
-
-func initAttachments() (err error) {
-	if !setting.Attachment.Enabled {
-		Attachments = discardStorage("Attachment isn't enabled")
-		return nil
-	}
-	log.Info("Initialising Attachment storage with type: %s", setting.Attachment.Storage.Type)
-	Attachments, err = NewStorage(setting.Attachment.Storage.Type, setting.Attachment.Storage)
-	return err
-}
-
 func initLFS() (err error) {
 	if !setting.LFS.StartServer {
 		LFS = discardStorage("LFS isn't enabled")
@@ -236,42 +170,5 @@ func initLFS() (err error) {
 	}
 	log.Info("Initialising LFS storage with type: %s", setting.LFS.Storage.Type)
 	LFS, err = NewStorage(setting.LFS.Storage.Type, setting.LFS.Storage)
-	return err
-}
-
-func initRepoAvatars() (err error) {
-	log.Info("Initialising Repository Avatar storage with type: %s", setting.RepoAvatar.Storage.Type)
-	RepoAvatars, err = NewStorage(setting.RepoAvatar.Storage.Type, setting.RepoAvatar.Storage)
-	return err
-}
-
-func initRepoArchives() (err error) {
-	log.Info("Initialising Repository Archive storage with type: %s", setting.RepoArchive.Storage.Type)
-	RepoArchives, err = NewStorage(setting.RepoArchive.Storage.Type, setting.RepoArchive.Storage)
-	return err
-}
-
-func initPackages() (err error) {
-	if !setting.Packages.Enabled {
-		Packages = discardStorage("Packages isn't enabled")
-		return nil
-	}
-	log.Info("Initialising Packages storage with type: %s", setting.Packages.Storage.Type)
-	Packages, err = NewStorage(setting.Packages.Storage.Type, setting.Packages.Storage)
-	return err
-}
-
-func initActions() (err error) {
-	if !setting.Actions.Enabled {
-		Actions = discardStorage("Actions isn't enabled")
-		ActionsArtifacts = discardStorage("ActionsArtifacts isn't enabled")
-		return nil
-	}
-	log.Info("Initialising Actions storage with type: %s", setting.Actions.LogStorage.Type)
-	if Actions, err = NewStorage(setting.Actions.LogStorage.Type, setting.Actions.LogStorage); err != nil {
-		return err
-	}
-	log.Info("Initialising ActionsArtifacts storage with type: %s", setting.Actions.ArtifactStorage.Type)
-	ActionsArtifacts, err = NewStorage(setting.Actions.ArtifactStorage.Type, setting.Actions.ArtifactStorage)
 	return err
 }

@@ -6,7 +6,6 @@ package context
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
 	"strconv"
@@ -17,9 +16,7 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/reqctx"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/translation"
 	"gitea.dev/modules/util"
-	"gitea.dev/modules/web/middleware"
 )
 
 type BaseContextKeyType struct{}
@@ -39,9 +36,6 @@ type Base struct {
 	// Data is prepared by ContextDataStore middleware, this field only refers to the pre-created/prepared ContextData.
 	// Although it's mainly used for MVC templates, sometimes it's also used to pass data between middlewares/handler
 	Data reqctx.ContextData
-
-	// Locale is mainly for Web context, although the API context also uses it in some cases: message response, form validation
-	Locale translation.Locale
 }
 
 var ParseMultipartFormMaxMemory = int64(32 << 20)
@@ -149,22 +143,6 @@ func (b *Base) PlainText(status int, text string) {
 // Redirect redirects the request
 func (b *Base) Redirect(location string, status ...int) {
 	code := util.OptionalArg(status, http.StatusSeeOther)
-
-	if !httplib.IsRelativeURL(location) {
-		// Some browsers (Safari) have buggy behavior for Cookie + Cache + External Redirection, eg: /my-path => https://other/path
-		// 1. the first request to "/my-path" contains cookie
-		// 2. some time later, the request to "/my-path" doesn't contain cookie (caused by Prevent web tracking)
-		// 3. Gitea's Sessioner doesn't see the session cookie, so it generates a new session id, and returns it to browser
-		// 4. then the browser accepts the empty session, then the user is logged out
-		// So in this case, we should remove the session cookie from the response header
-		removeSessionCookieHeader(b.Resp)
-	}
-	// In case the request is made by "fetch-action" module, make JS redirect to the new location
-	// Otherwise, the JS fetch will follow the redirection and read a "login" page, embed it to the current page, which is not expected.
-	if b.Req.Header.Get("X-Gitea-Fetch-Action") != "" {
-		b.JSON(http.StatusOK, map[string]any{"redirect": location})
-		return
-	}
 	http.Redirect(b.Resp, b.Req, location, code)
 }
 
@@ -180,47 +158,17 @@ func (b *Base) ServeContent(r io.ReadSeeker, opts ServeHeaderOptions) {
 	http.ServeContent(b.Resp, b.Req, opts.Filename, opts.LastModified, r)
 }
 
-func (b *Base) Tr(msg string, args ...any) template.HTML {
-	return b.Locale.Tr(msg, args...)
-}
-
-func (b *Base) TrN(cnt any, key1, keyN string, args ...any) template.HTML {
-	return b.Locale.TrN(cnt, key1, keyN, args...)
-}
-
-func CspScriptNonce(ctx reqctx.RequestContext) (ret string) {
-	// Generate a random nonce for each request and cache it in the context to make it usable during the whole rendering process.
-	//
-	// Some "<script>" tags are not in the CSP context, so they don't need nonce,
-	// these tags are written as "<script nonce>" to help developers to know that "no script nonce attribute is missing"
-	// (e.g.: when they grep the codebase for "script" tags)
-	ret, _ = ctx.Value("_cspScriptNonce").(string)
-	if ret == "" {
-		ret = util.FastCryptoRandomHex(32) // 16 bytes / 128 bits entropy
-		ctx.SetContextValue("_cspScriptNonce", ret)
-	}
-	return ret
-}
-
-func (b *Base) SetHeaderContentSecurityPolicyGeneral() {
-	if csp := WebContentSecurityPolicy(CspScriptNonce(b)); csp != "" {
-		b.Resp.Header().Set("Content-Security-Policy", csp)
-	}
-}
-
 func NewBaseContext(resp http.ResponseWriter, req *http.Request) *Base {
 	reqCtx := reqctx.FromContext(req.Context())
 	b := &Base{
 		RequestContext: reqCtx,
 
-		Req:    req,
-		Resp:   WrapResponseWriter(resp),
-		Locale: middleware.Locale(resp, req),
-		Data:   reqCtx.GetData(),
+		Req:  req,
+		Resp: WrapResponseWriter(resp),
+		Data: reqCtx.GetData(),
 	}
 	b.Req = b.Req.WithContext(b)
 	reqCtx.SetContextValue(BaseContextKey, b)
-	reqCtx.SetContextValue(translation.ContextKey, b.Locale)
 	reqCtx.SetContextValue(httplib.RequestContextKey, b.Req)
 	return b
 }

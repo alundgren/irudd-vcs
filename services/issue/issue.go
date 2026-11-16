@@ -7,35 +7,26 @@ import (
 	"context"
 	"fmt"
 
-	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
-	access_model "gitea.dev/models/perm/access"
-	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
-	system_model "gitea.dev/models/system"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/storage"
 	notify_service "gitea.dev/services/notify"
 )
 
 // NewIssue creates new issue with labels for repository.
-func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs []int64, uuids []string, assigneeIDs, projectIDs []int64) error {
+func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs []int64, assigneeIDs []int64) error {
 	if err := issue.LoadPoster(ctx); err != nil {
 		return err
-	}
-
-	if user_model.IsUserBlockedBy(ctx, issue.Poster, repo.OwnerID) || user_model.IsUserBlockedBy(ctx, issue.Poster, assigneeIDs...) {
-		return user_model.ErrBlockedUser
 	}
 
 	assigneeCommentMap := make(map[int64]*issues_model.Comment)
 	assignees := make(map[int64]*user_model.User)
 	if err := db.WithTx(ctx, func(ctx context.Context) error {
-		if err := issues_model.NewIssue(ctx, repo, issue, labelIDs, uuids); err != nil {
+		if err := issues_model.NewIssue(ctx, repo, issue, labelIDs); err != nil {
 			return err
 		}
 		for _, assigneeID := range assigneeIDs {
@@ -51,12 +42,6 @@ func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_mo
 			}
 			assigneeCommentMap[assigneeID] = comment
 		}
-		if len(projectIDs) > 0 {
-			err := issues_model.IssueAssignOrRemoveProject(ctx, issue, issue.Poster, projectIDs)
-			if err != nil {
-				return err
-			}
-		}
 		return nil
 	}); err != nil {
 		return err
@@ -70,9 +55,6 @@ func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_mo
 	notify_service.NewIssue(ctx, issue, mentions)
 	if len(issue.Labels) > 0 {
 		notify_service.IssueChangeLabels(ctx, issue.Poster, issue, issue.Labels, nil)
-	}
-	if issue.Milestone != nil {
-		notify_service.IssueChangeMilestone(ctx, issue.Poster, issue, 0)
 	}
 
 	if len(assigneeIDs) > 0 {
@@ -97,12 +79,6 @@ func ChangeTitle(ctx context.Context, issue *issues_model.Issue, doer *user_mode
 		return err
 	}
 
-	if user_model.IsUserBlockedBy(ctx, doer, issue.PosterID, issue.Repo.OwnerID) {
-		if isAdmin, _ := access_model.IsUserRepoAdmin(ctx, issue.Repo, doer); !isAdmin {
-			return user_model.ErrBlockedUser
-		}
-	}
-
 	if err := issues_model.ChangeIssueTitle(ctx, issue, doer, oldTitle); err != nil {
 		return err
 	}
@@ -124,13 +100,6 @@ func ChangeTitle(ctx context.Context, issue *issues_model.Issue, doer *user_mode
 	ReviewRequestNotify(ctx, issue, issue.Poster, reviewNotifiers)
 
 	return nil
-}
-
-// ChangeTimeEstimate changes the time estimate of this issue, as the given user.
-func ChangeTimeEstimate(ctx context.Context, issue *issues_model.Issue, doer *user_model.User, timeEstimate int64) (err error) {
-	issue.TimeEstimate = timeEstimate
-
-	return issues_model.ChangeIssueTimeEstimate(ctx, issue, doer, timeEstimate)
 }
 
 // ChangeIssueRef changes the branch of this issue, as the given user.
@@ -158,12 +127,8 @@ func DeleteIssue(ctx context.Context, doer *user_model.User, issue *issues_model
 	}
 
 	// delete entries in database
-	attachmentPaths, err := deleteIssue(ctx, issue)
-	if err != nil {
+	if err := deleteIssue(ctx, issue); err != nil {
 		return err
-	}
-	for _, attachmentPath := range attachmentPaths {
-		system_model.RemoveStorageWithNotice(ctx, storage.Attachments, "Delete issue attachment", attachmentPath)
 	}
 
 	// delete pull request related git data
@@ -197,93 +162,48 @@ func GetRefEndNamesAndURLs(issues []*issues_model.Issue, repoLink string) (map[i
 }
 
 // deleteIssue deletes the issue
-func deleteIssue(ctx context.Context, issue *issues_model.Issue) ([]string, error) {
-	return db.WithTx2(ctx, func(ctx context.Context) ([]string, error) {
+func deleteIssue(ctx context.Context, issue *issues_model.Issue) error {
+	return db.WithTx(ctx, func(ctx context.Context) error {
 		if _, err := db.GetEngine(ctx).ID(issue.ID).NoAutoCondition().Delete(issue); err != nil {
-			return nil, err
+			return err
 		}
 
 		if err := issues_model.DecrRepoIssueNumbers(ctx, issue.RepoID, issue.IsPull, true, issue.IsClosed); err != nil {
-			return nil, err
-		}
-
-		if err := issues_model.UpdateMilestoneCounters(ctx, issue.MilestoneID); err != nil {
-			return nil, fmt.Errorf("error updating counters for milestone id %d: %w",
-				issue.MilestoneID, err)
-		}
-
-		if err := activities_model.DeleteIssueActions(ctx, issue.RepoID, issue.ID, issue.Index); err != nil {
-			return nil, err
-		}
-
-		// find attachments related to this issue and remove them
-		if err := issue.LoadAttachments(ctx); err != nil {
-			return nil, err
-		}
-
-		var attachmentPaths []string
-		for i := range issue.Attachments {
-			attachmentPaths = append(attachmentPaths, issue.Attachments[i].RelativePath())
+			return err
 		}
 
 		// delete all database data still assigned to this issue
-		if err := db.DeleteBeans(ctx,
+		return db.DeleteBeans(ctx,
 			&issues_model.ContentHistory{IssueID: issue.ID},
 			&issues_model.Comment{IssueID: issue.ID},
 			&issues_model.IssueLabel{IssueID: issue.ID},
-			&issues_model.IssueDependency{IssueID: issue.ID},
 			&issues_model.IssueAssignees{IssueID: issue.ID},
 			&issues_model.IssueUser{IssueID: issue.ID},
-			&activities_model.Notification{IssueID: issue.ID},
 			&issues_model.Reaction{IssueID: issue.ID},
-			&issues_model.IssueWatch{IssueID: issue.ID},
-			&issues_model.Stopwatch{IssueID: issue.ID},
-			&issues_model.TrackedTime{IssueID: issue.ID},
-			&project_model.ProjectIssue{IssueID: issue.ID},
-			&repo_model.Attachment{IssueID: issue.ID},
 			&issues_model.PullRequest{IssueID: issue.ID},
 			&issues_model.Comment{RefIssueID: issue.ID},
-			&issues_model.IssueDependency{DependencyID: issue.ID},
-			&issues_model.Comment{DependentIssueID: issue.ID},
-			&issues_model.IssuePin{IssueID: issue.ID},
-		); err != nil {
-			return nil, err
-		}
-
-		return attachmentPaths, nil
+		)
 	})
 }
 
 // DeleteOrphanedIssues delete issues without a repo
 func DeleteOrphanedIssues(ctx context.Context) error {
-	var attachmentPaths []string
-	err := db.WithTx(ctx, func(ctx context.Context) error {
+	return db.WithTx(ctx, func(ctx context.Context) error {
 		repoIDs, err := issues_model.GetOrphanedIssueRepoIDs(ctx)
 		if err != nil {
 			return err
 		}
 		for i := range repoIDs {
-			paths, err := DeleteIssuesByRepoID(ctx, repoIDs[i])
-			if err != nil {
+			if err := DeleteIssuesByRepoID(ctx, repoIDs[i]); err != nil {
 				return err
 			}
-			attachmentPaths = append(attachmentPaths, paths...)
 		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-
-	// Remove issue attachment files.
-	for i := range attachmentPaths {
-		system_model.RemoveStorageWithNotice(ctx, storage.Attachments, "Delete issue attachment", attachmentPaths[i])
-	}
-	return nil
 }
 
 // DeleteIssuesByRepoID deletes issues by repositories id
-func DeleteIssuesByRepoID(ctx context.Context, repoID int64) (attachmentPaths []string, err error) {
+func DeleteIssuesByRepoID(ctx context.Context, repoID int64) error {
 	for {
 		issues := make([]*issues_model.Issue, 0, db.DefaultMaxInSize)
 		if err := db.GetEngine(ctx).
@@ -291,7 +211,7 @@ func DeleteIssuesByRepoID(ctx context.Context, repoID int64) (attachmentPaths []
 			OrderBy("id").
 			Limit(db.DefaultMaxInSize).
 			Find(&issues); err != nil {
-			return nil, err
+			return err
 		}
 
 		if len(issues) == 0 {
@@ -299,14 +219,11 @@ func DeleteIssuesByRepoID(ctx context.Context, repoID int64) (attachmentPaths []
 		}
 
 		for _, issue := range issues {
-			issueAttachPaths, err := deleteIssue(ctx, issue)
-			if err != nil {
-				return nil, fmt.Errorf("deleteIssue [issue_id: %d]: %w", issue.ID, err)
+			if err := deleteIssue(ctx, issue); err != nil {
+				return fmt.Errorf("deleteIssue [issue_id: %d]: %w", issue.ID, err)
 			}
-
-			attachmentPaths = append(attachmentPaths, issueAttachPaths...)
 		}
 	}
 
-	return attachmentPaths, err
+	return nil
 }

@@ -9,8 +9,6 @@ import (
 	"gitea.dev/models/unittest"
 
 	_ "gitea.dev/models"
-	_ "gitea.dev/models/actions"
-	_ "gitea.dev/models/activities"
 )
 
 func TestMain(m *testing.M) {

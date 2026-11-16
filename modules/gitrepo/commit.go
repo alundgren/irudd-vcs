@@ -52,39 +52,11 @@ func CommitsCount(ctx context.Context, repo Repository, opts CommitsCountOptions
 	return strconv.ParseInt(strings.TrimSpace(stdout), 10, 64)
 }
 
-// FileCommitsCount return the number of files at a revision
-func FileCommitsCount(ctx context.Context, repo Repository, revision, file string) (int64, error) {
-	return CommitsCount(ctx, repo,
-		CommitsCountOptions{
-			Revision: []string{revision},
-			RelPath:  []string{file},
-		})
-}
-
 // CommitsCountOfCommit returns number of total commits of until current revision.
 func CommitsCountOfCommit(ctx context.Context, repo Repository, commitID string) (int64, error) {
 	return CommitsCount(ctx, repo, CommitsCountOptions{
 		Revision: []string{commitID},
 	})
-}
-
-// AllCommitsCount returns count of all commits in repository
-func AllCommitsCount(ctx context.Context, repo Repository, hidePRRefs bool, files ...string) (int64, error) {
-	cmd := gitcmd.NewCommand("rev-list")
-	if hidePRRefs {
-		cmd.AddArguments("--exclude=" + git.PullPrefix + "*")
-	}
-	cmd.AddArguments("--all", "--count")
-	if len(files) > 0 {
-		cmd.AddDashesAndList(files...)
-	}
-
-	stdout, _, err := RunCmdString(ctx, repo, cmd)
-	if err != nil {
-		return 0, err
-	}
-
-	return strconv.ParseInt(strings.TrimSpace(stdout), 10, 64)
 }
 
 func GetFullCommitID(ctx context.Context, repo Repository, shortID string) (string, error) {

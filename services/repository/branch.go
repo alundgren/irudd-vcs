@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	actions_model "gitea.dev/models/actions"
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
@@ -21,7 +20,6 @@ import (
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/graceful"
-	"gitea.dev/modules/json"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/queue"
@@ -29,12 +27,8 @@ import (
 	"gitea.dev/modules/reqctx"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
-	webhook_module "gitea.dev/modules/webhook"
-	actions_service "gitea.dev/services/actions"
 	notify_service "gitea.dev/services/notify"
 	release_service "gitea.dev/services/release"
-
-	"xorm.io/builder"
 )
 
 // CreateNewBranch creates a new repository branch
@@ -47,104 +41,8 @@ func CreateNewBranch(ctx context.Context, doer *user_model.User, repo *repo_mode
 	return CreateNewBranchFromCommit(ctx, doer, repo, branch.CommitID, branchName)
 }
 
-// Branch contains the branch information
-type Branch struct {
-	DBBranch          *git_model.Branch
-	IsProtected       bool
-	IsIncluded        bool
-	CommitsAhead      int
-	CommitsBehind     int
-	LatestPullRequest *issues_model.PullRequest
-	MergeMovedOn      bool
-}
-
-// LoadBranches loads branches from the repository limited by page & pageSize.
-func LoadBranches(ctx context.Context, repo *repo_model.Repository, gitRepo *git.Repository, isDeletedBranch optional.Option[bool], keyword string, page, pageSize int) (defaultBranchOptional *Branch, _ []*Branch, _ int64, _ error) {
-	defaultDBBranchOptional, err := git_model.GetBranch(ctx, repo.ID, repo.DefaultBranch)
-	if err != nil && !errors.Is(err, util.ErrNotExist) {
-		return nil, nil, 0, err
-	}
-
-	branchOpts := git_model.FindBranchOptions{
-		RepoID:          repo.ID,
-		IsDeletedBranch: isDeletedBranch,
-		ListOptions: db.ListOptions{
-			Page:     page,
-			PageSize: pageSize,
-		},
-		Keyword:            keyword,
-		ExcludeBranchNames: []string{repo.DefaultBranch},
-	}
-
-	dbBranches, totalNumOfBranches, err := db.FindAndCount[git_model.Branch](ctx, branchOpts)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-
-	if err := git_model.BranchList(dbBranches).LoadDeletedBy(ctx); err != nil {
-		return nil, nil, 0, err
-	}
-	if err := git_model.BranchList(dbBranches).LoadPusher(ctx); err != nil {
-		return nil, nil, 0, err
-	}
-
-	rules, err := git_model.FindRepoProtectedBranchRules(ctx, repo.ID)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-
-	repoIDToRepo := map[int64]*repo_model.Repository{}
-	repoIDToRepo[repo.ID] = repo
-
-	repoIDToGitRepo := map[int64]*git.Repository{}
-	repoIDToGitRepo[repo.ID] = gitRepo
-
-	branches := make([]*Branch, 0, len(dbBranches))
-	for i := range dbBranches {
-		branch, err := loadOneBranch(ctx, repo, dbBranches[i], &rules, repoIDToRepo, repoIDToGitRepo)
-		if err != nil {
-			return nil, nil, 0, fmt.Errorf("loadOneBranch: %v", err)
-		}
-		branches = append(branches, branch)
-	}
-
-	if defaultDBBranchOptional != nil {
-		// Always add the default branch
-		defaultBranchOptional, err = loadOneBranch(ctx, repo, defaultDBBranchOptional, &rules, repoIDToRepo, repoIDToGitRepo)
-		if err != nil {
-			return nil, nil, 0, fmt.Errorf("loadOneBranch: %v", err)
-		}
-	}
-	return defaultBranchOptional, branches, totalNumOfBranches, nil
-}
-
 func getDivergenceCacheKey(repoID int64, branchName string) string {
 	return fmt.Sprintf("%d-%s", repoID, branchName)
-}
-
-// getDivergenceFromCache gets the divergence from cache
-func getDivergenceFromCache(repoID int64, branchName string) (*gitrepo.DivergeObject, bool) {
-	data, ok := cache.GetCache().Get(getDivergenceCacheKey(repoID, branchName))
-	res := gitrepo.DivergeObject{
-		Ahead:  -1,
-		Behind: -1,
-	}
-	if !ok || data == "" {
-		return &res, false
-	}
-	if err := json.Unmarshal(util.UnsafeStringToBytes(data), &res); err != nil {
-		log.Error("json.UnMarshal failed: %v", err)
-		return &res, false
-	}
-	return &res, true
-}
-
-func putDivergenceFromCache(repoID int64, branchName string, divergence *gitrepo.DivergeObject) error {
-	bs, err := json.Marshal(divergence)
-	if err != nil {
-		return err
-	}
-	return cache.GetCache().Put(getDivergenceCacheKey(repoID, branchName), util.UnsafeBytesToString(bs), 30*24*60*60)
 }
 
 func DelDivergenceFromCache(repoID int64, branchName string) error {
@@ -166,94 +64,6 @@ func DelRepoDivergenceFromCache(ctx context.Context, repoID int64) error {
 		}
 	}
 	return nil
-}
-
-func loadOneBranch(ctx context.Context, repo *repo_model.Repository, dbBranch *git_model.Branch, protectedBranches *git_model.ProtectedBranchRules,
-	repoIDToRepo map[int64]*repo_model.Repository,
-	repoIDToGitRepo map[int64]*git.Repository,
-) (*Branch, error) {
-	log.Trace("loadOneBranch: '%s'", dbBranch.Name)
-
-	branchName := dbBranch.Name
-	p := protectedBranches.GetFirstMatched(branchName)
-	isProtected := p != nil
-
-	var divergence *gitrepo.DivergeObject
-
-	// it's not default branch
-	if repo.DefaultBranch != dbBranch.Name && !dbBranch.IsDeleted {
-		var cached bool
-		divergence, cached = getDivergenceFromCache(repo.ID, dbBranch.Name)
-		if !cached {
-			var err error
-			divergence, err = gitrepo.GetDivergingCommits(ctx, repo, repo.DefaultBranch, git.BranchPrefix+branchName)
-			if err != nil {
-				log.Error("GetDivergingCommits: %v", err)
-			} else {
-				if err = putDivergenceFromCache(repo.ID, dbBranch.Name, divergence); err != nil {
-					log.Error("putDivergenceFromCache: %v", err)
-				}
-			}
-		}
-	}
-
-	if divergence == nil {
-		// tolerate the error that we cannot get divergence
-		divergence = &gitrepo.DivergeObject{Ahead: -1, Behind: -1}
-	}
-
-	pr, err := issues_model.GetLatestPullRequestByHeadInfo(ctx, repo.ID, branchName)
-	if err != nil {
-		return nil, fmt.Errorf("GetLatestPullRequestByHeadInfo: %v", err)
-	}
-	headCommit := dbBranch.CommitID
-
-	mergeMovedOn := false
-	if pr != nil {
-		pr.HeadRepo = repo
-		if err := pr.LoadIssue(ctx); err != nil {
-			return nil, fmt.Errorf("LoadIssue: %v", err)
-		}
-		if repo, ok := repoIDToRepo[pr.BaseRepoID]; ok {
-			pr.BaseRepo = repo
-		} else if err := pr.LoadBaseRepo(ctx); err != nil {
-			return nil, fmt.Errorf("LoadBaseRepo: %v", err)
-		} else {
-			repoIDToRepo[pr.BaseRepoID] = pr.BaseRepo
-		}
-		pr.Issue.Repo = pr.BaseRepo
-
-		if pr.HasMerged {
-			baseGitRepo, ok := repoIDToGitRepo[pr.BaseRepoID]
-			if !ok {
-				baseGitRepo, err = gitrepo.OpenRepository(ctx, pr.BaseRepo)
-				if err != nil {
-					return nil, fmt.Errorf("OpenRepository: %v", err)
-				}
-				defer baseGitRepo.Close()
-				repoIDToGitRepo[pr.BaseRepoID] = baseGitRepo
-			}
-			pullCommit, err := baseGitRepo.GetRefCommitID(pr.GetGitHeadRefName())
-			if err != nil && !git.IsErrNotExist(err) {
-				return nil, fmt.Errorf("GetBranchCommitID: %v", err)
-			}
-			if err == nil && headCommit != pullCommit {
-				// the head has moved on from the merge - we shouldn't delete
-				mergeMovedOn = true
-			}
-		}
-	}
-
-	isIncluded := divergence.Ahead == 0 && repo.DefaultBranch != branchName
-	return &Branch{
-		DBBranch:          dbBranch,
-		IsProtected:       isProtected,
-		IsIncluded:        isIncluded,
-		CommitsAhead:      divergence.Ahead,
-		CommitsBehind:     divergence.Behind,
-		LatestPullRequest: pr,
-		MergeMovedOn:      mergeMovedOn,
-	}, nil
 }
 
 // checkBranchName validates branch name with existing repository branches
@@ -459,21 +269,6 @@ func RenameBranch(ctx context.Context, repo *repo_model.Repository, doer *user_m
 		}
 
 		if isDefault {
-			// if default branch changed, we need to delete all schedules and cron jobs
-			if err := actions_model.DeleteScheduleTaskByRepo(ctx, repo.ID); err != nil {
-				log.Error("DeleteCronTaskByRepo: %v", err)
-			}
-			// cancel running cron jobs of this repository and delete old schedules
-			if err := actions_service.CancelPreviousJobs(
-				ctx,
-				repo.ID,
-				from,
-				"",
-				webhook_module.HookEventSchedule,
-			); err != nil {
-				log.Error("CancelPreviousJobs: %v", err)
-			}
-
 			err2 = gitrepo.SetDefaultBranch(ctx, repo, to)
 			if err2 != nil {
 				return err2
@@ -672,82 +467,12 @@ func handlerBranchSync(items ...*BranchSyncOptions) []*BranchSyncOptions {
 	return nil
 }
 
-func addRepoToBranchSyncQueue(repoID int64) error {
-	return branchSyncQueue.Push(&BranchSyncOptions{
-		RepoID: repoID,
-	})
-}
-
 func initBranchSyncQueue(ctx context.Context) error {
 	branchSyncQueue = queue.CreateUniqueQueue(ctx, "branch_sync", handlerBranchSync)
 	if branchSyncQueue == nil {
 		return errors.New("unable to create branch_sync queue")
 	}
 	go graceful.GetManager().RunWithCancel(branchSyncQueue)
-
-	return nil
-}
-
-func AddAllRepoBranchesToSyncQueue(ctx context.Context) error {
-	if err := db.Iterate(ctx, builder.Eq{"is_empty": false}, func(ctx context.Context, repo *repo_model.Repository) error {
-		return addRepoToBranchSyncQueue(repo.ID)
-	}); err != nil {
-		return fmt.Errorf("run sync all branches failed: %v", err)
-	}
-	return nil
-}
-
-func SetRepoDefaultBranch(ctx context.Context, repo *repo_model.Repository, newBranchName string) error {
-	if repo.DefaultBranch == newBranchName {
-		return nil
-	}
-
-	if exist, _ := git_model.IsBranchExist(ctx, repo.ID, newBranchName); !exist {
-		return git_model.ErrBranchNotExist{
-			BranchName: newBranchName,
-		}
-	}
-
-	oldDefaultBranchName := repo.DefaultBranch
-	repo.DefaultBranch = newBranchName
-	if err := db.WithTx(ctx, func(ctx context.Context) error {
-		if err := repo_model.UpdateDefaultBranch(ctx, repo); err != nil {
-			return err
-		}
-
-		if err := actions_model.DeleteScheduleTaskByRepo(ctx, repo.ID); err != nil {
-			log.Error("DeleteCronTaskByRepo: %v", err)
-		}
-		// cancel running cron jobs of this repository and delete old schedules
-		if err := actions_service.CancelPreviousJobs(
-			ctx,
-			repo.ID,
-			oldDefaultBranchName,
-			"",
-			webhook_module.HookEventSchedule,
-		); err != nil {
-			log.Error("CancelPreviousJobs: %v", err)
-		}
-
-		return gitrepo.SetDefaultBranch(ctx, repo, newBranchName)
-	}); err != nil {
-		return err
-	}
-
-	if !repo.IsEmpty {
-		if err := AddRepoToLicenseUpdaterQueue(&LicenseUpdaterOptions{
-			RepoID: repo.ID,
-		}); err != nil {
-			log.Error("AddRepoToLicenseUpdaterQueue: %v", err)
-		}
-	}
-
-	// clear divergence cache
-	if err := DelRepoDivergenceFromCache(ctx, repo.ID); err != nil {
-		log.Error("DelRepoDivergenceFromCache: %v", err)
-	}
-
-	notify_service.ChangeDefaultBranch(ctx, repo)
 
 	return nil
 }

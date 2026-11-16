@@ -54,15 +54,9 @@ func syncGitConfig(ctx context.Context) (err error) {
 		}
 	}
 
-	if DefaultFeatures().SupportProcReceive {
-		// set support for AGit flow
-		if err := configAddNonExist(ctx, "receive.procReceiveRefs", "refs/for"); err != nil {
-			return err
-		}
-	} else {
-		if err := configUnsetAll(ctx, "receive.procReceiveRefs", "refs/for"); err != nil {
-			return err
-		}
+	// AGit flow is not supported: make sure refs/for is not routed to a proc-receive hook
+	if err := configUnsetAll(ctx, "receive.procReceiveRefs", "refs/for"); err != nil {
+		return err
 	}
 
 	// Due to CVE-2022-24765, git now denies access to git directories which are not owned by current user.

@@ -7,10 +7,9 @@ import (
 	"slices"
 	"testing"
 
-	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
+	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
-	"gitea.dev/models/user"
 	"gitea.dev/modules/log"
 
 	"github.com/stretchr/testify/assert"
@@ -20,31 +19,26 @@ import (
 func TestConsistencyCheck(t *testing.T) {
 	checks := prepareDBConsistencyChecks()
 	idx := slices.IndexFunc(checks, func(check consistencyCheck) bool {
-		return check.Name == "Orphaned OAuth2Application without existing User"
+		return check.Name == "Orphaned Releases without existing repository"
 	})
 	require.NotEqual(t, -1, idx)
 
-	_ = db.TruncateBeans(t.Context(), &auth.OAuth2Application{}, &user.User{})
-	_ = db.TruncateBeans(t.Context(), &auth.OAuth2Application{}, &auth.OAuth2Application{})
+	_ = db.TruncateBeans(t.Context(), &repo_model.Release{}, &repo_model.Repository{})
 
-	err := db.Insert(t.Context(), &user.User{ID: 1})
+	err := db.Insert(t.Context(), &repo_model.Repository{ID: 1, Name: "repo1", LowerName: "repo1"})
 	assert.NoError(t, err)
-	err = db.Insert(t.Context(), &auth.OAuth2Application{Name: "test-oauth2-app-1", ClientID: "client-id-1"})
+	err = db.Insert(t.Context(), &repo_model.Release{TagName: "v1", LowerTagName: "v1", RepoID: 1})
 	assert.NoError(t, err)
-	err = db.Insert(t.Context(), &auth.OAuth2Application{Name: "test-oauth2-app-2", ClientID: "client-id-2", UID: 1})
-	assert.NoError(t, err)
-	err = db.Insert(t.Context(), &auth.OAuth2Application{Name: "test-oauth2-app-3", ClientID: "client-id-3", UID: 99999999})
+	err = db.Insert(t.Context(), &repo_model.Release{TagName: "v2", LowerTagName: "v2", RepoID: 99999999})
 	assert.NoError(t, err)
 
-	unittest.AssertExistsAndLoadBean(t, &auth.OAuth2Application{ClientID: "client-id-1"})
-	unittest.AssertExistsAndLoadBean(t, &auth.OAuth2Application{ClientID: "client-id-2"})
-	unittest.AssertExistsAndLoadBean(t, &auth.OAuth2Application{ClientID: "client-id-3"})
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Release{TagName: "v1"})
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Release{TagName: "v2"})
 
-	oauth2AppCheck := checks[idx]
-	err = oauth2AppCheck.Run(t.Context(), log.GetManager().GetLogger(log.DEFAULT), true)
+	releaseCheck := checks[idx]
+	err = releaseCheck.Run(t.Context(), log.GetManager().GetLogger(log.DEFAULT), true)
 	assert.NoError(t, err)
 
-	unittest.AssertExistsAndLoadBean(t, &auth.OAuth2Application{ClientID: "client-id-1"})
-	unittest.AssertExistsAndLoadBean(t, &auth.OAuth2Application{ClientID: "client-id-2"})
-	unittest.AssertNotExistsBean(t, &auth.OAuth2Application{ClientID: "client-id-3"})
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Release{TagName: "v1"})
+	unittest.AssertNotExistsBean(t, &repo_model.Release{TagName: "v2"})
 }

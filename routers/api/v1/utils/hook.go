@@ -11,7 +11,6 @@ import (
 	"gitea.dev/models/db"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/models/webhook"
-	"gitea.dev/modules/json"
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
@@ -170,25 +169,19 @@ func updateHookEvents(events []string) webhook_module.HookEvents {
 	hookEvents[webhook_module.HookEventDelete] = util.SliceContainsString(events, string(webhook_module.HookEventDelete), true)
 	hookEvents[webhook_module.HookEventFork] = util.SliceContainsString(events, string(webhook_module.HookEventFork), true)
 	hookEvents[webhook_module.HookEventRepository] = util.SliceContainsString(events, string(webhook_module.HookEventRepository), true)
-	hookEvents[webhook_module.HookEventWiki] = util.SliceContainsString(events, string(webhook_module.HookEventWiki), true)
 	hookEvents[webhook_module.HookEventRelease] = util.SliceContainsString(events, string(webhook_module.HookEventRelease), true)
-	hookEvents[webhook_module.HookEventPackage] = util.SliceContainsString(events, string(webhook_module.HookEventPackage), true)
 	hookEvents[webhook_module.HookEventStatus] = util.SliceContainsString(events, string(webhook_module.HookEventStatus), true)
-	hookEvents[webhook_module.HookEventWorkflowRun] = util.SliceContainsString(events, string(webhook_module.HookEventWorkflowRun), true)
-	hookEvents[webhook_module.HookEventWorkflowJob] = util.SliceContainsString(events, string(webhook_module.HookEventWorkflowJob), true)
 
 	// Issues
 	hookEvents[webhook_module.HookEventIssues] = issuesHook(events, "issues_only")
 	hookEvents[webhook_module.HookEventIssueAssign] = issuesHook(events, string(webhook_module.HookEventIssueAssign))
 	hookEvents[webhook_module.HookEventIssueLabel] = issuesHook(events, string(webhook_module.HookEventIssueLabel))
-	hookEvents[webhook_module.HookEventIssueMilestone] = issuesHook(events, string(webhook_module.HookEventIssueMilestone))
 	hookEvents[webhook_module.HookEventIssueComment] = issuesHook(events, string(webhook_module.HookEventIssueComment))
 
 	// Pull requests
 	hookEvents[webhook_module.HookEventPullRequest] = pullHook(events, "pull_request_only")
 	hookEvents[webhook_module.HookEventPullRequestAssign] = pullHook(events, string(webhook_module.HookEventPullRequestAssign))
 	hookEvents[webhook_module.HookEventPullRequestLabel] = pullHook(events, string(webhook_module.HookEventPullRequestLabel))
-	hookEvents[webhook_module.HookEventPullRequestMilestone] = pullHook(events, string(webhook_module.HookEventPullRequestMilestone))
 	hookEvents[webhook_module.HookEventPullRequestComment] = pullHook(events, string(webhook_module.HookEventPullRequestComment))
 	hookEvents[webhook_module.HookEventPullRequestReview] = pullHook(events, "pull_request_review")
 	hookEvents[webhook_module.HookEventPullRequestReviewRequest] = pullHook(events, string(webhook_module.HookEventPullRequestReviewRequest))
@@ -234,32 +227,6 @@ func addHook(ctx *context.APIContext, form *api.CreateHookOption, ownerID, repoI
 		ctx.APIErrorInternal(err)
 		return nil, false
 	}
-	if w.Type == webhook_module.SLACK {
-		channel, ok := form.Config["channel"]
-		if !ok {
-			ctx.APIError(http.StatusUnprocessableEntity, "Missing config option: channel")
-			return nil, false
-		}
-		channel = strings.TrimSpace(channel)
-
-		if !webhook_service.IsValidSlackChannel(channel) {
-			ctx.APIError(http.StatusBadRequest, "Invalid slack channel name")
-			return nil, false
-		}
-
-		meta, err := json.Marshal(&webhook_service.SlackMeta{
-			Channel:  channel,
-			Username: form.Config["username"],
-			IconURL:  form.Config["icon_url"],
-			Color:    form.Config["color"],
-		})
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return nil, false
-		}
-		w.Meta = string(meta)
-	}
-
 	if err := w.UpdateEvent(); err != nil {
 		ctx.APIErrorInternal(err)
 		return nil, false
@@ -352,22 +319,6 @@ func editHook(ctx *context.APIContext, form *api.EditHookOption, w *webhook.Webh
 				return false
 			}
 			w.ContentType = webhook.ToHookContentType(ct)
-		}
-
-		if w.Type == webhook_module.SLACK {
-			if channel, ok := form.Config["channel"]; ok {
-				meta, err := json.Marshal(&webhook_service.SlackMeta{
-					Channel:  channel,
-					Username: form.Config["username"],
-					IconURL:  form.Config["icon_url"],
-					Color:    form.Config["color"],
-				})
-				if err != nil {
-					ctx.APIErrorInternal(err)
-					return false
-				}
-				w.Meta = string(meta)
-			}
 		}
 	}
 

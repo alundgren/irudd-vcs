@@ -6,7 +6,7 @@ and testing see [development.md](development.md) and [testing.md](testing.md).
 
 ## Background
 
-The backend is written in Go. Web routing is handled by
+The backend is written in Go. HTTP routing is handled by
 [chi](https://github.com/go-chi/chi) and database access goes through the
 [XORM](https://xorm.io/) ORM. Understanding how the packages depend on each other is
 essential before contributing backend code.
@@ -18,7 +18,7 @@ essential before contributing backend code.
 The backend is split into top-level packages, each with a focused responsibility:
 
 - `build`: helper scripts used at compile time
-- `cmd`: subcommands such as `web`, `serv`, `hooks`, `doctor`, and admin utilities
+- `cmd`: subcommands such as `web`, `hook`, `doctor`, and admin utilities
 - `models`: data structures and database operations (XORM); keeps external
   dependencies to a minimum
   - `models/db`: core database operations
@@ -27,11 +27,11 @@ The backend is split into top-level packages, each with a focused responsibility
 - `modules`: standalone functionality with few dependencies
   - `modules/setting`: configuration handling
   - `modules/git`: interaction with the Git command line
-- `routers`: request handlers, split into `api`, `web`, `install`, and `private`
+- `routers`: request handlers, split into `api` (the v1 API), `web` (git over HTTP,
+  LFS and the spec files), `private` (internal API for git hooks), and `common`
 - `services`: business logic that ties routers and models together
-- `templates`: Go HTML templates
-- `public`: compiled frontend assets
-- `tests`: integration and end-to-end test helpers
+- `options`: gitignore, license, label and readme templates for new repositories
+- `tests`: integration test helpers
 
 ### Dependency direction
 
@@ -68,8 +68,6 @@ parameter so the transaction can be propagated.
   every row in the table.
 - Partial table migrations must use `SyncWithOptions(IgnoreDrop...)` rather than a
   plain `Sync`.
-- When inserting rows with preset IDs, MSSQL requires `SET IDENTITY_INSERT` to be
-  enabled and PostgreSQL requires the sequence to be updated afterwards.
 
 ## Dependencies
 
@@ -85,8 +83,9 @@ verified by reviewers and the merger to reference an existing upstream commit.
 
 ## API v1
 
-The API is documented with [Swagger](https://gitea.com/api/swagger) and is modelled
-on [the GitHub API](https://docs.github.com/en/rest).
+The API is documented with Swagger (`modules/apispec/v1_json.tmpl`, served at
+`/swagger.v1.json`) and is modelled on [the GitHub API](https://docs.github.com/en/rest).
+It stays compatible with the Gitea API so that Gitea clients keep working.
 
 ### GitHub API compatibility
 

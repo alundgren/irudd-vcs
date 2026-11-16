@@ -65,7 +65,7 @@ func TestManualMergeAutodetect(t *testing.T) {
 		dstPath := t.TempDir()
 		u, _ := url.Parse(giteaURL.String())
 		u.Path = fmt.Sprintf("%s/%s.git", user2.Name, repoName)
-		u.User = url.UserPassword(user1.Name, userPassword)
+		u.User = gitUserInfo(t, user1.Name)
 
 		doGitClone(dstPath, u)(t)
 

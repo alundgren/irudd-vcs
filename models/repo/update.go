@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitea.dev/models/db"
+	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 )
 
@@ -90,12 +91,6 @@ type ErrRepoFilesAlreadyExist struct {
 	Name  string
 }
 
-// IsErrRepoFilesAlreadyExist checks if an error is a ErrRepoAlreadyExist.
-func IsErrRepoFilesAlreadyExist(err error) bool {
-	_, ok := err.(ErrRepoFilesAlreadyExist)
-	return ok
-}
-
 func (err ErrRepoFilesAlreadyExist) Error() string {
 	return fmt.Sprintf("repository files already exist [uname: %s, name: %s]", err.Uname, err.Name)
 }
@@ -111,5 +106,19 @@ func UpdateRepoSize(ctx context.Context, repoID, gitSize, lfsSize int64) error {
 		GitSize: gitSize,
 		LFSSize: lfsSize,
 	})
+	return err
+}
+
+// SetArchiveRepoState sets if a repo is archived
+func SetArchiveRepoState(ctx context.Context, repo *Repository, isArchived bool) (err error) {
+	repo.IsArchived = isArchived
+
+	if isArchived {
+		repo.ArchivedUnix = timeutil.TimeStampNow()
+	} else {
+		repo.ArchivedUnix = timeutil.TimeStamp(0)
+	}
+
+	_, err = db.GetEngine(ctx).ID(repo.ID).Cols("is_archived", "archived_unix").NoAutoTime().Update(repo)
 	return err
 }

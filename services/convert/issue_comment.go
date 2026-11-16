@@ -11,33 +11,25 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/log"
 	api "gitea.dev/modules/structs"
-	"gitea.dev/modules/util"
 )
 
 // ToAPIComment converts a issues_model.Comment to the api.Comment format for API usage
 func ToAPIComment(ctx context.Context, repo *repo_model.Repository, c *issues_model.Comment) *api.Comment {
 	return &api.Comment{
-		ID:          c.ID,
-		Poster:      ToUser(ctx, c.Poster, nil),
-		HTMLURL:     c.HTMLURL(ctx),
-		IssueURL:    c.IssueURL(ctx),
-		PRURL:       c.PRURL(ctx),
-		Body:        c.Content,
-		Attachments: ToAPIAttachments(repo, c.Attachments),
-		Created:     c.CreatedUnix.AsTime(),
-		Updated:     c.UpdatedUnix.AsTime(),
+		ID:       c.ID,
+		Poster:   ToUser(ctx, c.Poster, nil),
+		HTMLURL:  c.HTMLURL(ctx),
+		IssueURL: c.IssueURL(ctx),
+		PRURL:    c.PRURL(ctx),
+		Body:     c.Content,
+		Created:  c.CreatedUnix.AsTime(),
+		Updated:  c.UpdatedUnix.AsTime(),
 	}
 }
 
 // ToTimelineComment converts a issues_model.Comment to the api.TimelineComment format
 func ToTimelineComment(ctx context.Context, repo *repo_model.Repository, c *issues_model.Comment, doer *user_model.User) *api.TimelineComment {
-	err := c.LoadMilestone(ctx)
-	if err != nil {
-		log.Error("LoadMilestone: %v", err)
-		return nil
-	}
-
-	err = c.LoadAssigneeUserAndTeam(ctx)
+	err := c.LoadAssigneeUserAndTeam(ctx)
 	if err != nil {
 		log.Error("LoadAssigneeUserAndTeam: %v", err)
 		return nil
@@ -49,38 +41,10 @@ func ToTimelineComment(ctx context.Context, repo *repo_model.Repository, c *issu
 		return nil
 	}
 
-	err = c.LoadDepIssueDetails(ctx)
-	if err != nil {
-		log.Error("LoadDepIssueDetails: %v", err)
-		return nil
-	}
-
-	err = c.LoadTime(ctx)
-	if err != nil {
-		log.Error("LoadTime: %v", err)
-		return nil
-	}
-
 	err = c.LoadLabel(ctx)
 	if err != nil {
 		log.Error("LoadLabel: %v", err)
 		return nil
-	}
-
-	if c.Content != "" {
-		if (c.Type == issues_model.CommentTypeAddTimeManual ||
-			c.Type == issues_model.CommentTypeStopTracking ||
-			c.Type == issues_model.CommentTypeDeleteTimeManual) &&
-			c.Content[0] == '|' {
-			// TimeTracking Comments from v1.21 on store the seconds instead of an formatted string
-			// so we check for the "|" delimiter and convert new to legacy format on demand
-			c.Content = util.SecToHours(c.Content[1:])
-		}
-
-		if c.Type == issues_model.CommentTypeChangeTimeEstimate {
-			timeSec, _ := util.ToInt64(c.Content)
-			c.Content = util.TimeEstimateString(timeSec)
-		}
 	}
 
 	comment := &api.TimelineComment{
@@ -94,9 +58,6 @@ func ToTimelineComment(ctx context.Context, repo *repo_model.Repository, c *issu
 		Created:  c.CreatedUnix.AsTime(),
 		Updated:  c.UpdatedUnix.AsTime(),
 
-		OldProjectID: c.OldProjectID,
-		ProjectID:    c.ProjectID,
-
 		OldTitle: c.OldTitle,
 		NewTitle: c.NewTitle,
 
@@ -109,23 +70,6 @@ func ToTimelineComment(ctx context.Context, repo *repo_model.Repository, c *issu
 		ReviewID: c.ReviewID,
 
 		RemovedAssignee: c.RemovedAssignee,
-	}
-
-	if c.OldMilestone != nil {
-		comment.OldMilestone = ToAPIMilestone(c.OldMilestone)
-	}
-	if c.Milestone != nil {
-		comment.Milestone = ToAPIMilestone(c.Milestone)
-	}
-
-	if c.Time != nil {
-		err = c.Time.LoadAttributes(ctx)
-		if err != nil {
-			log.Error("Time.LoadAttributes: %v", err)
-			return nil
-		}
-
-		comment.TrackedTime = ToTrackedTime(ctx, doer, c.Time)
 	}
 
 	if c.RefIssueID != 0 {
@@ -176,16 +120,9 @@ func ToTimelineComment(ctx context.Context, repo *repo_model.Repository, c *issu
 	if c.Assignee != nil {
 		comment.Assignee = ToUser(ctx, c.Assignee, nil)
 	}
-	if c.AssigneeTeam != nil {
-		comment.AssigneeTeam, _ = ToTeam(ctx, c.AssigneeTeam)
-	}
 
 	if c.ResolveDoer != nil {
 		comment.ResolveDoer = ToUser(ctx, c.ResolveDoer, nil)
-	}
-
-	if c.DependentIssue != nil {
-		comment.DependentIssue = ToAPIIssue(ctx, doer, c.DependentIssue)
 	}
 
 	return comment

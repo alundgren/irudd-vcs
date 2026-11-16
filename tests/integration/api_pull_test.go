@@ -15,7 +15,6 @@ import (
 
 	auth_model "gitea.dev/models/auth"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/perm"
 	repo_model "gitea.dev/models/repo"
 	unit_model "gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
@@ -304,52 +303,14 @@ func TestAPICreatePullBasePermission(t *testing.T) {
 
 		AllowMaintainerEdit: new(false),
 	}
+	// every signed-in user owns every repository, so no collaborator setup is needed
 	req := NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls", owner10.Name, repo10.Name), &opts).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusForbidden)
-
-	// add user4 to be a collaborator to base repo
-	ctx := NewAPITestContext(t, repo10.OwnerName, repo10.Name, auth_model.AccessTokenScopeWriteRepository)
-	t.Run("AddUser4AsCollaborator", doAPIAddCollaborator(ctx, user4.Name, perm.AccessModeRead))
-
-	// create again
-	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls", owner10.Name, repo10.Name), &opts).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusCreated)
 
 	// Also test that AllowMaintainerEdit is set to false, the default "true" case is covered by TestAPICreatePullSuccess
 	prIssue := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{Title: prTitle})
 	pr := unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{IssueID: prIssue.ID})
 	assert.False(t, pr.AllowMaintainerEdit)
-}
-
-func TestAPICreatePullHeadPermission(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	repo10 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 10})
-	// repo10 have code, pulls units.
-	repo11 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 11})
-	// repo11 only have code unit but should still create pulls
-	owner10 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo10.OwnerID})
-	user4 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
-
-	session := loginUser(t, user4.Name)
-	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)
-	opts := &api.CreatePullRequestOption{
-		Head:  repo11.OwnerName + ":master",
-		Base:  "master",
-		Title: "create a failure pr",
-	}
-	req := NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls", owner10.Name, repo10.Name), &opts).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusForbidden)
-
-	// add user4 to be a collaborator to head repo with read permission
-	ctx := NewAPITestContext(t, repo11.OwnerName, repo11.Name, auth_model.AccessTokenScopeWriteRepository)
-	t.Run("AddUser4AsCollaboratorWithRead", doAPIAddCollaborator(ctx, user4.Name, perm.AccessModeRead))
-	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls", owner10.Name, repo10.Name), &opts).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusForbidden)
-
-	// add user4 to be a collaborator to head repo with write permission
-	t.Run("AddUser4AsCollaboratorWithWrite", doAPIAddCollaborator(ctx, user4.Name, perm.AccessModeWrite))
-	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls", owner10.Name, repo10.Name), &opts).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusCreated)
 }
 
 func TestAPICreatePullSameRepoSuccess(t *testing.T) {
@@ -386,7 +347,6 @@ func TestAPICreatePullWithFieldsSuccess(t *testing.T) {
 		Base:      "master",
 		Title:     "create a failure pr",
 		Body:      "foobaaar",
-		Milestone: 5,
 		Assignees: []string{owner10.Name},
 		Labels:    []int64{5},
 	}
@@ -396,8 +356,6 @@ func TestAPICreatePullWithFieldsSuccess(t *testing.T) {
 	resp := MakeRequest(t, req, http.StatusCreated)
 	pull := DecodeJSON(t, resp, &api.PullRequest{})
 
-	assert.NotNil(t, pull.Milestone)
-	assert.Equal(t, opts.Milestone, pull.Milestone.ID)
 	if assert.Len(t, pull.Assignees, 1) {
 		assert.Equal(t, opts.Assignees[0], owner10.Name)
 	}
@@ -426,10 +384,6 @@ func TestAPICreatePullWithFieldsFailure(t *testing.T) {
 		AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusUnprocessableEntity)
 	opts.Title = "is required"
-
-	opts.Milestone = 666
-	MakeRequest(t, req, http.StatusUnprocessableEntity)
-	opts.Milestone = 5
 
 	opts.Assignees = []string{"qweruqweroiuyqweoiruywqer"}
 	MakeRequest(t, req, http.StatusUnprocessableEntity)

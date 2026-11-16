@@ -6,9 +6,7 @@ package issues_test
 import (
 	"testing"
 
-	"gitea.dev/models/db"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/perm"
 	"gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
@@ -16,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"xorm.io/builder"
 )
 
 func TestPullRequestList(t *testing.T) {
@@ -91,7 +88,7 @@ func testCanMaintainerWriteToBranch(t *testing.T) {
 		HeadBranch: "pr-from-head-owner",
 		BaseBranch: "master",
 	}
-	require.NoError(t, issues_model.NewPullRequest(ctx, baseRepo, headOwnerPR.Issue, nil, nil, headOwnerPR))
+	require.NoError(t, issues_model.NewPullRequest(ctx, baseRepo, headOwnerPR.Issue, nil, headOwnerPR))
 
 	// a PR from a user, they might have or not have "write" permission in the target repo
 	anyUserPR := &issues_model.PullRequest{
@@ -104,39 +101,16 @@ func testCanMaintainerWriteToBranch(t *testing.T) {
 		HeadBranch: "pr-from-head-user",
 		BaseBranch: "master",
 	}
-	require.NoError(t, issues_model.NewPullRequest(ctx, baseRepo, anyUserPR.Issue, nil, nil, anyUserPR))
+	require.NoError(t, issues_model.NewPullRequest(ctx, baseRepo, anyUserPR.Issue, nil, anyUserPR))
 
 	doerCanWrite := func(doer *user_model.User, pr *issues_model.PullRequest) bool {
 		headPerm, _ := access.GetIndividualUserRepoPermission(ctx, headRepo, doer)
 		return issues_model.CanMaintainerWriteToBranch(ctx, headPerm, pr.HeadBranch, doer)
 	}
 
-	t.Run("NoAllowMaintainerEdit", func(t *testing.T) {
-		assert.True(t, doerCanWrite(headRepo.Owner, headOwnerPR))
-		assert.False(t, doerCanWrite(baseRepo.Owner, headOwnerPR))
-		assert.False(t, doerCanWrite(baseRepo.Owner, anyUserPR))
-		assert.False(t, doerCanWrite(user, anyUserPR))
-	})
-
-	t.Run("WithAllowMaintainerEdit-HeadPosterReader", func(t *testing.T) {
-		_, err := db.GetEngine(ctx).Where(builder.In("id", []int64{headOwnerPR.ID, anyUserPR.ID})).
-			Cols("allow_maintainer_edit").
-			Update(&issues_model.PullRequest{AllowMaintainerEdit: true})
-		require.NoError(t, err)
-		assert.True(t, doerCanWrite(baseRepo.Owner, headOwnerPR))
-		assert.False(t, doerCanWrite(baseRepo.Owner, anyUserPR)) // poster doesn't have write permission, so maintainer can't write either
-	})
-
-	t.Run("WithAllowMaintainerEdit-HeadPosterWriter", func(t *testing.T) {
-		_, err := db.GetEngine(ctx).Where(builder.In("id", []int64{headOwnerPR.ID, anyUserPR.ID})).
-			Cols("allow_maintainer_edit").
-			Update(&issues_model.PullRequest{AllowMaintainerEdit: true})
-		require.NoError(t, err)
-		err = db.Insert(ctx, &repo_model.Collaboration{RepoID: headRepo.ID, UserID: user.ID, Mode: perm.AccessModeWrite})
-		require.NoError(t, err)
-		err = db.Insert(ctx, &access.Access{RepoID: headRepo.ID, UserID: user.ID, Mode: perm.AccessModeWrite})
-		require.NoError(t, err)
-		assert.True(t, doerCanWrite(baseRepo.Owner, headOwnerPR))
-		assert.True(t, doerCanWrite(baseRepo.Owner, anyUserPR)) // now the poster has the write permission
-	})
+	// every signed-in user owns every repository, so anyone can write to the head branch
+	assert.True(t, doerCanWrite(headRepo.Owner, headOwnerPR))
+	assert.True(t, doerCanWrite(baseRepo.Owner, headOwnerPR))
+	assert.True(t, doerCanWrite(baseRepo.Owner, anyUserPR))
+	assert.True(t, doerCanWrite(user, anyUserPR))
 }

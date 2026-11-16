@@ -15,7 +15,6 @@ import (
 )
 
 type globalVarsStruct struct {
-	externalTrackerRegex    *regexp.Regexp
 	validUsernamePattern    *regexp.Regexp
 	invalidUsernamePattern  *regexp.Regexp
 	validBadgeSlugPattern   *regexp.Regexp
@@ -24,7 +23,6 @@ type globalVarsStruct struct {
 
 var globalVars = sync.OnceValue(func() *globalVarsStruct {
 	return &globalVarsStruct{
-		externalTrackerRegex:    regexp.MustCompile(`({?)(?:user|repo|index)+?(}?)`),
 		validUsernamePattern:    regexp.MustCompile(`^[\da-zA-Z][-.\w]*$`),
 		invalidUsernamePattern:  regexp.MustCompile(`[-._]{2,}|[-._]$`), // No consecutive or trailing non-alphanumeric chars
 		validBadgeSlugPattern:   regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`),
@@ -78,22 +76,6 @@ func IsEmailDomainListed(globs []glob.Glob, email string) bool {
 	}
 
 	return false
-}
-
-// IsValidExternalTrackerURLFormat checks if URL matches required syntax for external trackers
-func IsValidExternalTrackerURLFormat(uri string) bool {
-	if !IsValidURL(uri) {
-		return false
-	}
-	vars := globalVars()
-	// check for typoed variables like /{index/ or /[repo}
-	for _, match := range vars.externalTrackerRegex.FindAllStringSubmatch(uri, -1) {
-		if (match[1] == "{" || match[2] == "}") && (match[1] != "{" || match[2] != "}") {
-			return false
-		}
-	}
-
-	return true
 }
 
 // IsValidUsername checks if username is valid

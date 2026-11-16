@@ -12,7 +12,6 @@ import (
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
-	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
@@ -144,7 +143,7 @@ func gatherMissingRepoRecords(ctx context.Context) (repo_model.RepositoryList, e
 }
 
 // DeleteMissingRepositories deletes all repository records that lost Git files.
-func DeleteMissingRepositories(ctx context.Context, doer *user_model.User) error {
+func DeleteMissingRepositories(ctx context.Context) error {
 	repos, err := gatherMissingRepoRecords(ctx)
 	if err != nil {
 		return err

@@ -106,25 +106,6 @@ func EntryFollowLink(commit *Commit, fullPath string, te *TreeEntry) (*EntryFoll
 	return &EntryFollowResult{SymlinkContent: link, TargetFullPath: targetFullPath, TargetEntry: targetEntry}, nil
 }
 
-func EntryFollowLinks(commit *Commit, firstFullPath string, firstTreeEntry *TreeEntry, optLimit ...int) (res *EntryFollowResult, err error) {
-	limit := util.OptionalArg(optLimit, 10)
-	treeEntry, fullPath := firstTreeEntry, firstFullPath
-	for range limit {
-		res, err = EntryFollowLink(commit, fullPath, treeEntry)
-		if err != nil {
-			return res, err
-		}
-		treeEntry, fullPath = res.TargetEntry, res.TargetFullPath
-		if !treeEntry.IsLink() {
-			break
-		}
-	}
-	if treeEntry.IsLink() {
-		return res, util.ErrorWrap(util.ErrUnprocessableContent, "%q has too many links", firstFullPath)
-	}
-	return res, nil
-}
-
 // returns the Tree pointed to by this TreeEntry, or nil if this is not a tree
 func (te *TreeEntry) Tree() *Tree {
 	t, err := te.ptree.repo.getTree(te.ID)

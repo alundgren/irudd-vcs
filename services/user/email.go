@@ -10,7 +10,6 @@ import (
 
 	"gitea.dev/models/db"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 )
 
@@ -86,7 +85,7 @@ func AddEmailAddresses(ctx context.Context, u *user_model.User, emails []string)
 		email = &user_model.EmailAddress{
 			UID:         u.ID,
 			Email:       emailStr,
-			IsActivated: !setting.Service.RegisterEmailConfirm,
+			IsActivated: true, // no mail service, so there is no email confirmation
 			IsPrimary:   false,
 		}
 		if _, err := user_model.InsertEmailAddress(ctx, email); err != nil {

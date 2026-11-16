@@ -13,22 +13,9 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
 	"gitea.dev/modules/queue"
-	"gitea.dev/modules/templates"
 	"gitea.dev/modules/web"
 	"gitea.dev/services/context"
 )
-
-// ReloadTemplates reloads all the templates
-func ReloadTemplates(ctx *context.PrivateContext) {
-	err := templates.ReloadAllTemplates()
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, private.Response{
-			UserMsg: fmt.Sprintf("Template error: %v", err),
-		})
-		return
-	}
-	ctx.PlainText(http.StatusOK, "success")
-}
 
 // FlushQueues flushes all the Queues
 func FlushQueues(ctx *context.PrivateContext) {

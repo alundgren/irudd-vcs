@@ -25,8 +25,6 @@ type Comment struct {
 	OriginalAuthorID int64 `json:"original_author_id"`
 	// Body contains the comment text content
 	Body string `json:"body"`
-	// Attachments contains files attached to the comment
-	Attachments []*Attachment `json:"assets"`
 	// swagger:strfmt date-time
 	Created time.Time `json:"created_at"`
 	// swagger:strfmt date-time
@@ -69,15 +67,10 @@ type TimelineComment struct {
 	// swagger:strfmt date-time
 	Updated time.Time `json:"updated_at"`
 
-	OldProjectID int64        `json:"old_project_id"`
-	ProjectID    int64        `json:"project_id"`
-	OldMilestone *Milestone   `json:"old_milestone"`
-	Milestone    *Milestone   `json:"milestone"`
-	TrackedTime  *TrackedTime `json:"tracked_time"`
-	OldTitle     string       `json:"old_title"`
-	NewTitle     string       `json:"new_title"`
-	OldRef       string       `json:"old_ref"`
-	NewRef       string       `json:"new_ref"`
+	OldTitle string `json:"old_title"`
+	NewTitle string `json:"new_title"`
+	OldRef   string `json:"old_ref"`
+	NewRef   string `json:"new_ref"`
 
 	RefIssue   *Issue   `json:"ref_issue"`
 	RefComment *Comment `json:"ref_comment"`
@@ -95,6 +88,4 @@ type TimelineComment struct {
 	RemovedAssignee bool `json:"removed_assignee"`
 
 	ResolveDoer *User `json:"resolve_doer"`
-
-	DependentIssue *Issue `json:"dependent_issue"`
 }

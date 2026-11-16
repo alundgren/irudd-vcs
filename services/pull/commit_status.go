@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"slices"
 
-	actions_model "gitea.dev/models/actions"
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
@@ -157,7 +156,7 @@ func GetPullRequestCommitStatusState(ctx context.Context, pr *issues_model.PullR
 }
 
 // EffectiveRequiredContexts returns the required status-check contexts to enforce, drawn from:
-//  1. every required scoped workflow's status-check patterns effective for the repo (always)
+//  1. (removed: scoped Actions workflow checks)
 //  2. each given protected branch rule's own configured contexts, only when that rule's status check is enabled
 //
 // Passing no rule or a single nil rule yields nothing, not even scoped patterns.
@@ -169,23 +168,7 @@ func EffectiveRequiredContexts(ctx context.Context, repo *repo_model.Repository,
 		return nil, nil
 	}
 
-	sources, err := actions_model.GetEffectiveScopedWorkflowSources(ctx, repo.OwnerID)
-	if err != nil {
-		return nil, fmt.Errorf("GetEffectiveScopedWorkflowSources: %w", err)
-	}
-
 	required := make(container.Set[string])
-
-	// Every required scoped workflow's admin-authored status-check patterns, matched must-present-and-pass:
-	// a required scoped check that posts no matching status blocks the merge.
-	for _, source := range sources {
-		for _, cfg := range source.WorkflowConfigs {
-			if !cfg.Required {
-				continue
-			}
-			required.AddMultiple(cfg.Patterns...)
-		}
-	}
 
 	// Union the configured contexts of every rule whose own status check is enabled (a disabled rule contributes none)
 	for _, pb := range pbs {

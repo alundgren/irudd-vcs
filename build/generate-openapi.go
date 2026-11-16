@@ -10,7 +10,7 @@
 // cleaner SDK output with proper enum types instead of anonymous strings.
 //
 // Run: go run build/generate-openapi.go
-// Output: templates/swagger/v1_openapi3_json.tmpl
+// Output: modules/apispec/v1_openapi3_json.tmpl
 
 //go:build ignore
 
@@ -31,8 +31,8 @@ import (
 )
 
 const (
-	swaggerSpecPath = "templates/swagger/v1_json.tmpl"
-	openapi3OutPath = "templates/swagger/v1_openapi3_json.tmpl"
+	swaggerSpecPath = "modules/apispec/v1_json.tmpl"
+	openapi3OutPath = "modules/apispec/v1_openapi3_json.tmpl"
 
 	appSubUrlVar = "{{.SwaggerAppSubUrl}}"
 	appVerVar    = "{{.SwaggerAppVer}}"

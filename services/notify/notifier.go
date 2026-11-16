@@ -6,10 +6,8 @@ package notify
 import (
 	"context"
 
-	actions_model "gitea.dev/models/actions"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	packages_model "gitea.dev/models/packages"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
@@ -22,17 +20,13 @@ type Notifier interface {
 
 	AdoptRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository)
 	CreateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository)
-	MigrateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository)
 	DeleteRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository)
 	ForkRepository(ctx context.Context, doer *user_model.User, oldRepo, repo *repo_model.Repository)
 	RenameRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldRepoName string)
-	TransferRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldOwnerName string)
-	RepoPendingTransfer(ctx context.Context, doer, newOwner *user_model.User, repo *repo_model.Repository)
 
 	NewIssue(ctx context.Context, issue *issues_model.Issue, mentions []*user_model.User)
 	IssueChangeStatus(ctx context.Context, doer *user_model.User, commitID string, issue *issues_model.Issue, actionComment *issues_model.Comment, closeOrReopen bool)
 	DeleteIssue(ctx context.Context, doer *user_model.User, issue *issues_model.Issue)
-	IssueChangeMilestone(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldMilestoneID int64)
 	IssueChangeAssignee(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, assignee *user_model.User, removed bool, comment *issues_model.Comment)
 	PullRequestReviewRequest(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, reviewer *user_model.User, isRequest bool, comment *issues_model.Comment)
 	IssueChangeContent(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldContent string)
@@ -57,29 +51,12 @@ type Notifier interface {
 	UpdateComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment, oldContent string)
 	DeleteComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment)
 
-	NewWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string)
-	EditWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string)
-	DeleteWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page string)
-
-	NewRelease(ctx context.Context, rel *repo_model.Release)
 	UpdateRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release)
 	DeleteRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release)
 
 	PushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits)
 	CreateRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string)
 	DeleteRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName)
-	SyncPushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits)
-	SyncCreateRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string)
-	SyncDeleteRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName)
-
-	PackageCreate(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor)
-	PackageDelete(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor)
-
-	ChangeDefaultBranch(ctx context.Context, repo *repo_model.Repository)
 
 	CreateCommitStatus(ctx context.Context, repo *repo_model.Repository, commit *repository.PushCommit, sender *user_model.User, status *git_model.CommitStatus)
-
-	WorkflowRunStatusUpdate(ctx context.Context, repo *repo_model.Repository, sender *user_model.User, run *actions_model.ActionRun)
-
-	WorkflowJobStatusUpdate(ctx context.Context, repo *repo_model.Repository, sender *user_model.User, job *actions_model.ActionRunJob, task *actions_model.ActionTask)
 }

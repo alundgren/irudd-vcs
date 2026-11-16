@@ -13,9 +13,6 @@ import (
 	"time"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
-	"gitea.dev/models/perm"
-	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
 	"gitea.dev/models/unit"
@@ -30,8 +27,8 @@ import (
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
-	"gitea.dev/modules/templates/vars"
 	"gitea.dev/modules/util"
+	"gitea.dev/modules/vars"
 )
 
 // CreateRepoOptions contains the create repository options
@@ -153,12 +150,11 @@ func initRepository(ctx context.Context, u *user_model.User, repo *repo_model.Re
 	}
 
 	repo.DefaultBranch = util.IfZero(opts.DefaultBranch, setting.Repository.DefaultBranch)
-	repo.DefaultWikiBranch = setting.Repository.DefaultBranch
 	if !opts.AutoInit {
 		repo.IsEmpty = true
 	}
 
-	if err = repo_model.UpdateRepositoryColsNoAutoTime(ctx, repo, "is_empty", "default_branch", "default_wiki_branch"); err != nil {
+	if err = repo_model.UpdateRepositoryColsNoAutoTime(ctx, repo, "is_empty", "default_branch"); err != nil {
 		return fmt.Errorf("updateRepository: %w", err)
 	}
 
@@ -248,7 +244,6 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 		TrustModel:                      opts.TrustModel,
 		IsMirror:                        opts.IsMirror,
 		DefaultBranch:                   opts.DefaultBranch,
-		DefaultWikiBranch:               setting.Repository.DefaultBranch,
 		ObjectFormatName:                opts.ObjectFormatName,
 	}
 
@@ -268,11 +263,6 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 			cleanupRepository(repo)
 		}
 	}()
-
-	// No need for init mirror.
-	if opts.IsMirror {
-		return repo, nil
-	}
 
 	// 2 - check whether the repository with the same storage exists
 	var isExist bool
@@ -308,23 +298,7 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 		return nil, fmt.Errorf("updateGitRepoAfterCreate: %w", err)
 	}
 
-	// 6 - update licenses
-	var licenses []string
-	if len(opts.License) > 0 {
-		licenses = append(licenses, opts.License)
-
-		var stdout string
-		stdout, _, err = gitrepo.RunCmdString(ctx, repo, gitcmd.NewCommand("rev-parse", "HEAD"))
-		if err != nil {
-			log.Error("CreateRepository(git rev-parse HEAD) in %v: Stdout: %s\nError: %v", repo, stdout, err)
-			return nil, fmt.Errorf("CreateRepository(git rev-parse HEAD): %w", err)
-		}
-		if err = repo_model.UpdateRepoLicenses(ctx, repo, stdout, licenses); err != nil {
-			return nil, err
-		}
-	}
-
-	// 7 - update repository status to be ready
+	// 6 - update repository status to be ready
 	if needsUpdateToReady {
 		repo.Status = repo_model.RepositoryReady
 		if err = repo_model.UpdateRepositoryColsWithAutoTime(ctx, repo, "status"); err != nil {
@@ -363,32 +337,14 @@ func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *r
 	switch {
 	case isFork:
 		defaultUnits = unit.DefaultForkRepoUnits
-	case repo.IsMirror:
-		defaultUnits = unit.DefaultMirrorRepoUnits
 	case repo.IsTemplate:
 		defaultUnits = unit.DefaultTemplateRepoUnits
 	}
 	units := make([]repo_model.RepoUnit, 0, len(defaultUnits))
 	for _, tp := range defaultUnits {
 		switch tp {
-		case unit.TypeIssues:
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   tp,
-				Config: &repo_model.IssuesConfig{
-					EnableTimetracker:                setting.Service.DefaultEnableTimetracking,
-					AllowOnlyContributorsToTrackTime: setting.Service.DefaultAllowOnlyContributorsToTrackTime,
-					EnableDependencies:               setting.Service.DefaultEnableDependencies,
-				},
-			})
 		case unit.TypePullRequests:
 			units = append(units, repo_model.DefaultPullRequestsUnit(repo.ID))
-		case unit.TypeProjects:
-			units = append(units, repo_model.RepoUnit{
-				RepoID: repo.ID,
-				Type:   tp,
-				Config: &repo_model.ProjectsConfig{ProjectsMode: repo_model.ProjectsModeAll},
-			})
 		default:
 			units = append(units, repo_model.RepoUnit{
 				RepoID: repo.ID,
@@ -411,39 +367,6 @@ func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *r
 		return fmt.Errorf("IncrUserRepoNum: %w", err)
 	}
 	u.NumRepos++
-
-	// Give access to all members in teams with access to all repositories.
-	if u.IsOrganization() {
-		teams, err := organization.FindOrgTeams(ctx, u.ID)
-		if err != nil {
-			return fmt.Errorf("FindOrgTeams: %w", err)
-		}
-		for _, t := range teams {
-			if t.IncludesAllRepositories {
-				if err := addRepositoryToTeam(ctx, t, repo); err != nil {
-					return fmt.Errorf("AddRepository: %w", err)
-				}
-			}
-		}
-
-		if isAdmin, err := access_model.IsUserRepoAdmin(ctx, repo, doer); err != nil {
-			return fmt.Errorf("IsUserRepoAdmin: %w", err)
-		} else if !isAdmin {
-			// Make creator repo admin if it wasn't assigned automatically
-			if err = AddOrUpdateCollaborator(ctx, repo, doer, perm.AccessModeAdmin); err != nil {
-				return fmt.Errorf("AddCollaborator: %w", err)
-			}
-		}
-	} else if err = access_model.RecalculateAccesses(ctx, repo); err != nil {
-		// Organization automatically called this in AddRepository method.
-		return fmt.Errorf("RecalculateAccesses: %w", err)
-	}
-
-	if setting.Service.AutoWatchNewRepos {
-		if err = repo_model.WatchRepo(ctx, doer, repo, true); err != nil {
-			return fmt.Errorf("WatchRepo: %w", err)
-		}
-	}
 
 	if err = webhook.CopyDefaultWebhooksToRepo(ctx, repo.ID); err != nil {
 		return fmt.Errorf("CopyDefaultWebhooksToRepo: %w", err)

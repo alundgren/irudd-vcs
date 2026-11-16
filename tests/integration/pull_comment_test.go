@@ -13,7 +13,8 @@ import (
 
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/models/unittest"
-	issues_service "gitea.dev/services/issue"
+	"gitea.dev/modules/json"
+	api "gitea.dev/modules/structs"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func testPullCommentRebase(t *testing.T, u *url.URL, session *TestSession) {
 
 	// do force push
 	u.Path = "/user1/repo1.git"
-	u.User = url.UserPassword("user1", userPassword)
+	u.User = gitUserInfo(t, "user1")
 	doGitAddRemote(dstPath, "base-repo", u)(t)
 	doGitPushTestRepositoryFail(dstPath, "base-repo", "local-branch/rebase:test-branch/rebase")(t)
 	doGitPushTestRepository(dstPath, "--force", "base-repo", "local-branch/rebase:test-branch/rebase")(t)
@@ -70,14 +71,16 @@ func testPullCommentRebase(t *testing.T, u *url.URL, session *TestSession) {
 	})
 	require.NoError(t, err)
 	lastComment := comments[len(comments)-1]
-	assert.NoError(t, issues_service.LoadCommentPushCommits(t.Context(), lastComment))
-	assert.True(t, lastComment.IsForcePush)
+	assert.Equal(t, issues_model.CommentTypePullRequestPush, lastComment.Type)
+	var pushContent issues_model.PushActionContent
+	require.NoError(t, json.Unmarshal([]byte(lastComment.Content), &pushContent))
+	assert.True(t, pushContent.IsForcePush)
 }
 
 func testPullCommentRetarget(t *testing.T, _ *url.URL, session *TestSession) {
 	testPRTitle := "Test PR for retarget comment"
 	// keep a non-conflict branch
-	testCreateBranch(t, session, "user2", "repo1", "branch/test-branch/retarget", "test-branch/retarget-no-conflict", http.StatusSeeOther)
+	testCreateBranch(t, session, "user2", "repo1", "branch/test-branch/retarget", "test-branch/retarget-no-conflict", http.StatusCreated)
 	// make a change on forked branch
 	testEditFile(t, session, "user1", "repo1", "test-branch/retarget", "README.md", "Hello, World (Edited)\n")
 	testPullCreate(t, session, "user1", "repo1", false, "test-branch/retarget", "test-branch/retarget", testPRTitle)
@@ -88,18 +91,18 @@ func testPullCommentRetarget(t *testing.T, _ *url.URL, session *TestSession) {
 	prIssue := testWaitForPullRequestStatus(t, &issues_model.Issue{Title: testPRTitle}, issues_model.PullRequestStatusConflict)
 
 	// do retarget
-	req := NewRequestWithValues(t, "POST", fmt.Sprintf("/user2/repo1/pull/%d/target_branch", prIssue.PullRequest.Index), map[string]string{
-		"target_branch": "test-branch/retarget-no-conflict",
+	req := NewRequestWithJSON(t, "PATCH", fmt.Sprintf("/api/v1/repos/user2/repo1/pulls/%d", prIssue.PullRequest.Index), &api.EditPullRequestOption{
+		Base: "test-branch/retarget-no-conflict",
 	})
-	session.MakeRequest(t, req, http.StatusOK)
+	session.MakeRequest(t, req, http.StatusCreated)
 	testWaitForPullRequestStatus(t, &issues_model.Issue{Title: testPRTitle}, issues_model.PullRequestStatusMergeable)
 }
 
 func TestPullComment(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, u *url.URL) {
 		session := loginUser(t, "user1")
-		testCreateBranch(t, session, "user2", "repo1", "branch/master", "test-branch/rebase", http.StatusSeeOther)
-		testCreateBranch(t, session, "user2", "repo1", "branch/master", "test-branch/retarget", http.StatusSeeOther)
+		testCreateBranch(t, session, "user2", "repo1", "branch/master", "test-branch/rebase", http.StatusCreated)
+		testCreateBranch(t, session, "user2", "repo1", "branch/master", "test-branch/retarget", http.StatusCreated)
 		testRepoFork(t, session, "user2", "repo1", "user1", "repo1", "")
 
 		t.Run("RebaseComment", func(t *testing.T) { testPullCommentRebase(t, u, session) })

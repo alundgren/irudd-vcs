@@ -36,15 +36,12 @@ type APIContext struct {
 
 	Cache cache.StringCache
 
-	Doer        *user_model.User // current signed-in user
-	IsSigned    bool
-	IsBasicAuth bool
+	Doer     *user_model.User // current signed-in user
+	IsSigned bool
 
 	ContextUser *user_model.User // the user which is being visited, in most cases it differs from Doer
 
 	Repo       *Repository
-	Org        *APIOrganization
-	Package    *Package
 	PublicOnly bool // Whether the request is for a public endpoint
 }
 
@@ -78,13 +75,6 @@ type APIError struct {
 type APIValidationError struct {
 	Message string `json:"message"`
 	URL     string `json:"url"`
-}
-
-// APIInvalidTopicsError is error format response to invalid topics
-// swagger:response invalidTopicsError
-type APIInvalidTopicsError struct {
-	Message       string   `json:"message"`
-	InvalidTopics []string `json:"invalidTopics"`
 }
 
 // APIEmpty is an empty response
@@ -253,7 +243,6 @@ func APIContexter() func(http.Handler) http.Handler {
 				Base:  base,
 				Cache: cache.GetCache(),
 				Repo:  &Repository{},
-				Org:   &APIOrganization{},
 			}
 
 			ctx.SetContextValue(apiContextKey, ctx)

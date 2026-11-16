@@ -36,7 +36,6 @@ type HookOptions struct {
 	PullRequestID                   int64
 	PushTrigger                     repository.PushTrigger
 	DeployKeyID                     int64 // if the pusher is a DeployKey, then UserID is the repo's org user.
-	IsWiki                          bool
 	ActionsTaskID                   int64 // if the pusher is an Actions user, the task ID
 }
 
@@ -57,27 +56,6 @@ type HookPostReceiveBranchResult struct {
 	Create  bool
 	Branch  string
 	URL     string
-}
-
-// HookProcReceiveResult represents an individual result from ProcReceive
-type HookProcReceiveResult struct {
-	Results []HookProcReceiveRefResult
-	Err     string
-}
-
-// HookProcReceiveRefResult represents an individual result from ProcReceive
-type HookProcReceiveRefResult struct {
-	OldOID            string
-	NewOID            string
-	Ref               string
-	OriginalRef       git.RefName
-	IsForcePush       bool
-	IsNotMatched      bool
-	Err               string
-	IsCreatePR        bool
-	URL               string
-	ShouldShowMessage bool
-	HeadBranch        string
 }
 
 func newInternalRequestAPIForHooks(ctx context.Context, hookName, ownerName, repoName string, opts HookOptions) *httplib.Request {
@@ -101,12 +79,6 @@ func HookPreReceive(ctx context.Context, ownerName, repoName string, opts HookOp
 func HookPostReceive(ctx context.Context, ownerName, repoName string, opts HookOptions) (*HookPostReceiveResult, ResponseExtra) {
 	req := newInternalRequestAPIForHooks(ctx, "post-receive", ownerName, repoName, opts)
 	return requestJSONResp(req, &HookPostReceiveResult{})
-}
-
-// HookProcReceive proc-receive hook
-func HookProcReceive(ctx context.Context, ownerName, repoName string, opts HookOptions) (*HookProcReceiveResult, ResponseExtra) {
-	req := newInternalRequestAPIForHooks(ctx, "proc-receive", ownerName, repoName, opts)
-	return requestJSONResp(req, &HookProcReceiveResult{})
 }
 
 // SSHLog sends ssh error log response

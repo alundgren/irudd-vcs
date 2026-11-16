@@ -51,9 +51,9 @@ func TestAuthenticate(t *testing.T) {
 	t.Run("authenticate", func(t *testing.T) {
 		const prefixBearer = "Bearer "
 		token := getUserToken("download", 2, repo1)
-		assert.False(t, authenticate(ctx, repo1, "", true, false))
-		assert.False(t, authenticate(ctx, repo1, prefixBearer+"invalid", true, false))
-		assert.True(t, authenticate(ctx, repo1, prefixBearer+token, true, false))
+		assert.False(t, authenticate(ctx, repo1, "", false))
+		assert.False(t, authenticate(ctx, repo1, prefixBearer+"invalid", false))
+		assert.True(t, authenticate(ctx, repo1, prefixBearer+token, false))
 	})
 
 	handleLFSTokenTestPerm := func(op string, userID int64, repo *repo_model.Repository, accessMode perm_model.AccessMode) error {
@@ -84,17 +84,10 @@ func TestAuthenticate(t *testing.T) {
 		assert.ErrorContains(t, err, "not allowed to access any repository")
 	})
 
-	t.Run("handleLFSToken blocks users without repo access", func(t *testing.T) {
+	t.Run("handleLFSToken grants every user access to every repo", func(t *testing.T) {
 		repo2 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 2})
-		err := handleLFSTokenTestPerm("download", 10, repo2, perm_model.AccessModeRead)
-		assert.ErrorContains(t, err, "no permission to access the repository")
-	})
-
-	t.Run("handleLFSToken requires write access for uploads", func(t *testing.T) {
-		err := handleLFSTokenTestPerm("download", 10, repo1, perm_model.AccessModeRead)
-		assert.NoError(t, err)
-		err = handleLFSTokenTestPerm("upload", 10, repo1, perm_model.AccessModeWrite)
-		assert.ErrorContains(t, err, "no permission to access the repository")
+		require.NoError(t, handleLFSTokenTestPerm("download", 10, repo2, perm_model.AccessModeRead))
+		require.NoError(t, handleLFSTokenTestPerm("upload", 10, repo1, perm_model.AccessModeWrite))
 	})
 
 	t.Run("handleLFSToken allows writes for authorized users", func(t *testing.T) {

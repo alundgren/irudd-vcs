@@ -14,8 +14,6 @@ import (
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
-	"gitea.dev/modules/setting"
-	"gitea.dev/modules/test"
 	"gitea.dev/modules/util"
 
 	"github.com/stretchr/testify/assert"
@@ -28,8 +26,7 @@ func TestGitSmartHTTP(t *testing.T) {
 		testGitSmartHTTPTokenScopes(t)
 		testRenamedRepoRedirect(t)
 		testGitArchiveRemote(t, u)
-		t.Run("AnonymousAccess-Repo", func(t *testing.T) { testGitSmartHTTPPrivateRepoAnonymousAccess(t, false) })
-		t.Run("AnonymousAccess-Wiki", func(t *testing.T) { testGitSmartHTTPPrivateRepoAnonymousAccess(t, true) })
+		t.Run("AnonymousAccess-Repo", func(t *testing.T) { testGitSmartHTTPPrivateRepoAnonymousAccess(t) })
 	})
 }
 
@@ -77,7 +74,7 @@ func testGitSmartHTTP(t *testing.T, u *url.URL) {
 		t.Run(kase.path, func(t *testing.T) {
 			req, err := http.NewRequest(util.IfZero(kase.method, "GET"), u.String()+kase.path, nil)
 			require.NoError(t, err)
-			req.SetBasicAuth("user2", userPassword)
+			req.SetBasicAuth("user2", getUserToken(t, "user2", auth_model.AccessTokenScopeAll))
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
@@ -125,8 +122,6 @@ func testGitSmartHTTPTokenScopes(t *testing.T) {
 }
 
 func testRenamedRepoRedirect(t *testing.T) {
-	defer test.MockVariableValue(&setting.Service.RequireSignInViewStrict, true)()
-
 	// git client requires to get a 301 redirect response before 401 unauthorized response
 	req := NewRequest(t, "GET", "/user2/oldrepo1/info/refs")
 	resp := MakeRequest(t, req, http.StatusMovedPermanently)
@@ -137,7 +132,7 @@ func testRenamedRepoRedirect(t *testing.T) {
 	resp = MakeRequest(t, req, http.StatusUnauthorized)
 	assert.Equal(t, "Unauthorized\n", resp.Body.String())
 
-	req = NewRequest(t, "GET", redirect).AddBasicAuth("user2")
+	req = NewRequest(t, "GET", redirect).AddBasicAuth("user2", getUserToken(t, "user2", auth_model.AccessTokenScopeReadRepository))
 	resp = MakeRequest(t, req, http.StatusOK)
 	assert.Contains(t, resp.Body.String(), "65f1bf27bc3bf70f64657658635e66094edbcb4d\trefs/tags/v1.1")
 }
@@ -149,13 +144,13 @@ func testGitArchiveRemote(t *testing.T, u *url.URL) {
 	t.Run("list compression options", doGitRemoteArchive(u.String(), "--list"))
 }
 
-// testGitSmartHTTPPrivateRepoAnonymousAccess tests that a private repo with
-// anonymous code access enabled can be cloned without credentials.
-func testGitSmartHTTPPrivateRepoAnonymousAccess(t *testing.T, isWiki bool) {
+// testGitSmartHTTPPrivateRepoAnonymousAccess tests that even a unit with anonymous
+// read access can't be cloned without a token.
+func testGitSmartHTTPPrivateRepoAnonymousAccess(t *testing.T) {
 	// repo1 (ID=1) belongs to user2 and is public by default in fixtures
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1, OwnerName: "user2", Name: "repo1"})
-	unitType := util.Iif(isWiki, unit.TypeWiki, unit.TypeCode)
-	repoLink := "/" + repo.FullName() + util.Iif(isWiki, ".wiki", "")
+	unitType := unit.TypeCode
+	repoLink := "/" + repo.FullName()
 	gitPullPath := repoLink + "/info/refs?service=git-upload-pack"
 	gitPushPath := repoLink + "/info/refs?service=git-receive-pack"
 
@@ -168,13 +163,7 @@ func testGitSmartHTTPPrivateRepoAnonymousAccess(t *testing.T, isWiki bool) {
 	// enable anonymous read access on the unit
 	require.NoError(t, repo_model.UpdateRepoUnitPublicAccess(t.Context(), &repo_model.RepoUnit{RepoID: repo.ID, Type: unitType, AnonymousAccessMode: perm.AccessModeRead}))
 
-	// with anonymous code access: anonymous pull must succeed without credentials
-	MakeRequest(t, NewRequest(t, "GET", gitPullPath), http.StatusOK)
-
-	// push (receive-pack) must still require auth even with anonymous code access
-	MakeRequest(t, NewRequest(t, "GET", gitPushPath), http.StatusUnauthorized)
-
-	// RequireSignInViewStrict must override anonymous access
-	defer test.MockVariableValue(&setting.Service.RequireSignInViewStrict, true)()
+	// pull and push still need a token
 	MakeRequest(t, NewRequest(t, "GET", gitPullPath), http.StatusUnauthorized)
+	MakeRequest(t, NewRequest(t, "GET", gitPushPath), http.StatusUnauthorized)
 }

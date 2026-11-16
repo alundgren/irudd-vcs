@@ -6,14 +6,12 @@ package contexttest
 
 import (
 	gocontext "context"
-	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
@@ -23,9 +21,6 @@ import (
 	git_module "gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/reqctx"
-	"gitea.dev/modules/session"
-	"gitea.dev/modules/templates"
-	"gitea.dev/modules/translation"
 	"gitea.dev/modules/web/middleware"
 	"gitea.dev/services/context"
 
@@ -47,36 +42,17 @@ func mockRequest(t *testing.T, reqPath string) *http.Request {
 	return req
 }
 
-type MockContextOption struct {
-	Render       context.Render
-	SessionStore session.Store
-}
-
 // MockContext mock context for unit tests
-func MockContext(t *testing.T, reqPath string, opts ...MockContextOption) (*context.Context, *httptest.ResponseRecorder) {
-	var opt MockContextOption
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
-	if opt.Render == nil {
-		opt.Render = &MockRender{}
-	}
+func MockContext(t *testing.T, reqPath string) (*context.Context, *httptest.ResponseRecorder) {
 	resp := httptest.NewRecorder()
 	req := mockRequest(t, reqPath)
 	base := context.NewBaseContext(resp, req)
 	base.Data = middleware.GetContextData(req.Context())
-	base.Locale = &translation.MockLocale{}
 
 	chiCtx := chi.NewRouteContext()
-	ctx := context.NewWebContext(base, opt.Render, nil)
+	ctx := context.NewWebContext(base)
 	ctx.SetContextValue(chi.RouteCtxKey, chiCtx)
-	if opt.SessionStore != nil {
-		ctx.SetContextValue(session.MockStoreContextKey, opt.SessionStore)
-		ctx.Session = opt.SessionStore
-	}
 	ctx.Cache = cache.GetCache()
-	ctx.PageData = map[string]any{}
-	ctx.Data["PageStartTime"] = time.Now()
 	return ctx, resp
 }
 
@@ -86,7 +62,6 @@ func MockAPIContext(t *testing.T, reqPath string) (*context.APIContext, *httptes
 	req := mockRequest(t, reqPath)
 	base := context.NewBaseContext(resp, req)
 	base.Data = middleware.GetContextData(req.Context())
-	base.Locale = &translation.MockLocale{}
 	ctx := &context.APIContext{Base: base, Repo: &context.Repository{}}
 	chiCtx := chi.NewRouteContext()
 	ctx.SetContextValue(chi.RouteCtxKey, chiCtx)
@@ -98,7 +73,6 @@ func MockPrivateContext(t *testing.T, reqPath string) (*context.PrivateContext, 
 	req := mockRequest(t, reqPath)
 	base := context.NewBaseContext(resp, req)
 	base.Data = middleware.GetContextData(req.Context())
-	base.Locale = &translation.MockLocale{}
 	ctx := &context.PrivateContext{Base: base}
 	chiCtx := chi.NewRouteContext()
 	ctx.SetContextValue(chi.RouteCtxKey, chiCtx)
@@ -187,17 +161,4 @@ func LoadGitRepo(t *testing.T, ctx gocontext.Context) {
 	var err error
 	repo.GitRepo, err = gitrepo.OpenRepository(ctx, repo.Repository)
 	assert.NoError(t, err)
-}
-
-type MockRender struct{}
-
-func (tr *MockRender) TemplateLookup(tmpl string, _ gocontext.Context) (templates.TemplateExecutor, error) {
-	return nil, nil //nolint:nilnil // mock implementation returns nil to indicate no template found
-}
-
-func (tr *MockRender) HTML(w io.Writer, status int, _ templates.TplName, _ any, _ gocontext.Context) error {
-	if resp, ok := w.(http.ResponseWriter); ok {
-		resp.WriteHeader(status)
-	}
-	return nil
 }

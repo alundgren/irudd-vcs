@@ -11,53 +11,18 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
-	"gitea.dev/modules/generate"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/ssh"
 	"gitea.dev/modules/util"
 	"gitea.dev/tests"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func withKeyFile(t *testing.T, keyname string, callback func(string)) {
-	tmpDir := t.TempDir()
-
-	err := os.Chmod(tmpDir, 0o700)
-	assert.NoError(t, err)
-
-	keyFile := filepath.Join(tmpDir, keyname)
-	err = ssh.GenKeyPair(keyFile, generate.SSHKeyECDSA, 0)
-	assert.NoError(t, err)
-
-	err = os.WriteFile(filepath.Join(tmpDir, "ssh"), []byte("#!/bin/bash\n"+
-		"ssh -o \"UserKnownHostsFile=/dev/null\" -o \"StrictHostKeyChecking=no\" -o \"IdentitiesOnly=yes\" -i \""+keyFile+"\" \"$@\""), 0o700)
-	assert.NoError(t, err)
-
-	// Setup ssh wrapper
-	t.Setenv("GIT_SSH", filepath.Join(tmpDir, "ssh"))
-	t.Setenv("GIT_SSH_COMMAND",
-		"ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i \""+keyFile+"\"")
-	t.Setenv("GIT_SSH_VARIANT", "ssh")
-
-	callback(keyFile)
-}
-
-func createSSHUrl(gitPath string, u *url.URL) *url.URL {
-	u2 := *u
-	u2.Scheme = "ssh"
-	u2.User = url.User("git")
-	u2.Host = net.JoinHostPort(setting.SSH.ListenHost, strconv.Itoa(setting.SSH.ListenPort))
-	u2.Path = gitPath
-	return &u2
-}
 
 // gitAddChangesDeprecated marks local changes to be ready for commit.
 // Deprecated: use "git fast-import" instead for better performance and more control over the commit creation.
@@ -130,7 +95,6 @@ func onGiteaRun[T testing.TB](t T, callback func(T, *url.URL)) {
 	}()
 
 	go s.Serve(listener)
-	// Started by config go ssh.Listen(setting.SSH.ListenHost, setting.SSH.ListenPort, setting.SSH.ServerCiphers, setting.SSH.ServerKeyExchanges, setting.SSH.ServerMACs)
 
 	callback(t, u)
 }

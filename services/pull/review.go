@@ -113,7 +113,7 @@ func InvalidateCodeComments(ctx context.Context, prs issues_model.PullRequestLis
 }
 
 // CreateCodeComment creates a comment on the code line
-func CreateCodeComment(ctx context.Context, doer *user_model.User, gitRepo *git.Repository, issue *issues_model.Issue, line int64, content, treePath string, pendingReview bool, replyReviewID int64, latestCommitID string, attachments []string) (*issues_model.Comment, error) {
+func CreateCodeComment(ctx context.Context, doer *user_model.User, gitRepo *git.Repository, issue *issues_model.Issue, line int64, content, treePath string, pendingReview bool, replyReviewID int64, latestCommitID string) (*issues_model.Comment, error) {
 	var (
 		existsReview bool
 		err          error
@@ -146,7 +146,6 @@ func CreateCodeComment(ctx context.Context, doer *user_model.User, gitRepo *git.
 			treePath,
 			line,
 			replyReviewID,
-			attachments,
 		)
 		if err != nil {
 			return nil, err
@@ -187,7 +186,6 @@ func CreateCodeComment(ctx context.Context, doer *user_model.User, gitRepo *git.
 		treePath,
 		line,
 		review.ID,
-		attachments,
 	)
 	if err != nil {
 		return nil, err
@@ -195,7 +193,7 @@ func CreateCodeComment(ctx context.Context, doer *user_model.User, gitRepo *git.
 
 	if !pendingReview && !existsReview {
 		// Submit the review we've just created so the comment shows up in the issue view
-		if _, _, err = SubmitReview(ctx, doer, gitRepo, issue, issues_model.ReviewTypeComment, "", latestCommitID, nil); err != nil {
+		if _, _, err = SubmitReview(ctx, doer, gitRepo, issue, issues_model.ReviewTypeComment, "", latestCommitID); err != nil {
 			return nil, err
 		}
 	}
@@ -206,7 +204,7 @@ func CreateCodeComment(ctx context.Context, doer *user_model.User, gitRepo *git.
 }
 
 // createCodeComment creates a plain code comment at the specified line / path
-func createCodeComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content, treePath string, line, reviewID int64, attachments []string) (*issues_model.Comment, error) {
+func createCodeComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content, treePath string, line, reviewID int64) (*issues_model.Comment, error) {
 	var commitID, patch string
 	if err := issue.LoadPullRequest(ctx); err != nil {
 		return nil, fmt.Errorf("LoadPullRequest: %w", err)
@@ -303,12 +301,11 @@ func createCodeComment(ctx context.Context, doer *user_model.User, repo *repo_mo
 		ReviewID:    reviewID,
 		Patch:       patch,
 		Invalidated: invalidated,
-		Attachments: attachments,
 	})
 }
 
 // SubmitReview creates a review out of the existing pending review or creates a new one if no pending review exist
-func SubmitReview(ctx context.Context, doer *user_model.User, gitRepo *git.Repository, issue *issues_model.Issue, reviewType issues_model.ReviewType, content, commitID string, attachmentUUIDs []string) (*issues_model.Review, *issues_model.Comment, error) {
+func SubmitReview(ctx context.Context, doer *user_model.User, gitRepo *git.Repository, issue *issues_model.Issue, reviewType issues_model.ReviewType, content, commitID string) (*issues_model.Review, *issues_model.Comment, error) {
 	if err := issue.LoadPullRequest(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -337,7 +334,7 @@ func SubmitReview(ctx context.Context, doer *user_model.User, gitRepo *git.Repos
 		}
 	}
 
-	review, comm, err := issues_model.SubmitReview(ctx, doer, issue, reviewType, content, commitID, stale, attachmentUUIDs)
+	review, comm, err := issues_model.SubmitReview(ctx, doer, issue, reviewType, content, commitID, stale)
 	if err != nil {
 		return nil, nil, err
 	}

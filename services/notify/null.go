@@ -6,10 +6,8 @@ package notify
 import (
 	"context"
 
-	actions_model "gitea.dev/models/actions"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	packages_model "gitea.dev/models/packages"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
@@ -86,32 +84,12 @@ func (*NullNotifier) UpdateComment(ctx context.Context, doer *user_model.User, c
 func (*NullNotifier) DeleteComment(ctx context.Context, doer *user_model.User, c *issues_model.Comment) {
 }
 
-// NewWikiPage places a place holder function
-func (*NullNotifier) NewWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-}
-
-// EditWikiPage places a place holder function
-func (*NullNotifier) EditWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page, comment string) {
-}
-
-// DeleteWikiPage places a place holder function
-func (*NullNotifier) DeleteWikiPage(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, page string) {
-}
-
-// NewRelease places a place holder function
-func (*NullNotifier) NewRelease(ctx context.Context, rel *repo_model.Release) {
-}
-
 // UpdateRelease places a place holder function
 func (*NullNotifier) UpdateRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
 }
 
 // DeleteRelease places a place holder function
 func (*NullNotifier) DeleteRelease(ctx context.Context, doer *user_model.User, rel *repo_model.Release) {
-}
-
-// IssueChangeMilestone places a place holder function
-func (*NullNotifier) IssueChangeMilestone(ctx context.Context, doer *user_model.User, issue *issues_model.Issue, oldMilestoneID int64) {
 }
 
 // IssueChangeContent places a place holder function
@@ -159,10 +137,6 @@ func (*NullNotifier) DeleteRepository(ctx context.Context, doer *user_model.User
 func (*NullNotifier) ForkRepository(ctx context.Context, doer *user_model.User, oldRepo, repo *repo_model.Repository) {
 }
 
-// MigrateRepository places a place holder function
-func (*NullNotifier) MigrateRepository(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository) {
-}
-
 // PushCommits notifies commits pushed to notifiers
 func (*NullNotifier) PushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits) {
 }
@@ -179,43 +153,5 @@ func (*NullNotifier) DeleteRef(ctx context.Context, doer *user_model.User, repo 
 func (*NullNotifier) RenameRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldRepoName string) {
 }
 
-// TransferRepository places a place holder function
-func (*NullNotifier) TransferRepository(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, oldOwnerName string) {
-}
-
-// SyncPushCommits places a place holder function
-func (*NullNotifier) SyncPushCommits(ctx context.Context, pusher *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, commits *repository.PushCommits) {
-}
-
-// SyncCreateRef places a place holder function
-func (*NullNotifier) SyncCreateRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName, refID string) {
-}
-
-// SyncDeleteRef places a place holder function
-func (*NullNotifier) SyncDeleteRef(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, refFullName git.RefName) {
-}
-
-// RepoPendingTransfer places a place holder function
-func (*NullNotifier) RepoPendingTransfer(ctx context.Context, doer, newOwner *user_model.User, repo *repo_model.Repository) {
-}
-
-// PackageCreate places a place holder function
-func (*NullNotifier) PackageCreate(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-}
-
-// PackageDelete places a place holder function
-func (*NullNotifier) PackageDelete(ctx context.Context, doer *user_model.User, pd *packages_model.PackageDescriptor) {
-}
-
-// ChangeDefaultBranch places a place holder function
-func (*NullNotifier) ChangeDefaultBranch(ctx context.Context, repo *repo_model.Repository) {
-}
-
 func (*NullNotifier) CreateCommitStatus(ctx context.Context, repo *repo_model.Repository, commit *repository.PushCommit, sender *user_model.User, status *git_model.CommitStatus) {
-}
-
-func (*NullNotifier) WorkflowRunStatusUpdate(ctx context.Context, repo *repo_model.Repository, sender *user_model.User, run *actions_model.ActionRun) {
-}
-
-func (*NullNotifier) WorkflowJobStatusUpdate(ctx context.Context, repo *repo_model.Repository, sender *user_model.User, job *actions_model.ActionRunJob, task *actions_model.ActionTask) {
 }

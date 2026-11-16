@@ -11,12 +11,9 @@ import (
 
 	"gitea.dev/models/db"
 	"gitea.dev/modules/cache"
-	"gitea.dev/modules/json"
 	setting_module "gitea.dev/modules/setting"
-	"gitea.dev/modules/util"
 
 	"xorm.io/builder"
-	"xorm.io/xorm/convert"
 )
 
 // Setting is a key value store of user settings
@@ -36,46 +33,9 @@ func init() {
 	db.RegisterModel(new(Setting))
 }
 
-// ErrUserSettingIsNotExist represents an error that a setting is not exist with special key
-type ErrUserSettingIsNotExist struct {
-	Key string
-}
-
-// Error implements error
-func (err ErrUserSettingIsNotExist) Error() string {
-	return fmt.Sprintf("Setting[%s] is not exist", err.Key)
-}
-
-func (err ErrUserSettingIsNotExist) Unwrap() error {
-	return util.ErrNotExist
-}
-
 // genSettingCacheKey returns the cache key for some configuration
 func genSettingCacheKey(userID int64, key string) string {
 	return fmt.Sprintf("user_%d.setting.%s", userID, key)
-}
-
-// GetSetting returns the setting value via the key
-func GetSetting(ctx context.Context, uid int64, key string) (string, error) {
-	return cache.GetString(genSettingCacheKey(uid, key), func() (string, error) {
-		res, err := GetSettingNoCache(ctx, uid, key)
-		if err != nil {
-			return "", err
-		}
-		return res.SettingValue, nil
-	})
-}
-
-// GetSettingNoCache returns specific setting without using the cache
-func GetSettingNoCache(ctx context.Context, uid int64, key string) (*Setting, error) {
-	v, err := GetSettings(ctx, uid, []string{key})
-	if err != nil {
-		return nil, err
-	}
-	if len(v) == 0 {
-		return nil, ErrUserSettingIsNotExist{key}
-	}
-	return v[key], nil
 }
 
 // GetSettings returns specific settings from user
@@ -205,45 +165,4 @@ func upsertUserSettingValue(ctx context.Context, userID int64, key, value string
 		_, err = e.Insert(&Setting{UserID: userID, SettingKey: key, SettingValue: value})
 		return err
 	})
-}
-
-func GetUserSettingJSON[T any](ctx context.Context, userID int64, key string, def T) (ret T, _ error) {
-	ret = def
-	str, err := GetUserSetting(ctx, userID, key)
-	if err != nil {
-		return ret, err
-	}
-
-	conv, ok := any(&ret).(convert.ConversionFrom)
-	if !ok {
-		conv, ok = any(ret).(convert.ConversionFrom)
-	}
-	if ok {
-		if err := conv.FromDB(util.UnsafeStringToBytes(str)); err != nil {
-			return ret, err
-		}
-	} else {
-		if str == "" {
-			return ret, nil
-		}
-		err = json.Unmarshal(util.UnsafeStringToBytes(str), &ret)
-	}
-	return ret, err
-}
-
-func SetUserSettingJSON[T any](ctx context.Context, userID int64, key string, val T) (err error) {
-	conv, ok := any(&val).(convert.ConversionTo)
-	if !ok {
-		conv, ok = any(val).(convert.ConversionTo)
-	}
-	var bs []byte
-	if ok {
-		bs, err = conv.ToDB()
-	} else {
-		bs, err = json.Marshal(val)
-	}
-	if err != nil {
-		return err
-	}
-	return SetUserSetting(ctx, userID, key, util.UnsafeBytesToString(bs))
 }

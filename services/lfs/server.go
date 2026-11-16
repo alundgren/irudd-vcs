@@ -454,7 +454,7 @@ func getAuthenticatedRepository(ctx *context.Context, rc *requestContext, requir
 		return nil
 	}
 
-	if !authenticate(ctx, repository, rc.Authorization, false, requireWrite) {
+	if !authenticate(ctx, repository, rc.Authorization, requireWrite) {
 		requireAuth(ctx)
 		return nil
 	}
@@ -528,22 +528,12 @@ func writeStatusMessage(ctx *context.Context, status int, message string) {
 
 // authenticate uses the authorization string to determine whether
 // to proceed. This server assumes an HTTP Basic auth format.
-func authenticate(ctx *context.Context, repository *repo_model.Repository, authorization string, requireSigned, requireWrite bool) bool {
+func authenticate(ctx *context.Context, repository *repo_model.Repository, authorization string, requireWrite bool) bool {
 	accessMode := perm_model.AccessModeRead
 	if requireWrite {
 		accessMode = perm_model.AccessModeWrite
 	}
 
-	if taskID, ok := user_model.GetActionsUserTaskID(ctx.Doer); ok {
-		perm, err := access_model.GetActionsUserRepoPermission(ctx, repository, ctx.Doer, taskID)
-		if err != nil {
-			log.Error("Unable to GetActionsUserRepoPermission for task[%d] Error: %v", taskID, err)
-			return false
-		}
-		return perm.CanAccess(accessMode, unit.TypeCode)
-	}
-
-	// it works for both anonymous request and signed-in user, then perm.CanAccess will do the permission check
 	perm, err := access_model.GetDoerRepoPermission(ctx, repository, ctx.Doer)
 	if err != nil {
 		log.Error("Unable to GetDoerRepoPermission for user %-v in repo %-v Error: %v", ctx.Doer, repository, err)
@@ -551,13 +541,12 @@ func authenticate(ctx *context.Context, repository *repo_model.Repository, autho
 	}
 
 	canAccess := perm.CanAccess(accessMode, unit.TypeCode)
-	// if it doesn't require sign-in and anonymous user has access, return true
-	// if the user is already signed in (for example: by session auth method), and the doer can access, return true
-	if canAccess && (!requireSigned || ctx.IsSigned) {
+	// anonymous requests never get access, only a signed-in user or an LFS token
+	if canAccess && ctx.IsSigned {
 		return true
 	}
 
-	// now, either sign-in is required or the ctx.Doer cannot access, check the LFS token
+	// now, either the request is anonymous or the ctx.Doer cannot access, check the LFS token
 	// however, "ctx.Doer exists but cannot access then check LFS token" should not really happen:
 	// * why a request can be sent with both valid user session and valid LFS token then use LFS token to access?
 	user, err := parseToken(ctx, authorization, repository, accessMode)

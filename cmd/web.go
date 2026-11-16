@@ -15,17 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"gitea.dev/modules/container"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/gtprof"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/process"
-	"gitea.dev/modules/public"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/templates"
 	"gitea.dev/modules/util"
 	"gitea.dev/routers"
-	"gitea.dev/routers/install"
 
 	"github.com/felixge/fgprof"
 	"github.com/urfave/cli/v3"
@@ -50,11 +46,6 @@ and it takes care of all the other things for you`,
 				Usage:   "Temporary port number to prevent conflict",
 			},
 			&cli.StringFlag{
-				Name:  "install-port",
-				Value: "3000",
-				Usage: "Temporary port number to run the install page on to prevent conflict",
-			},
-			&cli.StringFlag{
 				Name:    "pid",
 				Aliases: []string{"P"},
 				Value:   PIDFile,
@@ -70,28 +61,6 @@ and it takes care of all the other things for you`,
 				Usage: "Set initial logging to TRACE level until logging is properly set-up",
 			},
 		},
-	}
-}
-
-func runHTTPRedirector() {
-	_, _, finished := process.GetManager().AddTypedContext(graceful.GetManager().HammerContext(), "Web: HTTP Redirector", process.SystemProcessType, true)
-	defer finished()
-
-	source := fmt.Sprintf("%s:%s", setting.HTTPAddr, setting.PortToRedirect)
-	dest := strings.TrimSuffix(setting.AppURL, "/")
-	log.Info("Redirecting: %s to %s", source, dest)
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		target := dest + r.URL.Path
-		if len(r.URL.RawQuery) > 0 {
-			target += "?" + r.URL.RawQuery
-		}
-		http.Redirect(w, r, target, http.StatusTemporaryRedirect)
-	})
-
-	err := runHTTP("tcp", source, "HTTP Redirector", handler, setting.RedirectorUseProxyProtocol)
-	if err != nil {
-		log.Fatal("Failed to start port redirection: %v", err)
 	}
 }
 
@@ -126,41 +95,6 @@ func showWebStartupMessage(msg string) {
 	if setting.DefaultUILocation != time.Local {
 		log.Info("Default UI Location is %v", setting.DefaultUILocation.String())
 	}
-	if setting.MailService != nil {
-		log.Info("Mail Service Enabled: RegisterEmailConfirm=%v, Service.EnableNotifyMail=%v", setting.Service.RegisterEmailConfirm, setting.Service.EnableNotifyMail)
-	}
-}
-
-func serveInstall(cmd *cli.Command) error {
-	showWebStartupMessage("Prepare to run install page")
-
-	routers.InitWebInstallPage(graceful.GetManager().HammerContext())
-
-	// Flag for port number in case first time run conflict
-	if cmd.IsSet("port") {
-		if err := setPort(cmd.String("port")); err != nil {
-			return err
-		}
-	}
-	if cmd.IsSet("install-port") {
-		if err := setPort(cmd.String("install-port")); err != nil {
-			return err
-		}
-	}
-	c := install.Routes()
-	err := listen(c, false)
-	if err != nil {
-		log.Error("Unable to open listener for installer. Is Gitea already running?")
-		graceful.GetManager().DoGracefulShutdown()
-	}
-	select {
-	case <-graceful.GetManager().IsShutdown():
-		<-graceful.GetManager().Done()
-		log.Info("PID: %d Gitea Web Finished", os.Getpid())
-		return err
-	default:
-	}
-	return nil
 }
 
 func serveInstalled(c *cli.Command) error {
@@ -186,20 +120,6 @@ func serveInstalled(c *cli.Command) error {
 				log.Error("Unable to update WORK_PATH=%s to config %q: %v\nYou should set it manually, otherwise there might be bugs when accessing the git repositories.", setting.AppWorkPath, setting.CustomConf, err)
 			}
 		}
-	}
-
-	// in old versions, user's custom web files are placed in "custom/public", and they were served as "http://domain.com/assets/xxx"
-	// now, Gitea only serves pre-defined files in the "custom/public" folder basing on the web root, the user should move their custom files to "custom/public/assets"
-	publicFiles, _ := public.AssetFS().ListFiles(".")
-	publicFilesSet := container.SetOf(publicFiles...)
-	publicFilesSet.Remove(".well-known")
-	publicFilesSet.Remove("assets")
-	publicFilesSet.Remove("robots.txt")
-	for _, fn := range publicFilesSet.Values() {
-		log.Error("Found legacy public asset %q in CustomPath. Please move it to %s/public/assets/%s", fn, setting.CustomPath, fn)
-	}
-	if _, err := os.Stat(filepath.Join(setting.CustomPath, "robots.txt")); err == nil {
-		log.Error(`Found legacy public asset "robots.txt" in CustomPath. Please move it to %s/public/robots.txt`, setting.CustomPath)
 	}
 
 	routers.InitWebInstalled(graceful.GetManager().HammerContext())
@@ -268,17 +188,10 @@ func runWeb(ctx context.Context, cmd *cli.Command) error {
 		createPIDFile(cmd.String("pid"))
 	}
 
-	// init the HTML renderer and load templates, if error happens, it will report the error immediately and exit with error log
-	// in dev mode, it won't exit, but watch the template files for changes
-	_ = templates.PageRenderer()
-
-	if !setting.InstallLock {
-		if err := serveInstall(cmd); err != nil {
-			return err
-		}
-	} else {
-		NoInstallListener()
+	if err := bootstrapConfig(cmd); err != nil {
+		return err
 	}
+	NoInstallListener()
 
 	if setting.EnablePprof {
 		go servePprof()
@@ -289,6 +202,7 @@ func runWeb(ctx context.Context, cmd *cli.Command) error {
 
 func setPort(port string) error {
 	setting.AppURL = strings.Replace(setting.AppURL, setting.HTTPPort, port, 1)
+	setting.API.SwaggerURL = strings.Replace(setting.API.SwaggerURL, setting.HTTPPort, port, 1) // derived from the same ROOT_URL
 	setting.HTTPPort = port
 
 	switch setting.Protocol {
@@ -342,35 +256,22 @@ func listen(m http.Handler, handleRedirector bool) error {
 		if handleRedirector {
 			NoHTTPRedirector()
 		}
-		err = runHTTP("tcp", listenAddr, "Web", m, setting.UseProxyProtocol)
-	case setting.HTTPS:
-		if setting.EnableAcme {
-			err = runACME(listenAddr, m)
-			break
-		}
-		if handleRedirector {
-			if setting.RedirectOtherPort {
-				go runHTTPRedirector()
-			} else {
-				NoHTTPRedirector()
-			}
-		}
-		err = runHTTPS("tcp", listenAddr, "Web", setting.CertFile, setting.KeyFile, m, setting.UseProxyProtocol, setting.ProxyProtocolTLSBridging)
+		err = runHTTP("tcp", listenAddr, "Web", m)
 	case setting.FCGI:
 		if handleRedirector {
 			NoHTTPRedirector()
 		}
-		err = runFCGI("tcp", listenAddr, "FCGI Web", m, setting.UseProxyProtocol)
+		err = runFCGI("tcp", listenAddr, "FCGI Web", m)
 	case setting.HTTPUnix:
 		if handleRedirector {
 			NoHTTPRedirector()
 		}
-		err = runHTTP("unix", listenAddr, "Web", m, setting.UseProxyProtocol)
+		err = runHTTP("unix", listenAddr, "Web", m)
 	case setting.FCGIUnix:
 		if handleRedirector {
 			NoHTTPRedirector()
 		}
-		err = runFCGI("unix", listenAddr, "Web", m, setting.UseProxyProtocol)
+		err = runFCGI("unix", listenAddr, "Web", m)
 	default:
 		log.Fatal("Invalid protocol: %s", setting.Protocol)
 	}

@@ -14,53 +14,29 @@ import (
 
 // Git settings
 var Git = struct {
-	Path                 string
-	HomePath             string
-	DisableDiffHighlight bool
+	Path     string
+	HomePath string
 
 	MaxGitDiffLines               int
 	MaxGitDiffLineCharacters      int
-	MaxGitDiffFiles               int
 	CommitsRangeSize              int // CommitsRangeSize the default commits range size
-	BranchesRangeSize             int // BranchesRangeSize the default branches range size
 	VerbosePush                   bool
 	VerbosePushDelay              time.Duration
-	GCArgs                        []string `ini:"GC_ARGS" delim:" "`
-	EnableAutoGitWireProtocol     bool
 	PullRequestPushMessage        bool
 	LargeObjectThreshold          int64
 	DisableCoreProtectNTFS        bool
 	DisablePartialClone           bool
 	DiffRenameSimilarityThreshold string
-	Timeout                       struct {
-		Migrate int
-		Mirror  int
-		GC      int `ini:"GC"`
-	} `ini:"git.timeout"`
 }{
-	DisableDiffHighlight:          false,
 	MaxGitDiffLines:               1000,
 	MaxGitDiffLineCharacters:      5000,
-	MaxGitDiffFiles:               100,
 	CommitsRangeSize:              50,
-	BranchesRangeSize:             20,
 	VerbosePush:                   true,
 	VerbosePushDelay:              5 * time.Second,
-	GCArgs:                        []string{},
-	EnableAutoGitWireProtocol:     true,
 	PullRequestPushMessage:        true,
 	LargeObjectThreshold:          1024 * 1024,
 	DisablePartialClone:           false,
 	DiffRenameSimilarityThreshold: "50%",
-	Timeout: struct {
-		Migrate int
-		Mirror  int
-		GC      int `ini:"GC"`
-	}{
-		Migrate: 600,
-		Mirror:  300,
-		GC:      60,
-	},
 }
 
 type GitConfigType struct {

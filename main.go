@@ -15,11 +15,6 @@ import (
 	"gitea.dev/modules/setting"
 
 	// register supported doc types
-	_ "gitea.dev/modules/markup/console"
-	_ "gitea.dev/modules/markup/csv"
-	_ "gitea.dev/modules/markup/jupyter"
-	_ "gitea.dev/modules/markup/markdown"
-	_ "gitea.dev/modules/markup/orgmode"
 
 	"github.com/urfave/cli/v3"
 )

@@ -4,7 +4,6 @@
 package assetfs
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -12,14 +11,9 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"gitea.dev/modules/container"
-	"gitea.dev/modules/log"
-	"gitea.dev/modules/process"
 	"gitea.dev/modules/util"
-
-	"github.com/fsnotify/fsnotify"
 )
 
 // Layer represents a layer in a layered asset file-system. It has a name and works like http.FileSystem
@@ -204,56 +198,6 @@ func listAllFiles(layers []*Layer, name string, fileMode ...bool) ([]string, err
 	files := fileSet.Values()
 	sort.Strings(files)
 	return files, nil
-}
-
-// WatchLocalChanges watches local changes in the file-system. It's used to help to reload assets when the local file-system changes.
-func (l *LayeredFS) WatchLocalChanges(ctx context.Context, callback func()) {
-	ctx, _, finished := process.GetManager().AddTypedContext(ctx, "Asset Local FileSystem Watcher", process.SystemProcessType, true)
-	defer finished()
-
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Error("Unable to create watcher for asset local file-system: %v", err)
-		return
-	}
-	defer watcher.Close()
-
-	for _, layer := range l.layers {
-		if layer.localPath == "" {
-			continue
-		}
-		layerDirs, err := listAllFiles([]*Layer{layer}, ".", false)
-		if err != nil {
-			log.Error("Unable to list directories for asset local file-system %q: %v", layer.localPath, err)
-			continue
-		}
-		layerDirs = append(layerDirs, ".")
-		for _, dir := range layerDirs {
-			if err = watcher.Add(util.FilePathJoinAbs(layer.localPath, dir)); err != nil && !os.IsNotExist(err) {
-				log.Error("Unable to watch directory %s: %v", dir, err)
-			}
-		}
-	}
-
-	debounce := util.Debounce(100 * time.Millisecond)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return
-			}
-			log.Trace("Watched asset local file-system had event: %v", event)
-			debounce(callback)
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return
-			}
-			log.Error("Watched asset local file-system had error: %v", err)
-		}
-	}
 }
 
 // GetFileLayerName returns the name of the first-seen layer that contains the given file.

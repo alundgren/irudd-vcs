@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"gitea.dev/models/db"
-	organization_model "gitea.dev/models/organization"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/optional"
@@ -37,29 +36,6 @@ func (reviews ReviewList) LoadReviewers(ctx context.Context) error {
 	for _, review := range reviews {
 		review.Reviewer = userMap[review.ReviewerID]
 	}
-	return nil
-}
-
-// LoadReviewersTeams loads reviewers teams
-func (reviews ReviewList) LoadReviewersTeams(ctx context.Context) error {
-	reviewersTeamsIDs := make([]int64, 0)
-	for _, review := range reviews {
-		if review.ReviewerTeamID != 0 {
-			reviewersTeamsIDs = append(reviewersTeamsIDs, review.ReviewerTeamID)
-		}
-	}
-
-	teamsMap, err := organization_model.GetTeamsByIDs(ctx, reviewersTeamsIDs)
-	if err != nil {
-		return err
-	}
-
-	for _, review := range reviews {
-		if review.ReviewerTeamID != 0 {
-			review.ReviewerTeam = teamsMap[review.ReviewerTeamID]
-		}
-	}
-
 	return nil
 }
 
@@ -172,7 +148,6 @@ func GetReviewsByIssueID(ctx context.Context, issueID int64) (latestReviews, mig
 	// And since there are too less indexes in review table, it will be very slow to filter in the database
 	reviewersMap := make(map[int64][]*Review)         // key is reviewer id
 	originalReviewersMap := make(map[int64][]*Review) // key is original author id
-	reviewTeamsMap := make(map[int64][]*Review)       // key is reviewer team id
 	countedReviewTypes := []ReviewType{ReviewTypeApprove, ReviewTypeReject, ReviewTypeRequest, ReviewTypeComment}
 	for _, review := range reviews {
 		if review.ReviewerTeamID == 0 && slices.Contains(countedReviewTypes, review.Type) && !review.Dismissed {
@@ -181,8 +156,6 @@ func GetReviewsByIssueID(ctx context.Context, issueID int64) (latestReviews, mig
 			} else {
 				reviewersMap[review.ReviewerID] = append(reviewersMap[review.ReviewerID], review)
 			}
-		} else if review.ReviewerTeamID != 0 && review.OriginalAuthorID == 0 {
-			reviewTeamsMap[review.ReviewerTeamID] = append(reviewTeamsMap[review.ReviewerTeamID], review)
 		}
 	}
 
@@ -202,13 +175,5 @@ func GetReviewsByIssueID(ctx context.Context, issueID int64) (latestReviews, mig
 		return originalReviews[i].UpdatedUnix < originalReviews[j].UpdatedUnix
 	})
 
-	teamReviewRequests := make([]*Review, 0, 5)
-	for _, reviews := range reviewTeamsMap {
-		teamReviewRequests = append(teamReviewRequests, reviews[len(reviews)-1])
-	}
-	sort.Slice(teamReviewRequests, func(i, j int) bool {
-		return teamReviewRequests[i].UpdatedUnix < teamReviewRequests[j].UpdatedUnix
-	})
-
-	return append(individualReviews, teamReviewRequests...), originalReviews, nil
+	return individualReviews, originalReviews, nil
 }

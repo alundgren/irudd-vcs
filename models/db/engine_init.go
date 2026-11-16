@@ -33,13 +33,6 @@ func newXORMEngine() (*xorm.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch {
-	case connOpts.Type.IsMySQL():
-		engine.Dialect().SetParams(map[string]string{"rowFormat": "DYNAMIC"})
-	case connOpts.Type.IsMSSQL():
-		engine.Dialect().SetParams(map[string]string{"DEFAULT_VARCHAR": "nvarchar"})
-	}
-	engine.SetSchema(connOpts.Schema)
 	return engine, nil
 }
 
@@ -76,17 +69,6 @@ func SetDefaultEngine(ctx context.Context, eng *xorm.Engine) {
 	xormEngine.SetDefaultContext(ctx)
 }
 
-// UnsetDefaultEngine closes and unsets the default engine
-// We hope the SetDefaultEngine and UnsetDefaultEngine can be paired, but it's impossible now,
-// there are many calls to InitEngine -> SetDefaultEngine directly to overwrite the `xormEngine` and `xormContext` without close
-// Global database engine related functions are all racy and there is no graceful close right now.
-func UnsetDefaultEngine() {
-	if xormEngine != nil {
-		_ = xormEngine.Close()
-		xormEngine = nil
-	}
-}
-
 // InitEngineWithMigration initializes a new xorm.Engine and sets it as the XORM's default context
 // This function must never call .Sync() if the provided migration function fails.
 // When called from the "doctor" command, the migration function is a version check
@@ -100,8 +82,6 @@ func InitEngineWithMigration(ctx context.Context, migrateFunc func(context.Conte
 	if err = xormEngine.Ping(); err != nil {
 		return err
 	}
-
-	preprocessDatabaseCollation(xormEngine)
 
 	// We have to run migrateFunc here in case the user is re-running installation on a previously created DB.
 	// If we do not then table schemas will be changed and there will be conflicts when the migrations run properly.

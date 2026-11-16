@@ -11,7 +11,6 @@ import (
 	"gitea.dev/modules/setting"
 
 	_ "gitea.dev/models"
-	_ "gitea.dev/models/actions"
 )
 
 func TestMain(m *testing.M) {

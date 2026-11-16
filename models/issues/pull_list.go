@@ -14,7 +14,6 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 
 	"xorm.io/builder"
@@ -23,12 +22,14 @@ import (
 // PullRequestsOptions holds the options for PRs
 type PullRequestsOptions struct {
 	db.ListOptions
-	State       string
-	SortType    string
-	Labels      []int64
-	MilestoneID int64
-	PosterID    int64
-	BaseBranch  string
+	State      string
+	SortType   string
+	Labels     []int64
+	PosterID   int64
+	BaseBranch string
+	HeadBranch string
+	// HeadOwnerID restricts HeadBranch to head repositories of this owner, 0 means any
+	HeadOwnerID int64
 }
 
 func listPullRequestStatement(ctx context.Context, baseRepoID int64, opts *PullRequestsOptions) db.Session {
@@ -36,6 +37,14 @@ func listPullRequestStatement(ctx context.Context, baseRepoID int64, opts *PullR
 
 	if opts.BaseBranch != "" {
 		sess.And("pull_request.base_branch=?", opts.BaseBranch)
+	}
+
+	if opts.HeadBranch != "" {
+		sess.And("pull_request.head_branch=?", opts.HeadBranch)
+	}
+
+	if opts.HeadOwnerID > 0 {
+		sess.In("pull_request.head_repo_id", builder.Select("id").From("repository").Where(builder.Eq{"owner_id": opts.HeadOwnerID}))
 	}
 
 	sess.Join("INNER", "issue", "pull_request.issue_id = issue.id")
@@ -47,10 +56,6 @@ func listPullRequestStatement(ctx context.Context, baseRepoID int64, opts *PullR
 	if len(opts.Labels) > 0 {
 		sess.Join("INNER", "issue_label", "issue.id = issue_label.issue_id").
 			In("issue_label.label_id", opts.Labels)
-	}
-
-	if opts.MilestoneID > 0 {
-		sess.And("issue.milestone_id=?", opts.MilestoneID)
 	}
 
 	if opts.PosterID > 0 {
@@ -351,40 +356,4 @@ func (prs PullRequestList) LoadReviews(ctx context.Context) (ReviewList, error) 
 	}
 
 	return reviews, nil
-}
-
-// HasMergedPullRequestInRepo returns whether the user(poster) has merged pull-request in the repo
-func HasMergedPullRequestInRepo(ctx context.Context, repoID, posterID int64) (bool, error) {
-	return HasMergedPullRequestInRepoBefore(ctx, repoID, posterID, 0, 0)
-}
-
-// HasMergedPullRequestInRepoBefore returns whether the user has a merged PR before a timestamp (0 = no limit)
-func HasMergedPullRequestInRepoBefore(ctx context.Context, repoID, posterID int64, beforeUnix timeutil.TimeStamp, excludePullID int64) (bool, error) {
-	sess := db.GetEngine(ctx).
-		Join("INNER", "pull_request", "pull_request.issue_id = issue.id").
-		Where("repo_id=?", repoID).
-		And("poster_id=?", posterID).
-		And("is_pull=?", true).
-		And("pull_request.has_merged=?", true)
-
-	if beforeUnix > 0 {
-		sess.And("pull_request.merged_unix < ?", beforeUnix)
-	}
-	if excludePullID > 0 {
-		sess.And("pull_request.id != ?", excludePullID)
-	}
-
-	return sess.
-		Select("issue.id").
-		Limit(1).
-		Get(new(Issue))
-}
-
-// GetPullRequestByIssueIDs returns all pull requests by issue ids
-func GetPullRequestByIssueIDs(ctx context.Context, issueIDs []int64) (PullRequestList, error) {
-	prs := make([]*PullRequest, 0, len(issueIDs))
-	return prs, db.GetEngine(ctx).
-		Where("issue_id > 0").
-		In("issue_id", issueIDs).
-		Find(&prs)
 }

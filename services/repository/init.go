@@ -16,7 +16,6 @@ import (
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
 	repo_module "gitea.dev/modules/repository"
-	asymkey_service "gitea.dev/services/asymkey"
 )
 
 // initRepoCommit temporarily changes with work directory.
@@ -42,21 +41,7 @@ func initRepoCommit(ctx context.Context, tmpPath string, repo *repo_model.Reposi
 	cmd := gitcmd.NewCommand("commit", "--message=Initial commit").
 		AddOptionFormat("--author='%s <%s>'", sig.Name, sig.Email)
 
-	sign, key, signer, _ := asymkey_service.SignInitialCommit(ctx, u)
-	if sign {
-		if key.Format != "" {
-			cmd.AddConfig("gpg.format", key.Format)
-		}
-		cmd.AddOptionFormat("-S%s", key.KeyID)
-
-		if repo.GetTrustModel() == repo_model.CommitterTrustModel || repo.GetTrustModel() == repo_model.CollaboratorCommitterTrustModel {
-			// need to set the committer to the KeyID owner
-			committerName = signer.Name
-			committerEmail = signer.Email
-		}
-	} else {
-		cmd.AddArguments("--no-gpg-sign")
-	}
+	cmd.AddArguments("--no-gpg-sign") // commits are never signed
 
 	env = append(env,
 		"GIT_COMMITTER_NAME="+committerName,

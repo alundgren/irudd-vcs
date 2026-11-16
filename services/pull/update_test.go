@@ -10,8 +10,6 @@ import (
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/perm"
-	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
@@ -81,27 +79,6 @@ func TestIsUserAllowedToUpdate(t *testing.T) {
 		setRepoAllowMergeUpdate(t, pr2.BaseRepoID, true)
 	})
 
-	t.Run("ReadOnlyAccessDenied", func(t *testing.T) {
-		pr2 := unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 2})
-		user4 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
-
-		collaboration := &repo_model.Collaboration{
-			RepoID: pr2.HeadRepoID,
-			UserID: user4.ID,
-			Mode:   perm.AccessModeRead,
-		}
-		require.NoError(t, db.Insert(t.Context(), collaboration))
-		defer db.DeleteByBean(t.Context(), collaboration)
-
-		require.NoError(t, pr2.LoadHeadRepo(t.Context()))
-		assert.NoError(t, access_model.RecalculateUserAccess(t.Context(), pr2.HeadRepo, user4.ID))
-
-		pushAllowed, rebaseAllowed, _, err := checkUserAllowedToUpdate(t.Context(), pr2, user4)
-		assert.NoError(t, err)
-		assert.False(t, pushAllowed)
-		assert.False(t, rebaseAllowed)
-	})
-
 	t.Run("ProtectedBranchAllowsPushWithoutRebase", func(t *testing.T) {
 		pr2 := unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 2})
 		protectedBranch := &git_model.ProtectedBranch{
@@ -122,15 +99,6 @@ func TestIsUserAllowedToUpdate(t *testing.T) {
 
 	pr3Poster := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 12})
 
-	t.Run("MaintainerEditRespectsPosterPermissions", func(t *testing.T) {
-		pr3 := unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 3})
-		pr3.AllowMaintainerEdit = true
-		pushAllowed, rebaseAllowed, _, err := checkUserAllowedToUpdate(t.Context(), pr3, pr3Poster)
-		assert.NoError(t, err)
-		assert.False(t, pushAllowed)
-		assert.False(t, rebaseAllowed)
-	})
-
 	t.Run("MaintainerEditInheritsPosterPermissions", func(t *testing.T) {
 		pr3 := unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 3})
 		pr3.AllowMaintainerEdit = true
@@ -143,17 +111,6 @@ func TestIsUserAllowedToUpdate(t *testing.T) {
 		_, err := db.GetEngine(t.Context()).Insert(protectedBranch)
 		require.NoError(t, err)
 		defer db.DeleteByBean(t.Context(), protectedBranch)
-
-		collaboration := &repo_model.Collaboration{
-			RepoID: pr3.HeadRepoID,
-			UserID: pr3Poster.ID,
-			Mode:   perm.AccessModeWrite,
-		}
-		require.NoError(t, db.Insert(t.Context(), collaboration))
-		defer db.DeleteByBean(t.Context(), collaboration)
-
-		require.NoError(t, pr3.LoadHeadRepo(t.Context()))
-		assert.NoError(t, access_model.RecalculateUserAccess(t.Context(), pr3.HeadRepo, pr3Poster.ID))
 
 		pushAllowed, rebaseAllowed, _, err := checkUserAllowedToUpdate(t.Context(), pr3, pr3Poster)
 		assert.NoError(t, err)
@@ -173,17 +130,6 @@ func TestIsUserAllowedToUpdate(t *testing.T) {
 		_, err := db.GetEngine(t.Context()).Insert(protectedBranch)
 		require.NoError(t, err)
 		defer db.DeleteByBean(t.Context(), protectedBranch)
-
-		collaboration := &repo_model.Collaboration{
-			RepoID: pr3.HeadRepoID,
-			UserID: pr3Poster.ID,
-			Mode:   perm.AccessModeWrite,
-		}
-		require.NoError(t, db.Insert(t.Context(), collaboration))
-		defer db.DeleteByBean(t.Context(), collaboration)
-
-		require.NoError(t, pr3.LoadHeadRepo(t.Context()))
-		assert.NoError(t, access_model.RecalculateUserAccess(t.Context(), pr3.HeadRepo, pr3Poster.ID))
 
 		setRepoAllowRebaseUpdate(t, pr3.BaseRepoID, false)
 

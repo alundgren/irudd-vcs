@@ -20,7 +20,6 @@ import (
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
-	pull_model "gitea.dev/models/pull"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
@@ -31,12 +30,10 @@ import (
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/references"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
-	issue_service "gitea.dev/services/issue"
 	notify_service "gitea.dev/services/notify"
 )
 
@@ -56,12 +53,6 @@ func getMergeMessage(ctx context.Context, baseGitRepo *git.Repository, pr *issue
 	}
 	if err := pr.Issue.LoadRepo(ctx); err != nil {
 		return "", "", err
-	}
-
-	isExternalTracker := pr.BaseRepo.UnitEnabled(ctx, unit.TypeExternalTracker)
-	issueReference := "#"
-	if isExternalTracker {
-		issueReference = "!"
 	}
 
 	reviewedOn := "Reviewed-on: " + httplib.MakeAbsoluteURL(ctx, pr.Issue.Link())
@@ -90,7 +81,7 @@ func getMergeMessage(ctx context.Context, baseGitRepo *git.Repository, pr *issue
 				"PullRequestDescription": pr.Issue.Content,
 				"PullRequestPosterName":  pr.Issue.Poster.Name,
 				"PullRequestIndex":       strconv.FormatInt(pr.Index, 10),
-				"PullRequestReference":   fmt.Sprintf("%s%d", issueReference, pr.Index),
+				"PullRequestReference":   fmt.Sprintf("#%d", pr.Index),
 				"ReviewedOn":             reviewedOn,
 				"ReviewedBy":             reviewedBy,
 			}
@@ -99,27 +90,7 @@ func getMergeMessage(ctx context.Context, baseGitRepo *git.Repository, pr *issue
 				vars["HeadRepoName"] = pr.HeadRepo.Name
 			}
 			maps.Copy(vars, extraVars)
-			refs, err := pr.ResolveCrossReferences(ctx)
-			if err == nil {
-				closeIssueIndexes := make([]string, 0, len(refs))
-				closeWord := "close"
-				if len(setting.Repository.PullRequest.CloseKeywords) > 0 {
-					closeWord = setting.Repository.PullRequest.CloseKeywords[0]
-				}
-				for _, ref := range refs {
-					if ref.RefAction == references.XRefActionCloses {
-						if err := ref.LoadIssue(ctx); err != nil {
-							return "", "", err
-						}
-						closeIssueIndexes = append(closeIssueIndexes, fmt.Sprintf("%s %s%d", closeWord, issueReference, ref.Issue.Index))
-					}
-				}
-				if len(closeIssueIndexes) > 0 {
-					vars["ClosingIssues"] = strings.Join(closeIssueIndexes, ", ")
-				} else {
-					vars["ClosingIssues"] = ""
-				}
-			}
+			vars["ClosingIssues"] = "" // cross-references are not tracked
 			message, body = expandDefaultMergeMessage(templateContent, vars)
 			return message, body, nil
 		}
@@ -134,18 +105,18 @@ func getMergeMessage(ctx context.Context, baseGitRepo *git.Repository, pr *issue
 
 	// Squash merge has a different from other styles.
 	if mergeStyle == repo_model.MergeStyleSquash {
-		return fmt.Sprintf("%s (%s%d)", pr.Issue.Title, issueReference, pr.Issue.Index), body, nil
+		return fmt.Sprintf("%s (#%d)", pr.Issue.Title, pr.Issue.Index), body, nil
 	}
 
 	if pr.BaseRepoID == pr.HeadRepoID {
-		return fmt.Sprintf("Merge pull request '%s' (%s%d) from %s into %s", pr.Issue.Title, issueReference, pr.Issue.Index, pr.HeadBranch, pr.BaseBranch), body, nil
+		return fmt.Sprintf("Merge pull request '%s' (#%d) from %s into %s", pr.Issue.Title, pr.Issue.Index, pr.HeadBranch, pr.BaseBranch), body, nil
 	}
 
 	if pr.HeadRepo == nil {
-		return fmt.Sprintf("Merge pull request '%s' (%s%d) from <deleted>:%s into %s", pr.Issue.Title, issueReference, pr.Issue.Index, pr.HeadBranch, pr.BaseBranch), body, nil
+		return fmt.Sprintf("Merge pull request '%s' (#%d) from <deleted>:%s into %s", pr.Issue.Title, pr.Issue.Index, pr.HeadBranch, pr.BaseBranch), body, nil
 	}
 
-	return fmt.Sprintf("Merge pull request '%s' (%s%d) from %s:%s into %s", pr.Issue.Title, issueReference, pr.Issue.Index, pr.HeadRepo.FullName(), pr.HeadBranch, pr.BaseBranch), body, nil
+	return fmt.Sprintf("Merge pull request '%s' (#%d) from %s:%s into %s", pr.Issue.Title, pr.Issue.Index, pr.HeadRepo.FullName(), pr.HeadBranch, pr.BaseBranch), body, nil
 }
 
 func expandDefaultMergeMessage(template string, vars map[string]string) (message, body string) {
@@ -306,37 +277,6 @@ func handleMergePostProcess(ctx context.Context, prID int64, doer *user_model.Us
 	// Reset cached commit count
 	cache.Remove(pr.Issue.Repo.GetCommitsCountCacheKey(pr.BaseBranch, true))
 
-	return handleCloseCrossReferences(ctx, pr, doer)
-}
-
-func handleCloseCrossReferences(ctx context.Context, pr *issues_model.PullRequest, doer *user_model.User) error {
-	// Resolve cross references
-	refs, err := pr.ResolveCrossReferences(ctx)
-	if err != nil {
-		log.Error("ResolveCrossReferences: %v", err)
-		return nil
-	}
-
-	for _, ref := range refs {
-		if err = ref.LoadIssue(ctx); err != nil {
-			return err
-		}
-		if err = ref.Issue.LoadRepo(ctx); err != nil {
-			return err
-		}
-		if ref.RefAction == references.XRefActionCloses && !ref.Issue.IsClosed {
-			if err = issue_service.CloseIssue(ctx, ref.Issue, doer, pr.MergedCommitID); err != nil {
-				// Allow ErrDependenciesLeft
-				if !issues_model.IsErrDependenciesLeft(err) {
-					return err
-				}
-			}
-		} else if ref.RefAction == references.XRefActionReopens && ref.Issue.IsClosed {
-			if err = issue_service.ReopenIssue(ctx, ref.Issue, doer, pr.MergedCommitID); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 
@@ -411,7 +351,6 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 		headUser,
 		doer,
 		pr.BaseRepo,
-		pr.BaseRepo.Name,
 		pr.ID,
 		pr.Index,
 	)
@@ -446,22 +385,16 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 
 func commitAndSignNoAuthor(ctx *mergeContext, message string) error {
 	cmdCommit := gitcmd.NewCommand("commit").AddOptionFormat("--message=%s", message)
-	addCommitSigningOptions(cmdCommit, ctx.signKey)
+	addCommitSigningOptions(cmdCommit)
 	if err := ctx.PrepareGitCmd(cmdCommit).RunWithStderr(ctx); err != nil {
 		return fmt.Errorf("git commit %v: %w\n%s", ctx.pr, err, ctx.outbuf.String())
 	}
 	return nil
 }
 
-func addCommitSigningOptions(cmd *gitcmd.Command, signKey *git.SigningKey) {
-	if signKey == nil {
-		cmd.AddArguments("--no-gpg-sign")
-		return
-	}
-	if signKey.Format != "" {
-		cmd.AddConfig("gpg.format", signKey.Format)
-	}
-	cmd.AddOptionFormat("--gpg-sign=%s", signKey.KeyID)
+// Merge commits are never signed, so also ignore any commit.gpgSign from the system git config
+func addCommitSigningOptions(cmd *gitcmd.Command) {
+	cmd.AddArguments("--no-gpg-sign")
 }
 
 // ErrMergeConflicts represents an error if merging fails with a conflict
@@ -685,7 +618,7 @@ func MergedManually(ctx context.Context, pr *issues_model.PullRequest, doer *use
 	notify_service.MergePullRequest(ctx, doer, pr)
 	log.Info("manuallyMerged[%d]: Marked as manually merged into %s/%s by commit id: %s", pr.ID, pr.BaseRepo.Name, pr.BaseBranch, commitID)
 
-	return handleCloseCrossReferences(ctx, pr, doer)
+	return nil
 }
 
 // SetMerged sets a pull request to merged and closes the corresponding issue
@@ -719,11 +652,6 @@ func SetMerged(ctx context.Context, pr *issues_model.PullRequest, mergedCommitID
 
 		if err := pr.Issue.Repo.LoadOwner(ctx); err != nil {
 			return false, err
-		}
-
-		// Removing an auto merge pull and ignore if not exist
-		if err := pull_model.DeleteScheduledAutoMerge(ctx, pr.ID); err != nil && !db.IsErrNotExist(err) {
-			return false, fmt.Errorf("DeleteScheduledAutoMerge[%d]: %v", pr.ID, err)
 		}
 
 		// Set issue as closed

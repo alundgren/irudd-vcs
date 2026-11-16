@@ -10,7 +10,6 @@ import (
 	"gitea.dev/modules/base"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/htmlutil"
-	"gitea.dev/modules/log"
 )
 
 type SubmoduleDiffInfo struct {
@@ -18,27 +17,6 @@ type SubmoduleDiffInfo struct {
 	SubmoduleFile *git.CommitSubmoduleFile // it might be nil if the submodule is not found or unable to parse
 	NewRefID      string
 	PreviousRefID string
-}
-
-func (si *SubmoduleDiffInfo) PopulateURL(repoLink string, diffFile *DiffFile, leftCommit, rightCommit *git.Commit) {
-	si.SubmoduleName = diffFile.Name
-	submoduleCommit := rightCommit // If the submodule is added or updated, check at the right commit
-	if diffFile.IsDeleted {
-		submoduleCommit = leftCommit // If the submodule is deleted, check at the left commit
-	}
-	if submoduleCommit == nil {
-		return
-	}
-
-	submoduleFullPath := diffFile.GetDiffFileName()
-	submodule, err := submoduleCommit.GetSubModule(submoduleFullPath)
-	if err != nil {
-		log.Error("Unable to PopulateURL for submodule %q: GetSubModule: %v", submoduleFullPath, err)
-		return // ignore the error, do not cause 500 errors for end users
-	}
-	if submodule != nil {
-		si.SubmoduleFile = git.NewCommitSubmoduleFile(repoLink, submoduleFullPath, submodule.URL, submoduleCommit.ID.String())
-	}
 }
 
 func (si *SubmoduleDiffInfo) CommitRefIDLinkHTML(ctx context.Context, commitID string) template.HTML {

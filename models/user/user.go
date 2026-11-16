@@ -23,9 +23,7 @@ import (
 
 	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
-	"gitea.dev/modules/auth/openid"
 	"gitea.dev/modules/auth/password/hash"
-	"gitea.dev/modules/base"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/htmlutil"
@@ -202,13 +200,6 @@ func (u *User) BeforeUpdate() {
 	u.Description = util.TruncateRunes(u.Description, 255)
 }
 
-// AfterLoad is invoked from XORM after filling all the fields of this object.
-func (u *User) AfterLoad() {
-	if u.Theme == "" {
-		u.Theme = setting.UI.DefaultTheme
-	}
-}
-
 // SetLastLogin set time to last login
 func (u *User) SetLastLogin() {
 	u.LastLoginUnix = timeutil.TimeStampNow()
@@ -292,14 +283,6 @@ func (u *User) CanForkRepoIn(owner *User) bool {
 	return u.CanCreateRepoIn(owner)
 }
 
-// CanImportLocal returns true if user can migrate repository by local path.
-func (u *User) CanImportLocal() bool {
-	if !setting.ImportLocalPaths || u == nil {
-		return false
-	}
-	return u.IsAdmin || u.AllowImportLocal
-}
-
 // DashboardLink returns the user dashboard page link.
 func (u *User) DashboardLink() string {
 	if u.IsOrganization() {
@@ -328,50 +311,6 @@ func (u *User) HTMLURL(ctx context.Context) string {
 // OrganisationLink returns the organization sub page link.
 func (u *User) OrganisationLink() string {
 	return setting.AppSubURL + "/org/" + url.PathEscape(u.Name)
-}
-
-// GetUserFollowers returns range of user's followers.
-func GetUserFollowers(ctx context.Context, u, viewer *User, listOptions db.ListOptions) ([]*User, int64, error) {
-	sess := db.GetEngine(ctx).
-		Select("`user`.*").
-		Join("LEFT", "follow", "`user`.id=follow.user_id").
-		Where("follow.follow_id=?", u.ID).
-		And("`user`.type=?", UserTypeIndividual).
-		And(isUserVisibleToViewerCond(viewer))
-
-	if listOptions.Page > 0 {
-		db.SetSessionPagination(sess, &listOptions)
-
-		users := make([]*User, 0, listOptions.PageSize)
-		count, err := sess.FindAndCount(&users)
-		return users, count, err
-	}
-
-	users := make([]*User, 0, 8)
-	count, err := sess.FindAndCount(&users)
-	return users, count, err
-}
-
-// GetUserFollowing returns range of user's following.
-func GetUserFollowing(ctx context.Context, u, viewer *User, listOptions db.ListOptions) ([]*User, int64, error) {
-	sess := db.GetEngine(ctx).
-		Select("`user`.*").
-		Join("LEFT", "follow", "`user`.id=follow.follow_id").
-		Where("follow.user_id=?", u.ID).
-		And("`user`.type IN (?, ?)", UserTypeIndividual, UserTypeOrganization).
-		And(isUserVisibleToViewerCond(viewer))
-
-	if listOptions.Page > 0 {
-		db.SetSessionPagination(sess, &listOptions)
-
-		users := make([]*User, 0, listOptions.PageSize)
-		count, err := sess.FindAndCount(&users)
-		return users, count, err
-	}
-
-	users := make([]*User, 0, 8)
-	count, err := sess.FindAndCount(&users)
-	return users, count, err
 }
 
 // NewGitSig generates and returns the signature of given user.
@@ -676,11 +615,10 @@ func createUser(ctx context.Context, u *User, meta *Meta, createdByAdmin bool, o
 	u.KeepEmailPrivate = setting.Service.DefaultKeepEmailPrivate
 	u.Visibility = setting.Service.DefaultUserVisibilityMode
 	u.AllowCreateOrganization = setting.Service.DefaultAllowCreateOrganization && !setting.Admin.DisableRegularOrgCreation
-	u.EmailNotificationsPreference = setting.Admin.DefaultEmailNotification
+	u.EmailNotificationsPreference = EmailNotificationsEnabled
 	u.MaxRepoCreation = -1
-	u.Theme = setting.UI.DefaultTheme
 	u.IsRestricted = setting.Service.DefaultUserIsRestricted
-	u.IsActive = !(setting.Service.RegisterEmailConfirm || setting.Service.RegisterManualConfirm)
+	u.IsActive = true // no mail service, so there is no email confirmation
 
 	// Ensure consistency of the dates.
 	if u.UpdatedUnix < u.CreatedUnix {
@@ -839,20 +777,6 @@ type CountUserFilter struct {
 	IsActive       optional.Option[bool]
 }
 
-// HasUsers checks whether there are any users in the database, or only one user exists.
-func HasUsers(ctx context.Context) (ret struct {
-	HasAnyUser, HasOnlyOneUser bool
-}, err error,
-) {
-	res, err := db.GetEngine(ctx).Table(&User{}).Cols("id").Limit(2).Query()
-	if err != nil {
-		return ret, fmt.Errorf("error checking user existence: %w", err)
-	}
-	ret.HasAnyUser = len(res) != 0
-	ret.HasOnlyOneUser = len(res) == 1
-	return ret, nil
-}
-
 // CountUsers returns number of users.
 func CountUsers(ctx context.Context, opts *CountUserFilter) int64 {
 	return countUsers(ctx, opts)
@@ -883,63 +807,6 @@ func countUsers(ctx context.Context, opts *CountUserFilter) int64 {
 	}
 
 	return count
-}
-
-// GetVerifyUser get user by verify code
-func GetVerifyUser(ctx context.Context, code string) (user *User) {
-	if len(code) <= base.TimeLimitCodeLength {
-		return nil
-	}
-
-	// use tail hex username query user
-	hexStr := code[base.TimeLimitCodeLength:]
-	if b, err := hex.DecodeString(hexStr); err == nil {
-		if user, err = GetUserByName(ctx, string(b)); user != nil {
-			return user
-		}
-		log.Error("user.getVerifyUser: %v", err)
-	}
-
-	return nil
-}
-
-type TimeLimitCodePurpose string
-
-const (
-	TimeLimitCodeActivateAccount TimeLimitCodePurpose = "activate_account"
-	TimeLimitCodeActivateEmail   TimeLimitCodePurpose = "activate_email"
-	TimeLimitCodeResetPassword   TimeLimitCodePurpose = "reset_password"
-)
-
-type TimeLimitCodeOptions struct {
-	Purpose  TimeLimitCodePurpose
-	NewEmail string
-}
-
-func makeTimeLimitCodeHashData(opts *TimeLimitCodeOptions, u *User) string {
-	return fmt.Sprintf("%s|%d|%s|%s|%s|%s", opts.Purpose, u.ID, strings.ToLower(util.IfZero(opts.NewEmail, u.Email)), u.LowerName, u.Passwd, u.Rands)
-}
-
-// GenerateUserTimeLimitCode generates a time-limit code based on user information and given e-mail.
-// TODO: need to use cache or db to store it to make sure a code can only be consumed once
-func GenerateUserTimeLimitCode(opts *TimeLimitCodeOptions, u *User) string {
-	data := makeTimeLimitCodeHashData(opts, u)
-	code := base.CreateTimeLimitCode(data, setting.Service.ActiveCodeLives, time.Now(), nil)
-	code += hex.EncodeToString([]byte(u.LowerName)) // Add tail hex username
-	return code
-}
-
-// VerifyUserTimeLimitCode verifies the time-limit code
-func VerifyUserTimeLimitCode(ctx context.Context, opts *TimeLimitCodeOptions, code string) (user *User) {
-	if user = GetVerifyUser(ctx, code); user != nil {
-		// time limit code
-		prefix := code[:base.TimeLimitCodeLength]
-		data := makeTimeLimitCodeHashData(opts, user)
-		if base.VerifyTimeLimitCode(time.Now(), data, setting.Service.ActiveCodeLives, prefix) {
-			return user
-		}
-	}
-	return nil
 }
 
 // ValidateUser check if user is valid to insert / update into database
@@ -1141,24 +1008,6 @@ func GetUserIDsByNames(ctx context.Context, names []string, ignoreNonExistent bo
 	return ids, nil
 }
 
-// GetUsersBySource returns a list of Users for a login source
-func GetUsersBySource(ctx context.Context, s *auth.Source) ([]*User, error) {
-	var users []*User
-	err := db.GetEngine(ctx).Where("login_type = ? AND login_source = ?", s.Type, s.ID).Find(&users)
-	return users, err
-}
-
-func GetUserByGitAuthor(ctx context.Context, c *git.Commit) *User {
-	if c.Author == nil {
-		return nil
-	}
-	u, err := GetUserByEmail(ctx, c.Author.Email)
-	if err != nil {
-		return nil
-	}
-	return u
-}
-
 type EmailUserMap struct {
 	m map[string]*User
 }
@@ -1296,112 +1145,8 @@ func GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	return nil, ErrUserNotExist{Name: email}
 }
 
-func GetIndividualUserByPrimaryEmail(ctx context.Context, email string) (*User, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if len(email) == 0 {
-		return nil, ErrUserNotExist{Name: email}
-	}
-
-	user, has, err := db.Get[User](ctx, builder.Eq{"email": email, "type": UserTypeIndividual})
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, ErrUserNotExist{Name: email}
-	}
-	return user, nil
-}
-
-func GetIndividualUserByLoginSource(ctx context.Context, loginType auth.Type, loginSource int64, loginName string) (*User, bool, error) {
-	user, has, err := db.Get[User](ctx, builder.Eq{"login_type": loginType, "login_source": loginSource, "login_name": loginName})
-	if has && user.Type != UserTypeIndividual {
-		has = false
-		user = nil
-	}
-	return user, has, err
-}
-
-// GetUserByOpenID returns the user object by given OpenID if exists.
-func GetUserByOpenID(ctx context.Context, uri string) (*User, error) {
-	if len(uri) == 0 {
-		return nil, ErrUserNotExist{Name: uri}
-	}
-
-	uri, err := openid.Normalize(uri)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Trace("Normalized OpenID URI: " + uri)
-
-	// Otherwise, check in openid table
-	oid := &UserOpenID{}
-	has, err := db.GetEngine(ctx).Where("uri=?", uri).Get(oid)
-	if err != nil {
-		return nil, err
-	}
-	if has {
-		return GetUserByID(ctx, oid.UID)
-	}
-
-	return nil, ErrUserNotExist{Name: uri}
-}
-
-// GetAdminUser returns the first administrator
-func GetAdminUser(ctx context.Context) (*User, error) {
-	var admin User
-	has, err := db.GetEngine(ctx).
-		Where("is_admin=?", true).
-		Asc("id"). // Reliably get the admin with the lowest ID.
-		Get(&admin)
-	if err != nil {
-		return nil, err
-	} else if !has {
-		return nil, ErrUserNotExist{}
-	}
-
-	return &admin, nil
-}
-
-func isUserVisibleToViewerCond(viewer *User) builder.Cond {
-	if viewer != nil && viewer.IsAdmin {
-		return builder.NewCond()
-	}
-
-	if viewer == nil || viewer.IsRestricted {
-		return builder.Eq{
-			"`user`.visibility": structs.VisibleTypePublic,
-		}
-	}
-
-	return builder.Neq{
-		"`user`.visibility": structs.VisibleTypePrivate,
-	}.Or(
-		// viewer self
-		builder.Eq{"`user`.id": viewer.ID},
-		// viewer's following
-		builder.In("`user`.id",
-			builder.
-				Select("`follow`.user_id").
-				From("follow").
-				Where(builder.Eq{"`follow`.follow_id": viewer.ID})),
-		// viewer's org user
-		builder.In("`user`.id",
-			builder.
-				Select("`team_user`.uid").
-				From("team_user").
-				Join("INNER", "`team_user` AS t2", "`team_user`.org_id = `t2`.org_id").
-				Where(builder.Eq{"`t2`.uid": viewer.ID})),
-		// viewer's org
-		builder.In("`user`.id",
-			builder.
-				Select("`team_user`.org_id").
-				From("team_user").
-				Where(builder.Eq{"`team_user`.uid": viewer.ID})))
-}
-
 // IsUserVisibleToViewer check if viewer is able to see user profile
-func IsUserVisibleToViewer(ctx context.Context, u, viewer *User) bool {
+func IsUserVisibleToViewer(_ context.Context, u, viewer *User) bool {
 	if viewer != nil && (viewer.IsAdmin || viewer.ID == u.ID) {
 		return true
 	}
@@ -1415,39 +1160,7 @@ func IsUserVisibleToViewer(ctx context.Context, u, viewer *User) bool {
 		}
 		return true
 	case structs.VisibleTypePrivate:
-		if viewer == nil || viewer.IsRestricted {
-			return false
-		}
-
-		// If they follow - they see each other
-		follower := IsFollowing(ctx, u.ID, viewer.ID)
-		if follower {
-			return true
-		}
-
-		// Now we need to check if they in some organization together
-		count, err := db.GetEngine(ctx).Table("team_user").
-			Where(
-				builder.And(
-					builder.Eq{"uid": viewer.ID},
-					builder.Or(
-						builder.Eq{"org_id": u.ID},
-						builder.In("org_id",
-							builder.Select("org_id").
-								From("team_user", "t2").
-								Where(builder.Eq{"uid": u.ID}))))).
-			Count()
-		if err != nil {
-			return false
-		}
-
-		if count == 0 {
-			// No common organization
-			return false
-		}
-
-		// they are in an organization together
-		return true
+		return false // only admins and the user themself, there are no organizations to share
 	}
 	return false
 }
@@ -1462,7 +1175,6 @@ func GetOrderByName() string {
 // IsFeatureDisabledWithLoginType checks if a user features are disabled, taking into account the login type of the
 // user if applicable
 func IsFeatureDisabledWithLoginType(user *User, features ...string) bool {
-	// NOTE: in the long run it may be better to check the ExternalLoginUser table rather than user.LoginType
 	if user != nil && user.LoginType > auth.Plain {
 		return setting.Admin.ExternalUserDisableFeatures.Contains(features...)
 	}
@@ -1472,7 +1184,6 @@ func IsFeatureDisabledWithLoginType(user *User, features ...string) bool {
 // DisabledFeaturesWithLoginType returns the set of user features disabled, taking into account the login type
 // of the user if applicable
 func DisabledFeaturesWithLoginType(user *User) *container.Set[string] {
-	// NOTE: in the long run it may be better to check the ExternalLoginUser table rather than user.LoginType
 	if user != nil && user.LoginType > auth.Plain {
 		return &setting.Admin.ExternalUserDisableFeatures
 	}

@@ -6,66 +6,36 @@ package pull_test
 import (
 	"testing"
 
+	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
+	user_model "gitea.dev/models/user"
 	pull_service "gitea.dev/services/pull"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"xorm.io/builder"
 )
 
 func TestRepoGetReviewers(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
+	require.NoError(t, unittest.PrepareTestDatabase())
+	ctx := t.Context()
 
-	// test public repo
+	n, err := db.GetEngine(ctx).Where(builder.Eq{"type": user_model.UserTypeIndividual, "is_active": true}).Count(&user_model.User{})
+	require.NoError(t, err)
+	activeUsers := int(n)
 	repo1 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
 
-	ctx := t.Context()
+	// every active user can review
 	reviewers, err := pull_service.GetReviewers(ctx, repo1, 2, 0)
-	assert.NoError(t, err)
-	if assert.Len(t, reviewers, 1) {
-		assert.ElementsMatch(t, []int64{2}, []int64{reviewers[0].ID})
-	}
+	require.NoError(t, err)
+	assert.Len(t, reviewers, activeUsers)
 
-	// should not include doer and remove the poster
+	// but not the PR poster
 	reviewers, err = pull_service.GetReviewers(ctx, repo1, 11, 2)
-	assert.NoError(t, err)
-	assert.Empty(t, reviewers)
-
-	// should not include PR poster, if PR poster would be otherwise eligible
-	reviewers, err = pull_service.GetReviewers(ctx, repo1, 11, 4)
-	assert.NoError(t, err)
-	assert.Len(t, reviewers, 1)
-
-	// test private user repo
-	repo2 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 2})
-
-	reviewers, err = pull_service.GetReviewers(ctx, repo2, 2, 4)
-	assert.NoError(t, err)
-	assert.Len(t, reviewers, 1)
-	assert.EqualValues(t, 2, reviewers[0].ID)
-
-	// test private org repo
-	repo3 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 3})
-
-	reviewers, err = pull_service.GetReviewers(ctx, repo3, 2, 1)
-	assert.NoError(t, err)
-	assert.Len(t, reviewers, 2)
-
-	reviewers, err = pull_service.GetReviewers(ctx, repo3, 2, 2)
-	assert.NoError(t, err)
-	assert.Len(t, reviewers, 1)
-}
-
-func TestRepoGetReviewerTeams(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	repo2 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 2})
-	teams, err := pull_service.GetReviewerTeams(t.Context(), repo2)
-	assert.NoError(t, err)
-	assert.Empty(t, teams)
-
-	repo3 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 3})
-	teams, err = pull_service.GetReviewerTeams(t.Context(), repo3)
-	assert.NoError(t, err)
-	assert.Len(t, teams, 2)
+	require.NoError(t, err)
+	assert.Len(t, reviewers, activeUsers-1)
+	for _, r := range reviewers {
+		assert.NotEqual(t, int64(2), r.ID)
+	}
 }

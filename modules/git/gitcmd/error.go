@@ -78,11 +78,7 @@ type (
 const (
 	StderrNotValidObjectName StderrPrefix = "fatal: not a valid object name"
 	StderrNotTreeObject      StderrPrefix = "fatal: not a tree object"
-	StderrPathSpec           StderrPrefix = "fatal: pathspec"
 	StderrBadRevision        StderrPrefix = "fatal: bad revision"
-
-	StderrNoSuchRemote1 StderrPrefix = "fatal: no such remote" // git < 2.30, exit status 128
-	StderrNoSuchRemote2 StderrPrefix = "error: no such remote" // git >= 2.30. exit status 2
 
 	StderrUnknownRevisionOrPath StderrWildcard = "fatal: *: unknown revision or path not in the working tree"
 	StderrNoMergeBase           StderrWildcard = "fatal: *: no merge base"

@@ -7,13 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
-	"maps"
-	"net"
 	"net/url"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -23,10 +19,8 @@ import (
 	"gitea.dev/modules/base"
 	"gitea.dev/modules/git"
 	giturl "gitea.dev/modules/git/url"
-	"gitea.dev/modules/htmlutil"
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/markup"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
@@ -88,15 +82,6 @@ func IsUsableRepoName(name string) error {
 		return db.ErrNameCharsNotAllowed{Name: name}
 	}
 	return db.IsUsableName(vars.reservedRepoNames, vars.reservedRepoNamePatterns, name)
-}
-
-// IsValidSSHAccessRepoName is like IsUsableRepoName, but it allows "*.wiki" because wiki repo needs to be accessed in SSH code
-func IsValidSSHAccessRepoName(name string) bool {
-	vars := globalVars()
-	if !vars.validRepoNamePattern.MatchString(name) || vars.invalidRepoNamePattern.MatchString(name) {
-		return false
-	}
-	return db.IsUsableName(vars.reservedRepoNames, vars.reservedRepoNamePatterns[1:], name) == nil
 }
 
 // TrustModelType defines the types of trust model for this repository
@@ -164,26 +149,16 @@ type Repository struct {
 	OriginalServiceType api.GitServiceType `xorm:"index"`
 	OriginalURL         string             `xorm:"VARCHAR(2048)"`
 	DefaultBranch       string
-	DefaultWikiBranch   string
 
-	NumWatches          int
-	NumStars            int
-	NumForks            int
-	NumIssues           int
-	NumClosedIssues     int
-	NumOpenIssues       int `xorm:"-"`
-	NumPulls            int
-	NumClosedPulls      int
-	NumOpenPulls        int `xorm:"-"`
-	NumMilestones       int `xorm:"NOT NULL DEFAULT 0"`
-	NumClosedMilestones int `xorm:"NOT NULL DEFAULT 0"`
-	NumOpenMilestones   int `xorm:"-"`
-	NumProjects         int `xorm:"NOT NULL DEFAULT 0"`
-	NumClosedProjects   int `xorm:"NOT NULL DEFAULT 0"`
-	NumOpenProjects     int `xorm:"-"`
-	NumActionRuns       int `xorm:"NOT NULL DEFAULT 0"`
-	NumClosedActionRuns int `xorm:"NOT NULL DEFAULT 0"`
-	NumOpenActionRuns   int `xorm:"-"`
+	NumWatches      int
+	NumStars        int
+	NumForks        int
+	NumIssues       int
+	NumClosedIssues int
+	NumOpenIssues   int `xorm:"-"`
+	NumPulls        int
+	NumClosedPulls  int
+	NumOpenPulls    int `xorm:"-"`
 
 	IsPrivate  bool `xorm:"INDEX"`
 	IsEmpty    bool `xorm:"INDEX"`
@@ -192,25 +167,20 @@ type Repository struct {
 
 	Status RepositoryStatus `xorm:"NOT NULL DEFAULT 0"`
 
-	commonRenderingMetas map[string]string `xorm:"-"`
+	Units []*RepoUnit `xorm:"-"`
 
-	Units           []*RepoUnit   `xorm:"-"`
-	PrimaryLanguage *LanguageStat `xorm:"-"`
-
-	IsFork                          bool               `xorm:"INDEX NOT NULL DEFAULT false"`
-	ForkID                          int64              `xorm:"INDEX"`
-	BaseRepo                        *Repository        `xorm:"-"`
-	IsTemplate                      bool               `xorm:"INDEX NOT NULL DEFAULT false"`
-	TemplateID                      int64              `xorm:"INDEX"`
-	Size                            int64              `xorm:"NOT NULL DEFAULT 0"`
-	GitSize                         int64              `xorm:"NOT NULL DEFAULT 0"`
-	LFSSize                         int64              `xorm:"NOT NULL DEFAULT 0"`
-	CodeIndexerStatus               *RepoIndexerStatus `xorm:"-"`
-	StatsIndexerStatus              *RepoIndexerStatus `xorm:"-"`
-	IsFsckEnabled                   bool               `xorm:"NOT NULL DEFAULT true"`
-	CloseIssuesViaCommitInAnyBranch bool               `xorm:"NOT NULL DEFAULT false"`
-	Topics                          []string           `xorm:"TEXT JSON"`
-	ObjectFormatName                string             `xorm:"VARCHAR(6) NOT NULL DEFAULT 'sha1'"`
+	IsFork                          bool        `xorm:"INDEX NOT NULL DEFAULT false"`
+	ForkID                          int64       `xorm:"INDEX"`
+	BaseRepo                        *Repository `xorm:"-"`
+	IsTemplate                      bool        `xorm:"INDEX NOT NULL DEFAULT false"`
+	TemplateID                      int64       `xorm:"INDEX"`
+	Size                            int64       `xorm:"NOT NULL DEFAULT 0"`
+	GitSize                         int64       `xorm:"NOT NULL DEFAULT 0"`
+	LFSSize                         int64       `xorm:"NOT NULL DEFAULT 0"`
+	IsFsckEnabled                   bool        `xorm:"NOT NULL DEFAULT true"`
+	CloseIssuesViaCommitInAnyBranch bool        `xorm:"NOT NULL DEFAULT false"`
+	Topics                          []string    `xorm:"TEXT JSON"`
+	ObjectFormatName                string      `xorm:"VARCHAR(6) NOT NULL DEFAULT 'sha1'"`
 
 	TrustModel TrustModelType
 
@@ -321,12 +291,6 @@ func (repo *Repository) MarkAsBrokenEmpty() {
 func (repo *Repository) AfterLoad() {
 	repo.NumOpenIssues = repo.NumIssues - repo.NumClosedIssues
 	repo.NumOpenPulls = repo.NumPulls - repo.NumClosedPulls
-	repo.NumOpenMilestones = repo.NumMilestones - repo.NumClosedMilestones
-	repo.NumOpenProjects = repo.NumProjects - repo.NumClosedProjects
-	repo.NumOpenActionRuns = repo.NumActionRuns - repo.NumClosedActionRuns
-	if repo.DefaultWikiBranch == "" {
-		repo.DefaultWikiBranch = setting.Repository.DefaultBranch
-	}
 }
 
 // LoadAttributes loads attributes of the repository.
@@ -336,20 +300,6 @@ func (repo *Repository) LoadAttributes(ctx context.Context) error {
 		return fmt.Errorf("load owner: %w", err)
 	}
 
-	// Load primary language
-	stats := make(LanguageStatList, 0, 1)
-	if err := db.GetEngine(ctx).
-		Where("`repo_id` = ? AND `is_primary` = ? AND `language` != ?", repo.ID, true, "other").
-		Find(&stats); err != nil {
-		return fmt.Errorf("find primary languages: %w", err)
-	}
-	stats.LoadAttributes()
-	for _, st := range stats {
-		if st.RepoID == repo.ID {
-			repo.PrimaryLanguage = st
-			break
-		}
-	}
 	return nil
 }
 
@@ -435,18 +385,8 @@ func (repo *Repository) MustGetUnit(ctx context.Context, tp unit.Type) *RepoUnit
 	}
 	ru = &RepoUnit{RepoID: repo.ID, Type: tp}
 	switch tp {
-	case unit.TypeExternalWiki:
-		ru.Config = new(ExternalWikiConfig)
-	case unit.TypeExternalTracker:
-		ru.Config = new(ExternalTrackerConfig)
 	case unit.TypePullRequests:
 		ru.Config = new(PullRequestsConfig)
-	case unit.TypeIssues:
-		ru.Config = new(IssuesConfig)
-	case unit.TypeActions:
-		ru.Config = new(ActionsConfig)
-	case unit.TypeProjects:
-		ru.Config = new(ProjectsConfig)
 	default: // other units don't have config
 	}
 	if ru.Config != nil {
@@ -493,71 +433,6 @@ func (repo *Repository) MustOwner(ctx context.Context) *user_model.User {
 	}
 
 	return repo.Owner
-}
-
-func (repo *Repository) composeCommonMetas(ctx context.Context) map[string]string {
-	if len(repo.commonRenderingMetas) == 0 {
-		metas := map[string]string{
-			"user": repo.OwnerName,
-			"repo": repo.Name,
-		}
-
-		unitExternalTracker, err := repo.GetUnit(ctx, unit.TypeExternalTracker)
-		if err == nil {
-			metas["format"] = unitExternalTracker.ExternalTrackerConfig().ExternalTrackerFormat
-			switch unitExternalTracker.ExternalTrackerConfig().ExternalTrackerStyle {
-			case markup.IssueNameStyleAlphanumeric:
-				metas["style"] = markup.IssueNameStyleAlphanumeric
-			case markup.IssueNameStyleRegexp:
-				metas["style"] = markup.IssueNameStyleRegexp
-				metas["regexp"] = unitExternalTracker.ExternalTrackerConfig().ExternalTrackerRegexpPattern
-			default:
-				metas["style"] = markup.IssueNameStyleNumeric
-			}
-		}
-
-		repo.MustOwner(ctx)
-		if repo.Owner.IsOrganization() {
-			teams := make([]string, 0, 5)
-			_ = db.GetEngine(ctx).Table("team_repo").
-				Join("INNER", "team", "team.id = team_repo.team_id").
-				Where("team_repo.repo_id = ?", repo.ID).
-				Select("team.lower_name").
-				OrderBy("team.lower_name").
-				Find(&teams)
-			metas["teams"] = "," + strings.Join(teams, ",") + ","
-			metas["org"] = strings.ToLower(repo.OwnerName)
-		}
-
-		repo.commonRenderingMetas = metas
-	}
-	return repo.commonRenderingMetas
-}
-
-// ComposeCommentMetas composes a map of metas for properly rendering comments or comment-like contents (commit message)
-func (repo *Repository) ComposeCommentMetas(ctx context.Context) map[string]string {
-	metas := maps.Clone(repo.composeCommonMetas(ctx))
-	metas["markdownNewLineHardBreak"] = strconv.FormatBool(setting.Markdown.RenderOptionsComment.NewLineHardBreak)
-	metas["markupAllowShortIssuePattern"] = strconv.FormatBool(setting.Markdown.RenderOptionsComment.ShortIssuePattern)
-	return metas
-}
-
-// ComposeWikiMetas composes a map of metas for properly rendering wikis
-func (repo *Repository) ComposeWikiMetas(ctx context.Context) map[string]string {
-	// does wiki need the "teams" and "org" from common metas?
-	metas := maps.Clone(repo.composeCommonMetas(ctx))
-	metas["markdownNewLineHardBreak"] = strconv.FormatBool(setting.Markdown.RenderOptionsWiki.NewLineHardBreak)
-	metas["markupAllowShortIssuePattern"] = strconv.FormatBool(setting.Markdown.RenderOptionsWiki.ShortIssuePattern)
-	return metas
-}
-
-// ComposeRepoFileMetas composes a map of metas for properly rendering documents (repo files)
-func (repo *Repository) ComposeRepoFileMetas(ctx context.Context) map[string]string {
-	// does document(file) need the "teams" and "org" from common metas?
-	metas := maps.Clone(repo.composeCommonMetas(ctx))
-	metas["markdownNewLineHardBreak"] = strconv.FormatBool(setting.Markdown.RenderOptionsRepoFile.NewLineHardBreak)
-	metas["markupAllowShortIssuePattern"] = strconv.FormatBool(setting.Markdown.RenderOptionsRepoFile.ShortIssuePattern)
-	return metas
 }
 
 // GetBaseRepo populates repo.BaseRepo for a fork repository and
@@ -640,11 +515,6 @@ func (repo *Repository) CanContentChange() bool {
 	return !repo.IsMirror && !repo.IsArchived
 }
 
-// DescriptionHTML does special handles to description and return HTML string.
-func (repo *Repository) DescriptionHTML(ctx context.Context) template.HTML {
-	return markup.PostProcessDescriptionHTML(markup.NewRenderContext(ctx), htmlutil.EscapeString(repo.Description))
-}
-
 // CloneLink represents different types of clone URLs of repository.
 type CloneLink struct {
 	SSH   string
@@ -657,38 +527,9 @@ func ComposeHTTPSCloneURL(ctx context.Context, owner, repo string) string {
 	return fmt.Sprintf("%s%s/%s.git", httplib.GuessCurrentAppURL(ctx), url.PathEscape(owner), url.PathEscape(repo))
 }
 
-// ComposeSSHCloneURL returns SSH clone URL based on the given owner and repository name.
-func ComposeSSHCloneURL(doer *user_model.User, ownerName, repoName string) string {
-	sshUser := setting.SSH.User
-	sshDomain := setting.SSH.Domain
-
-	if sshUser == "(DOER_USERNAME)" {
-		// Some users use SSH reverse-proxy and need to use the current signed-in username as the SSH user
-		// to make the SSH reverse-proxy could prepare the user's public keys ahead.
-		// For most cases we have the correct "doer", then use it as the SSH user.
-		// If we can't get the doer, then use the built-in SSH user.
-		if doer != nil {
-			sshUser = doer.Name
-		} else {
-			sshUser = setting.SSH.BuiltinServerUser
-		}
-	}
-
-	// non-standard port, it must use full URI
-	if setting.SSH.Port != 22 {
-		sshHost := net.JoinHostPort(sshDomain, strconv.Itoa(setting.SSH.Port))
-		return fmt.Sprintf("ssh://%s@%s/%s/%s.git", sshUser, sshHost, url.PathEscape(ownerName), url.PathEscape(repoName))
-	}
-
-	// for standard port, it can use a shorter URI (without the port)
-	sshHost := sshDomain
-	if ip := net.ParseIP(sshHost); ip != nil && ip.To4() == nil {
-		sshHost = "[" + sshHost + "]" // for IPv6 address, wrap it with brackets
-	}
-	if setting.Repository.UseCompatSSHURI {
-		return fmt.Sprintf("ssh://%s@%s/%s/%s.git", sshUser, sshHost, url.PathEscape(ownerName), url.PathEscape(repoName))
-	}
-	return fmt.Sprintf("%s@%s:%s/%s.git", sshUser, sshHost, url.PathEscape(ownerName), url.PathEscape(repoName))
+// ComposeSSHCloneURL returns an empty SSH clone URL, there is no SSH server
+func ComposeSSHCloneURL(_ *user_model.User, _, _ string) string {
+	return ""
 }
 
 // ComposeTeaCloneCommand returns Tea CLI clone command based on the given owner and repository name.
@@ -721,18 +562,6 @@ func (repo *Repository) GetOriginalURLHostname() string {
 	}
 
 	return u.Host
-}
-
-// GetTrustModel will get the TrustModel for the repo or the default trust model
-func (repo *Repository) GetTrustModel() TrustModelType {
-	trustModel := repo.TrustModel
-	if trustModel == DefaultTrustModel {
-		trustModel = ToTrustModel(setting.Repository.Signing.DefaultTrustModel)
-		if trustModel == DefaultTrustModel {
-			return CollaboratorTrustModel
-		}
-	}
-	return trustModel
 }
 
 // MustNotBeArchived returns ErrRepoIsArchived if the repo is archived
@@ -837,15 +666,6 @@ func GetRepositoryByID(ctx context.Context, id int64) (*Repository, error) {
 		return nil, ErrRepoNotExist{id, 0, "", ""}
 	}
 	return repo, nil
-}
-
-// GetRepositoriesMapByIDs returns the repositories by given id slice.
-func GetRepositoriesMapByIDs(ctx context.Context, ids []int64) (map[int64]*Repository, error) {
-	repos := make(map[int64]*Repository, len(ids))
-	if len(ids) == 0 {
-		return repos, nil
-	}
-	return repos, db.GetEngine(ctx).In("id", ids).Find(&repos)
 }
 
 func IsRepositoryModelExist(ctx context.Context, u *user_model.User, repoName string) (bool, error) {

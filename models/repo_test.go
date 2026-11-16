@@ -17,12 +17,6 @@ func TestCheckRepoStats(t *testing.T) {
 	assert.NoError(t, CheckRepoStats(t.Context()))
 }
 
-func TestDoctorUserStarNum(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	assert.NoError(t, DoctorUserStarNum(t.Context()))
-}
-
 func Test_repoStatsCorrectIssueNumComments(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 

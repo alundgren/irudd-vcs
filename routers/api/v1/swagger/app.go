@@ -7,13 +7,6 @@ import (
 	api "gitea.dev/modules/structs"
 )
 
-// OAuth2Application
-// swagger:response OAuth2Application
-type swaggerResponseOAuth2Application struct {
-	// in:body
-	Body api.OAuth2Application `json:"body"`
-}
-
 // AccessToken represents an API access token.
 // swagger:response AccessToken
 type swaggerResponseAccessToken struct {

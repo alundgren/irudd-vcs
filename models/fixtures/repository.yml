@@ -13,10 +13,6 @@
   num_closed_issues: 1
   num_pulls: 3
   num_closed_pulls: 0
-  num_milestones: 3
-  num_closed_milestones: 1
-  num_projects: 1
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -44,10 +40,6 @@
   num_closed_issues: 1
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: false
   is_archived: false
@@ -75,10 +67,6 @@
   num_closed_issues: 0
   num_pulls: 1
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 1
-  num_closed_projects: 0
   is_private: true
   is_empty: false
   is_archived: false
@@ -106,12 +94,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 1
-  num_action_runs: 4
-  num_closed_action_runs: 3
   is_private: false
   is_empty: false
   is_archived: false
@@ -138,10 +120,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: false
   is_archived: false
@@ -168,10 +146,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -198,10 +172,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -228,10 +198,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -258,10 +224,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -289,10 +251,6 @@
   num_closed_issues: 0
   num_pulls: 1
   num_closed_pulls: 0
-  num_milestones: 1
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -320,10 +278,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -350,10 +304,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -380,10 +330,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -411,10 +357,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -442,10 +384,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: false
   is_archived: false
@@ -473,10 +411,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: false
   is_archived: false
@@ -503,10 +437,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -533,10 +463,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -563,10 +489,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -593,10 +515,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -623,10 +541,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -653,10 +567,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -683,10 +593,6 @@
   num_closed_issues: 0
   num_pulls: 1
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -713,10 +619,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -743,10 +645,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -773,10 +671,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -803,10 +697,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -833,10 +723,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -863,10 +749,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -893,10 +775,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -924,10 +802,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: false
   is_archived: false
@@ -954,10 +828,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -985,10 +855,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1015,10 +881,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -1045,10 +907,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -1076,10 +934,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1107,10 +961,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1138,10 +988,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1169,10 +1015,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: false
   is_archived: false
@@ -1200,10 +1042,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1231,10 +1069,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: false
   is_archived: false
@@ -1262,10 +1096,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 1
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1292,10 +1122,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -1323,10 +1149,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1353,10 +1175,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: true
   is_archived: false
@@ -1384,10 +1202,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1415,10 +1229,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1446,10 +1256,6 @@
   num_closed_issues: 0
   num_pulls: 1
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1477,10 +1283,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1508,10 +1310,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1539,10 +1337,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: true
@@ -1570,10 +1364,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: true
   is_empty: true
   is_archived: false
@@ -1601,11 +1391,7 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
   num_watches: 0
-  num_projects: 0
-  num_closed_projects: 0
   status: 0
   is_fork: false
   fork_id: 0
@@ -1679,10 +1465,6 @@
   num_closed_issues: 0
   num_pulls: 1
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1710,10 +1492,6 @@
   num_closed_issues: 0
   num_pulls: 1
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1741,10 +1519,6 @@
   num_closed_issues: 0
   num_pulls: 1
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false
@@ -1772,10 +1546,6 @@
   num_closed_issues: 0
   num_pulls: 0
   num_closed_pulls: 0
-  num_milestones: 0
-  num_closed_milestones: 0
-  num_projects: 0
-  num_closed_projects: 0
   is_private: false
   is_empty: false
   is_archived: false

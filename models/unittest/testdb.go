@@ -5,7 +5,6 @@ package unittest
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -14,11 +13,9 @@ import (
 	"testing"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/system"
 	"gitea.dev/modules/cache"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/setting/config"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/tempdir"
 	"gitea.dev/modules/testlogger"
@@ -63,16 +60,8 @@ func mainTest(m *testing.M, testOptsArg ...*TestOptions) int {
 	setting.AppURL = "https://try.gitea.io/"
 	setting.Domain = "try.gitea.io"
 	setting.RunUser = "runuser"
-	setting.SSH.User = "sshuser"
-	setting.SSH.BuiltinServerUser = "builtinuser"
-	setting.SSH.Port = 3000
-	setting.SSH.Domain = "try.gitea.io"
 	setting.Database.Type = "sqlite3"
 	setting.Repository.DefaultBranch = "master" // many test code still assume that default branch is called "master"
-	setting.GravatarSource = "https://secure.gravatar.com/avatar/"
-	setting.IncomingEmail.ReplyToAddress = "incoming+%{token}@localhost"
-
-	config.SetDynGetter(system.NewDatabaseDynKeyGetter())
 
 	if err = cache.Init(); err != nil {
 		return testlogger.MainErrorf("cache.Init: %v", err)
@@ -112,91 +101,22 @@ func ResetTestDatabase() (cleanup func(), err error) {
 	}()
 
 	connOpts := db.GlobalConnOptions()
-	driverDefault, connStrDefault, err := db.ConnStrDefaultDatabase(connOpts)
+	if !connOpts.Type.IsSQLite3() {
+		return nil, fmt.Errorf("unsupported testing database type: %q", connOpts.Type)
+	}
+	if !strings.HasSuffix(connOpts.SQLitePath, "-test.db") {
+		return nil, errors.New(`testing database file for sqlite3 must end in "-test.db"`)
+	}
+	_ = os.Remove(connOpts.SQLitePath)
+	err = os.MkdirAll(filepath.Dir(connOpts.SQLitePath), os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
-	driverDatabase, connStrDatabase, err := db.ConnStr(connOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	if connOpts.Type.IsSQLite3() {
-		if !strings.HasSuffix(connOpts.SQLitePath, "-test.db") {
-			return nil, errors.New(`testing database file for sqlite3 must end in "-test.db"`)
-		}
-		_ = os.Remove(connOpts.SQLitePath)
-		err = os.MkdirAll(filepath.Dir(connOpts.SQLitePath), os.ModePerm)
-		if err != nil {
-			return nil, err
-		}
-		cleanup = func() {
-			_ = os.Remove(connOpts.SQLitePath)
-			_ = os.Remove(filepath.Dir(connOpts.SQLitePath))
-		}
-		return cleanup, nil
-	}
-
-	if !strings.Contains(connOpts.Database, "test") {
-		return nil, fmt.Errorf(`testing database name for %s must contain "test"`, connOpts.Database)
-	}
-
-	quotedDbName := connOpts.Database
-	if connOpts.Type.IsMSSQL() {
-		quotedDbName = `[` + connOpts.Database + `]`
-	}
-
-	sqlExec := func(sqlDB *sql.DB, sql string) error {
-		_, err := sqlDB.Exec(sql)
-		if err != nil {
-			return fmt.Errorf("failed to execute SQL %q: %w", sql, err)
-		}
-		return nil
-	}
-
-	createDatabase := func() error {
-		sqlDB, err := sql.Open(driverDefault, connStrDefault)
-		if err != nil {
-			return err
-		}
-		defer sqlDB.Close()
-		if err = sqlExec(sqlDB, "DROP DATABASE IF EXISTS "+quotedDbName); err != nil {
-			return err
-		}
-		return sqlExec(sqlDB, "CREATE DATABASE  "+quotedDbName)
-	}
-	if err = createDatabase(); err != nil {
-		return nil, err
-	}
-
 	cleanup = func() {
-		sqlDB, err := sql.Open(driverDefault, connStrDefault)
-		if err != nil {
-			return
-		}
-		defer sqlDB.Close()
-		_, _ = sqlDB.Exec("DROP DATABASE IF EXISTS " + quotedDbName)
+		_ = os.Remove(connOpts.SQLitePath)
+		_ = os.Remove(filepath.Dir(connOpts.SQLitePath))
 	}
-
-	createDatabaseSchema := func() error {
-		if !connOpts.Type.IsPostgreSQL() {
-			return nil
-		}
-		if connOpts.Schema == "" {
-			return nil
-		}
-		sqlDB, err := sql.Open(driverDatabase, connStrDatabase)
-		if err != nil {
-			return err
-		}
-		defer sqlDB.Close()
-		if err = sqlExec(sqlDB, "DROP SCHEMA IF EXISTS "+connOpts.Schema); err != nil {
-			return err
-		}
-		return sqlExec(sqlDB, "CREATE SCHEMA "+connOpts.Schema)
-	}
-
-	return cleanup, createDatabaseSchema()
+	return cleanup, nil
 }
 
 // FixturesOptions fixtures needs to be loaded options

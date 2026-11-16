@@ -28,7 +28,7 @@ func Test_Checker(t *testing.T) {
 		defer test.MockVariableValue(&git.DefaultFeatures().SupportCheckAttrOnBare, false)()
 		attrs, err := CheckAttributes(t.Context(), gitRepo, commitID, CheckAttributeOpts{
 			Filenames:  []string{"i-am-a-python.p"},
-			Attributes: LinguistAttributes,
+			Attributes: testAttributes,
 		})
 		assert.NoError(t, err)
 		assert.Len(t, attrs, 1)
@@ -50,7 +50,7 @@ func Test_Checker(t *testing.T) {
 
 		attrs, err := CheckAttributes(t.Context(), tempRepo, "", CheckAttributeOpts{
 			Filenames:  []string{"i-am-a-python.p"},
-			Attributes: LinguistAttributes,
+			Attributes: testAttributes,
 		})
 		assert.NoError(t, err)
 		assert.Len(t, attrs, 1)
@@ -60,7 +60,7 @@ func Test_Checker(t *testing.T) {
 	t.Run("Run git check-attr in bare repository using index", func(t *testing.T) {
 		attrs, err := CheckAttributes(t.Context(), gitRepo, "", CheckAttributeOpts{
 			Filenames:  []string{"i-am-a-python.p"},
-			Attributes: LinguistAttributes,
+			Attributes: testAttributes,
 		})
 		assert.NoError(t, err)
 		assert.Len(t, attrs, 1)
@@ -75,10 +75,24 @@ func Test_Checker(t *testing.T) {
 	t.Run("Run git check-attr in bare repository", func(t *testing.T) {
 		attrs, err := CheckAttributes(t.Context(), gitRepo, commitID, CheckAttributeOpts{
 			Filenames:  []string{"i-am-a-python.p"},
-			Attributes: LinguistAttributes,
+			Attributes: testAttributes,
 		})
 		assert.NoError(t, err)
 		assert.Len(t, attrs, 1)
 		assert.Equal(t, expectedAttrs(), attrs["i-am-a-python.p"])
 	})
+}
+
+// the test repo's .gitattributes sets linguist-language for *.p files
+var testAttributes = []string{Filter, Diff, "linguist-language", "linguist-vendored"}
+
+func expectedAttrs() *Attributes {
+	return &Attributes{
+		m: map[string]Attribute{
+			Filter:              "unspecified",
+			Diff:                "unspecified",
+			"linguist-language": "Python",
+			"linguist-vendored": "unspecified",
+		},
+	}
 }

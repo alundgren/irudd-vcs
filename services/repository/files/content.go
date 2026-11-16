@@ -222,7 +222,11 @@ func getFileContentsByEntryInternal(ctx context.Context, repo *repo_model.Reposi
 	}
 	// Handle links
 	if entry.IsRegular() || entry.IsLink() || entry.IsExecutable() {
-		downloadURL, err := url.Parse(repo.HTMLURL() + "/raw/" + refCommit.RefName.RefWebLinkPath() + "/" + util.PathEscapeSegments(opts.TreePath))
+		rawURL := repo.APIURL() + "/raw/" + util.PathEscapeSegments(opts.TreePath) // the web raw route is gone
+		if ref := refCommit.RefName.ShortName(); ref != "" {
+			rawURL += "?ref=" + url.QueryEscape(ref)
+		}
+		downloadURL, err := url.Parse(rawURL)
 		if err != nil {
 			return nil, err
 		}

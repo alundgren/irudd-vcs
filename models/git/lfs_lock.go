@@ -13,7 +13,6 @@ import (
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 )
 
@@ -125,29 +124,6 @@ func GetLFSLockByRepoID(ctx context.Context, repoID int64, page, pageSize int) (
 	}
 	lfsLocks := make(LFSLockList, 0, pageSize)
 	return lfsLocks, e.Find(&lfsLocks, &LFSLock{RepoID: repoID})
-}
-
-// GetTreePathLock returns LSF lock for the treePath
-func GetTreePathLock(ctx context.Context, repoID int64, treePath string) (*LFSLock, error) {
-	if !setting.LFS.StartServer {
-		return nil, nil //nolint:nilnil // return nil when LFS is not started
-	}
-
-	locks, err := GetLFSLockByRepoID(ctx, repoID, 0, 0)
-	if err != nil {
-		return nil, err
-	}
-	for _, lock := range locks {
-		if lock.Path == treePath {
-			return lock, nil
-		}
-	}
-	return nil, nil //nolint:nilnil // return nil to indicate that the object does not exist
-}
-
-// CountLFSLockByRepoID returns a count of all LFSLocks associated with a repository.
-func CountLFSLockByRepoID(ctx context.Context, repoID int64) (int64, error) {
-	return db.GetEngine(ctx).Count(&LFSLock{RepoID: repoID})
 }
 
 // DeleteLFSLockByID deletes a lock by given ID.

@@ -6,16 +6,11 @@ package release
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"gitea.dev/models/db"
-	repo_model "gitea.dev/models/repo"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/queue"
 	repo_module "gitea.dev/modules/repository"
-
-	"xorm.io/builder"
 )
 
 type TagSyncOptions struct {
@@ -35,12 +30,6 @@ func handlerTagSync(items ...*TagSyncOptions) []*TagSyncOptions {
 	return nil
 }
 
-func addRepoToTagSyncQueue(repoID int64) error {
-	return tagSyncQueue.Push(&TagSyncOptions{
-		RepoID: repoID,
-	})
-}
-
 func initTagSyncQueue(ctx context.Context) error {
 	tagSyncQueue = queue.CreateUniqueQueue(ctx, "tag_sync", handlerTagSync)
 	if tagSyncQueue == nil {
@@ -48,14 +37,5 @@ func initTagSyncQueue(ctx context.Context) error {
 	}
 	go graceful.GetManager().RunWithCancel(tagSyncQueue)
 
-	return nil
-}
-
-func AddAllRepoTagsToSyncQueue(ctx context.Context) error {
-	if err := db.Iterate(ctx, builder.Eq{"is_empty": false}, func(ctx context.Context, repo *repo_model.Repository) error {
-		return addRepoToTagSyncQueue(repo.ID)
-	}); err != nil {
-		return fmt.Errorf("run sync all tags failed: %v", err)
-	}
 	return nil
 }

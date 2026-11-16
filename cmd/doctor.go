@@ -31,7 +31,6 @@ func newDoctorCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newDoctorCheckCommand(),
 			newRecreateTableCommand(),
-			newDoctorConvertCommand(),
 		},
 	}
 }

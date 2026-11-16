@@ -19,11 +19,6 @@ func CatFileBatchCheck(ctx context.Context, cmd *gitcmd.Command, tmpBasePath str
 	return cmd.WithDir(tmpBasePath).RunWithStderr(ctx)
 }
 
-// CatFileBatchCheckAllObjects runs cat-file with --batch-check --batch-all
-func CatFileBatchCheckAllObjects(ctx context.Context, cmd *gitcmd.Command, tmpBasePath string) error {
-	return cmd.AddArguments("cat-file", "--batch-check", "--batch-all-objects").WithDir(tmpBasePath).RunWithStderr(ctx)
-}
-
 // CatFileBatch runs cat-file --batch
 func CatFileBatch(ctx context.Context, cmd *gitcmd.Command, tmpBasePath string) error {
 	return cmd.AddArguments("cat-file", "--batch").WithDir(tmpBasePath).RunWithStderr(ctx)

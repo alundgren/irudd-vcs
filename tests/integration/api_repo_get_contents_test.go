@@ -43,7 +43,7 @@ func getExpectedContentsResponseForContents(ref, refType, lastCommitSHA string) 
 		URL:               &selfURL,
 		HTMLURL:           &htmlURL,
 		GitURL:            &gitURL,
-		DownloadURL:       new(setting.AppURL + "user2/repo1/raw/" + refType + "/" + ref + "/" + treePath),
+		DownloadURL:       new(setting.AppURL + "api/v1/repos/user2/repo1/raw/" + treePath + "?ref=" + ref),
 		Links: &api.FileLinksResponse{
 			Self:    &selfURL,
 			GitURL:  &gitURL,

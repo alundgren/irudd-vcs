@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitea.dev/models/db"
-	packages_model "gitea.dev/models/packages"
 	"gitea.dev/models/unittest"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/graceful"
@@ -52,39 +50,11 @@ func InitIntegrationTest() error {
 	return nil
 }
 
-func PrepareAttachmentsStorage(t testing.TB) {
-	// prepare attachments directory and files
-	assert.NoError(t, storage.Clean(storage.Attachments))
-
-	s, err := storage.NewStorage(setting.LocalStorageType, &setting.Storage{
-		Path: filepath.Join(filepath.Dir(setting.AppPath), "tests", "testdata", "data", "attachments"),
-	})
-	assert.NoError(t, err)
-	assert.NoError(t, s.IterateObjects("", func(p string, obj storage.Object) error {
-		_, err = storage.Copy(storage.Attachments, p, s, p)
-		return err
-	}))
-}
-
 func PrepareGitRepoDirectory(t testing.TB) {
 	if !assert.NotEmpty(t, setting.RepoRootPath) {
 		return
 	}
 	assert.NoError(t, unittest.SyncDirs(filepath.Join(setting.GetGiteaTestSourceRoot(), "tests/gitea-repositories-meta"), setting.RepoRootPath))
-}
-
-func PrepareArtifactsStorage(t testing.TB) {
-	// prepare actions artifacts directory and files
-	assert.NoError(t, storage.Clean(storage.ActionsArtifacts))
-
-	s, err := storage.NewStorage(setting.LocalStorageType, &setting.Storage{
-		Path: filepath.Join(filepath.Dir(setting.AppPath), "tests", "testdata", "data", "artifacts"),
-	})
-	assert.NoError(t, err)
-	assert.NoError(t, s.IterateObjects("", func(p string, obj storage.Object) error {
-		_, err = storage.Copy(storage.ActionsArtifacts, p, s, p)
-		return err
-	}))
 }
 
 func PrepareLFSStorage(t testing.TB) {
@@ -101,20 +71,6 @@ func PrepareLFSStorage(t testing.TB) {
 	}))
 }
 
-func PrepareCleanPackageData(t testing.TB) {
-	// clear all package data
-	assert.NoError(t, db.TruncateBeans(t.Context(),
-		&packages_model.Package{},
-		&packages_model.PackageVersion{},
-		&packages_model.PackageFile{},
-		&packages_model.PackageBlob{},
-		&packages_model.PackageProperty{},
-		&packages_model.PackageBlobUpload{},
-		&packages_model.PackageCleanupRule{},
-	))
-	assert.NoError(t, storage.Clean(storage.Packages))
-}
-
 func PrepareTestEnv(t testing.TB, skip ...int) func() {
 	t.Helper()
 	deferFn := PrintCurrentTest(t, util.OptionalArg(skip)+1)
@@ -125,7 +81,6 @@ func PrepareTestEnv(t testing.TB, skip ...int) func() {
 	// do not add more Prepare* functions here, only call necessary ones in the related test functions
 	PrepareGitRepoDirectory(t)
 	PrepareLFSStorage(t)
-	PrepareCleanPackageData(t)
 	return deferFn
 }
 

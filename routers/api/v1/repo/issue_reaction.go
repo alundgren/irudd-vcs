@@ -4,11 +4,9 @@
 package repo
 
 import (
-	"errors"
 	"net/http"
 
 	issues_model "gitea.dev/models/issues"
-	user_model "gitea.dev/models/user"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/api/v1/utils"
@@ -214,7 +212,7 @@ func changeIssueCommentReaction(ctx *context.APIContext, form api.EditReactionOp
 		// PostIssueCommentReaction part
 		reaction, err := issue_service.CreateCommentReaction(ctx, ctx.Doer, comment, form.Reaction)
 		if err != nil {
-			if issues_model.IsErrForbiddenIssueReaction(err) || errors.Is(err, user_model.ErrBlockedUser) {
+			if issues_model.IsErrForbiddenIssueReaction(err) {
 				ctx.APIError(http.StatusForbidden, err.Error())
 			} else if issues_model.IsErrReactionAlreadyExist(err) {
 				ctx.JSON(http.StatusOK, api.Reaction{
@@ -429,7 +427,7 @@ func changeIssueReaction(ctx *context.APIContext, form api.EditReactionOption, i
 		// PostIssueReaction part
 		reaction, err := issue_service.CreateIssueReaction(ctx, ctx.Doer, issue, form.Reaction)
 		if err != nil {
-			if issues_model.IsErrForbiddenIssueReaction(err) || errors.Is(err, user_model.ErrBlockedUser) {
+			if issues_model.IsErrForbiddenIssueReaction(err) {
 				ctx.APIError(http.StatusForbidden, err.Error())
 			} else if issues_model.IsErrReactionAlreadyExist(err) {
 				ctx.JSON(http.StatusOK, api.Reaction{

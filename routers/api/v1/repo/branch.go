@@ -10,7 +10,6 @@ import (
 
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
-	"gitea.dev/models/organization"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
@@ -730,55 +729,6 @@ func CreateBranchProtection(ctx *context.APIContext) {
 		}
 	}
 	var whitelistTeams, forcePushAllowlistTeams, mergeWhitelistTeams, approvalsWhitelistTeams, bypassAllowlistTeams []int64
-	if repo.Owner.IsOrganization() {
-		whitelistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.PushWhitelistTeams, false)
-		if err != nil {
-			if organization.IsErrTeamNotExist(err) {
-				ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-				return
-			}
-			ctx.APIErrorInternal(err)
-			return
-		}
-		forcePushAllowlistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.ForcePushAllowlistTeams, false)
-		if err != nil {
-			if organization.IsErrTeamNotExist(err) {
-				ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-				return
-			}
-			ctx.APIErrorInternal(err)
-			return
-		}
-		mergeWhitelistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.MergeWhitelistTeams, false)
-		if err != nil {
-			if organization.IsErrTeamNotExist(err) {
-				ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-				return
-			}
-			ctx.APIErrorInternal(err)
-			return
-		}
-		approvalsWhitelistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.ApprovalsWhitelistTeams, false)
-		if err != nil {
-			if organization.IsErrTeamNotExist(err) {
-				ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-				return
-			}
-			ctx.APIErrorInternal(err)
-			return
-		}
-		if form.EnableBypassAllowlist {
-			bypassAllowlistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.BypassAllowlistTeams, false)
-			if err != nil {
-				if organization.IsErrTeamNotExist(err) {
-					ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-					return
-				}
-				ctx.APIErrorInternal(err)
-				return
-			}
-		}
-	}
 
 	protectBranch = &git_model.ProtectedBranch{
 		RepoID:                        ctx.Repo.Repository.ID,
@@ -1062,73 +1012,6 @@ func EditBranchProtection(ctx *context.APIContext) {
 	}
 
 	var whitelistTeams, forcePushAllowlistTeams, mergeWhitelistTeams, approvalsWhitelistTeams, bypassAllowlistTeams []int64
-	if repo.Owner.IsOrganization() {
-		if form.PushWhitelistTeams != nil {
-			whitelistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.PushWhitelistTeams, false)
-			if err != nil {
-				if organization.IsErrTeamNotExist(err) {
-					ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-					return
-				}
-				ctx.APIErrorInternal(err)
-				return
-			}
-		} else {
-			whitelistTeams = protectBranch.WhitelistTeamIDs
-		}
-		if form.ForcePushAllowlistTeams != nil {
-			forcePushAllowlistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.ForcePushAllowlistTeams, false)
-			if err != nil {
-				if organization.IsErrTeamNotExist(err) {
-					ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-					return
-				}
-				ctx.APIErrorInternal(err)
-				return
-			}
-		} else {
-			forcePushAllowlistTeams = protectBranch.ForcePushAllowlistTeamIDs
-		}
-		if form.MergeWhitelistTeams != nil {
-			mergeWhitelistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.MergeWhitelistTeams, false)
-			if err != nil {
-				if organization.IsErrTeamNotExist(err) {
-					ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-					return
-				}
-				ctx.APIErrorInternal(err)
-				return
-			}
-		} else {
-			mergeWhitelistTeams = protectBranch.MergeWhitelistTeamIDs
-		}
-		if form.ApprovalsWhitelistTeams != nil {
-			approvalsWhitelistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.ApprovalsWhitelistTeams, false)
-			if err != nil {
-				if organization.IsErrTeamNotExist(err) {
-					ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-					return
-				}
-				ctx.APIErrorInternal(err)
-				return
-			}
-		} else {
-			approvalsWhitelistTeams = protectBranch.ApprovalsWhitelistTeamIDs
-		}
-		if form.BypassAllowlistTeams != nil {
-			bypassAllowlistTeams, err = organization.GetTeamIDsByNames(ctx, repo.OwnerID, form.BypassAllowlistTeams, false)
-			if err != nil {
-				if organization.IsErrTeamNotExist(err) {
-					ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-					return
-				}
-				ctx.APIErrorInternal(err)
-				return
-			}
-		} else {
-			bypassAllowlistTeams = protectBranch.BypassAllowlistTeamIDs
-		}
-	}
 	if !protectBranch.EnableBypassAllowlist {
 		bypassAllowlistUsers = nil
 		bypassAllowlistTeams = nil

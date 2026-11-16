@@ -79,7 +79,6 @@ func ToAPIPullRequest(ctx context.Context, pr *issues_model.PullRequest, doer *u
 		Title:          apiIssue.Title,
 		Body:           apiIssue.Body,
 		Labels:         apiIssue.Labels,
-		Milestone:      apiIssue.Milestone,
 		Assignee:       apiIssue.Assignee,
 		Assignees:      util.SliceNilAsEmpty(apiIssue.Assignees),
 		State:          apiIssue.State,
@@ -96,7 +95,6 @@ func ToAPIPullRequest(ctx context.Context, pr *issues_model.PullRequest, doer *u
 		Deadline:       apiIssue.Deadline,
 		Created:        pr.Issue.CreatedUnix.AsTimePtr(),
 		Updated:        pr.Issue.UpdatedUnix.AsTimePtr(),
-		PinOrder:       util.Iif(apiIssue.PinOrder == -1, 0, apiIssue.PinOrder),
 		ContentVersion: apiIssue.ContentVersion,
 
 		// output "[]" rather than null to align to github outputs
@@ -122,23 +120,9 @@ func ToAPIPullRequest(ctx context.Context, pr *issues_model.PullRequest, doer *u
 		log.Error("LoadRequestedReviewers[%d]: %v", pr.ID, err)
 		return nil
 	}
-	if err = pr.LoadRequestedReviewersTeams(ctx); err != nil {
-		log.Error("LoadRequestedReviewersTeams[%d]: %v", pr.ID, err)
-		return nil
-	}
 
 	for _, reviewer := range pr.RequestedReviewers {
 		apiPullRequest.RequestedReviewers = append(apiPullRequest.RequestedReviewers, ToUser(ctx, reviewer, nil))
-	}
-
-	for _, reviewerTeam := range pr.RequestedReviewersTeams {
-		convertedTeam, err := ToTeam(ctx, reviewerTeam, true)
-		if err != nil {
-			log.Error("LoadRequestedReviewersTeams[%d]: %v", pr.ID, err)
-			return nil
-		}
-
-		apiPullRequest.RequestedReviewersTeams = append(apiPullRequest.RequestedReviewersTeams, convertedTeam)
 	}
 
 	if pr.Issue.ClosedUnix != 0 {
@@ -296,16 +280,7 @@ func ToAPIPullRequests(ctx context.Context, baseRepo *repo_model.Repository, prs
 	if err := issueList.LoadPosters(ctx); err != nil {
 		return nil, err
 	}
-	if err := issueList.LoadAttachments(ctx); err != nil {
-		return nil, err
-	}
-	if err := issueList.LoadMilestones(ctx); err != nil {
-		return nil, err
-	}
 	if err := issueList.LoadAssignees(ctx); err != nil {
-		return nil, err
-	}
-	if err = issueList.LoadPinOrder(ctx); err != nil {
 		return nil, err
 	}
 
@@ -355,7 +330,6 @@ func ToAPIPullRequests(ctx context.Context, baseRepo *repo_model.Repository, prs
 			Title:          apiIssue.Title,
 			Body:           apiIssue.Body,
 			Labels:         apiIssue.Labels,
-			Milestone:      apiIssue.Milestone,
 			Assignee:       apiIssue.Assignee,
 			Assignees:      apiIssue.Assignees,
 			State:          apiIssue.State,
@@ -372,7 +346,6 @@ func ToAPIPullRequests(ctx context.Context, baseRepo *repo_model.Repository, prs
 			Deadline:       apiIssue.Deadline,
 			Created:        pr.Issue.CreatedUnix.AsTimePtr(),
 			Updated:        pr.Issue.UpdatedUnix.AsTimePtr(),
-			PinOrder:       util.Iif(apiIssue.PinOrder == -1, 0, apiIssue.PinOrder),
 			ContentVersion: apiIssue.ContentVersion,
 
 			AllowMaintainerEdit: pr.AllowMaintainerEdit,
@@ -393,16 +366,6 @@ func ToAPIPullRequests(ctx context.Context, baseRepo *repo_model.Repository, prs
 		pr.RequestedReviewers = reviewersMap[pr.IssueID]
 		for _, reviewer := range pr.RequestedReviewers {
 			apiPullRequest.RequestedReviewers = append(apiPullRequest.RequestedReviewers, ToUser(ctx, reviewer, nil))
-		}
-
-		for _, reviewerTeam := range pr.RequestedReviewersTeams {
-			convertedTeam, err := ToTeam(ctx, reviewerTeam, true)
-			if err != nil {
-				log.Error("LoadRequestedReviewersTeams[%d]: %v", pr.ID, err)
-				return nil, err
-			}
-
-			apiPullRequest.RequestedReviewersTeams = append(apiPullRequest.RequestedReviewersTeams, convertedTeam)
 		}
 
 		if pr.Issue.ClosedUnix != 0 {

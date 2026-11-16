@@ -13,13 +13,11 @@ import (
 
 	"gitea.dev/models/db"
 	"gitea.dev/modules/dump"
-	"gitea.dev/modules/json"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/util"
 
-	"gitea.com/go-chi/session"
 	"github.com/urfave/cli/v3"
 )
 
@@ -51,11 +49,6 @@ func newDumpCommand() *cli.Command {
 				Value:   os.TempDir(),
 				Usage:   "Temporary dir path",
 			},
-			&cli.StringFlag{
-				Name:    "database",
-				Aliases: []string{"d"},
-				Usage:   "Specify the database SQL syntax: sqlite3, mysql, mssql, postgres",
-			},
 			&cli.BoolFlag{
 				Name:    "skip-repository",
 				Aliases: []string{"R"},
@@ -73,18 +66,6 @@ func newDumpCommand() *cli.Command {
 			&cli.BoolFlag{
 				Name:  "skip-lfs-data",
 				Usage: "Skip LFS data",
-			},
-			&cli.BoolFlag{
-				Name:  "skip-attachment-data",
-				Usage: "Skip attachment data",
-			},
-			&cli.BoolFlag{
-				Name:  "skip-package-data",
-				Usage: "Skip package data",
-			},
-			&cli.BoolFlag{
-				Name:  "skip-index",
-				Usage: "Skip bleve index data",
 			},
 			&cli.BoolFlag{
 				Name:  "skip-db",
@@ -203,14 +184,8 @@ func runDump(ctx context.Context, cmd *cli.Command) error {
 			}
 		}()
 
-		targetDBType := setting.DatabaseType(cmd.String("database"))
-		if targetDBType != "" && targetDBType != setting.Database.Type {
-			log.Info("Dumping database %s => %s...", setting.Database.Type, targetDBType)
-		} else {
-			log.Info("Dumping database...")
-		}
-
-		if err := db.DumpDatabase(dbDump.Name(), targetDBType); err != nil {
+		log.Info("Dumping database...")
+		if err := db.DumpDatabase(dbDump.Name()); err != nil {
 			fatal("Failed to dump database: %v", err)
 		}
 
@@ -249,54 +224,12 @@ func runDump(ctx context.Context, cmd *cli.Command) error {
 		log.Info("Packing data directory...%s", setting.AppDataPath)
 
 		var excludes []string
-		if setting.SessionConfig.OriginalProvider == "file" {
-			var opts session.Options
-			if err = json.Unmarshal([]byte(setting.SessionConfig.ProviderConfig), &opts); err != nil {
-				return err
-			}
-			excludes = append(excludes, opts.ProviderConfig)
-		}
-
-		if cmd.IsSet("skip-index") && cmd.Bool("skip-index") {
-			excludes = append(excludes, setting.Indexer.RepoPath)
-			excludes = append(excludes, setting.Indexer.IssuePath)
-		}
-
 		excludes = append(excludes, setting.RepoRootPath)
 		excludes = append(excludes, setting.LFS.Storage.Path)
-		excludes = append(excludes, setting.Attachment.Storage.Path)
-		excludes = append(excludes, setting.Packages.Storage.Path)
-		excludes = append(excludes, setting.RepoArchive.Storage.Path)
 		excludes = append(excludes, setting.Log.RootPath)
 		if err := dumper.AddRecursiveExclude("data", setting.AppDataPath, excludes); err != nil {
 			fatal("Failed to include data directory: %v", err)
 		}
-	}
-
-	if cmd.IsSet("skip-attachment-data") && cmd.Bool("skip-attachment-data") {
-		log.Info("Skip dumping attachment data")
-	} else if err := storage.Attachments.IterateObjects("", func(objPath string, object storage.Object) error {
-		info, err := object.Stat()
-		if err != nil {
-			return err
-		}
-		return dumper.AddFileByReader(object, info, path.Join("data", "attachments", objPath))
-	}); err != nil {
-		fatal("Failed to dump attachments: %v", err)
-	}
-
-	if cmd.IsSet("skip-package-data") && cmd.Bool("skip-package-data") {
-		log.Info("Skip dumping package data")
-	} else if !setting.Packages.Enabled {
-		log.Info("Packages isn't enabled. Skip dumping package data")
-	} else if err := storage.Packages.IterateObjects("", func(objPath string, object storage.Object) error {
-		info, err := object.Stat()
-		if err != nil {
-			return err
-		}
-		return dumper.AddFileByReader(object, info, path.Join("data", "packages", objPath))
-	}); err != nil {
-		fatal("Failed to dump packages: %v", err)
 	}
 
 	// Doesn't check if LogRootPath exists before processing --skip-log intentionally,

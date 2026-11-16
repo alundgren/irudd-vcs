@@ -13,7 +13,6 @@ import (
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/indexer/issues/internal"
 	"gitea.dev/modules/optional"
-	"gitea.dev/modules/util"
 )
 
 func ToDBOptions(ctx context.Context, options *internal.SearchOptions) (*issue_model.IssuesOptions, error) {
@@ -65,27 +64,17 @@ func ToDBOptions(ctx context.Context, options *internal.SearchOptions) (*issue_m
 		MentionedID:        convertID(options.MentionID),
 		ReviewRequestedID:  convertID(options.ReviewRequestedID),
 		ReviewedID:         convertID(options.ReviewedID),
-		SubscriberID:       convertID(options.SubscriberID),
-		ProjectIDs:         util.Iif(options.NoProjectOnly, []int64{db.NoConditionID}, options.ProjectIDs),
 		IsClosed:           options.IsClosed,
 		IsPull:             options.IsPull,
 		IncludedLabelNames: nil,
 		ExcludedLabelNames: nil,
-		IncludeMilestones:  nil,
 		SortType:           sortType,
 		UpdatedAfterUnix:   options.UpdatedAfterUnix.Value(),
 		UpdatedBeforeUnix:  options.UpdatedBeforeUnix.Value(),
 		PriorityRepoID:     0,
 		IsArchived:         options.IsArchived,
 		Owner:              nil,
-		Team:               nil,
 		Doer:               nil,
-	}
-
-	if len(options.MilestoneIDs) == 1 && options.MilestoneIDs[0] == 0 {
-		opts.MilestoneIDs = []int64{db.NoConditionID}
-	} else {
-		opts.MilestoneIDs = options.MilestoneIDs
 	}
 
 	if options.NoLabelOnly {

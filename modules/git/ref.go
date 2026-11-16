@@ -37,10 +37,6 @@ func IsValidRefPattern(name string) bool {
 	return !refNamePatternInvalid.MatchString(name)
 }
 
-func SanitizeRefPattern(name string) string {
-	return refNamePatternInvalid.ReplaceAllString(name, "_")
-}
-
 // Reference represents a Git ref.
 type Reference struct {
 	Name   string

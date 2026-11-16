@@ -23,16 +23,16 @@ type Type int
 const (
 	TypeInvalid Type = iota // 0 invalid
 
-	TypeCode            // 1 code
-	TypeIssues          // 2 issues
-	TypePullRequests    // 3 PRs
-	TypeReleases        // 4 Releases
-	TypeWiki            // 5 Wiki
-	TypeExternalWiki    // 6 ExternalWiki
-	TypeExternalTracker // 7 ExternalTracker
-	TypeProjects        // 8 Projects
-	TypePackages        // 9 Packages
-	TypeActions         // 10 Actions
+	TypeCode         // 1 code
+	TypeIssues       // 2 issues
+	TypePullRequests // 3 PRs
+	TypeReleases     // 4 Releases
+	_                // 5 Wiki (removed), kept so later values don't shift
+	_                // 6 ExternalWiki (removed)
+	_                // 7 ExternalTracker (removed)
+	_                // 8 Projects (removed)
+	_                // 9 Packages (removed)
+	_                // 10 Actions (removed)
 
 	// FIXME: TEAM-UNIT-PERMISSION: the team unit "admin" permission's design is not right, when a new unit is added in the future,
 	// admin team won't inherit the correct admin permission for the new unit, need to have a complete fix before adding any new unit.
@@ -59,12 +59,6 @@ var (
 		TypeIssues,
 		TypePullRequests,
 		TypeReleases,
-		TypeWiki,
-		TypeExternalWiki,
-		TypeExternalTracker,
-		TypeProjects,
-		TypePackages,
-		TypeActions,
 	}
 
 	// DefaultRepoUnits contains the default unit types
@@ -73,10 +67,6 @@ var (
 		TypeIssues,
 		TypePullRequests,
 		TypeReleases,
-		TypeWiki,
-		TypeProjects,
-		TypePackages,
-		TypeActions,
 	}
 
 	// ForkRepoUnits contains the default unit types for forks
@@ -85,31 +75,12 @@ var (
 		TypePullRequests,
 	}
 
-	// DefaultMirrorRepoUnits contains the default unit types for mirrors
-	DefaultMirrorRepoUnits = []Type{
-		TypeCode,
-		TypeIssues,
-		TypeReleases,
-		TypeWiki,
-		TypeProjects,
-		TypePackages,
-	}
-
 	// DefaultTemplateRepoUnits contains the default unit types for templates
 	DefaultTemplateRepoUnits = []Type{
 		TypeCode,
 		TypeIssues,
 		TypePullRequests,
 		TypeReleases,
-		TypeWiki,
-		TypeProjects,
-		TypePackages,
-	}
-
-	// NotAllowedDefaultRepoUnits contains units that can't be default
-	NotAllowedDefaultRepoUnits = []Type{
-		TypeExternalWiki,
-		TypeExternalTracker,
 	}
 
 	disabledRepoUnitsAtomic atomic.Pointer[[]Type] // the units that have been globally disabled
@@ -135,14 +106,7 @@ func validateDefaultRepoUnits(defaultUnits, settingDefaultUnits []Type) []Type {
 
 	// Use setting if not empty
 	if len(settingDefaultUnits) > 0 {
-		units = make([]Type, 0, len(settingDefaultUnits))
-		for _, settingUnit := range settingDefaultUnits {
-			if !settingUnit.CanBeDefault() {
-				log.Warn("Not allowed as default unit: %s", settingUnit.LogString())
-				continue
-			}
-			units = append(units, settingUnit)
-		}
+		units = slices.Clone(settingDefaultUnits)
 	}
 
 	// Remove disabled units
@@ -182,15 +146,6 @@ func LoadUnitConfig() error {
 	if len(DefaultForkRepoUnits) == 0 {
 		return errors.New("no default fork repository units found")
 	}
-	// default mirror repo units
-	setDefaultMirrorRepoUnits, invalidKeys := FindUnitTypes(setting.Repository.DefaultMirrorRepoUnits...)
-	if len(invalidKeys) > 0 {
-		log.Warn("Invalid keys in default mirror repo units: %s", strings.Join(invalidKeys, ", "))
-	}
-	DefaultMirrorRepoUnits = validateDefaultRepoUnits(DefaultMirrorRepoUnits, setDefaultMirrorRepoUnits)
-	if len(DefaultMirrorRepoUnits) == 0 {
-		return errors.New("no default mirror repository units found")
-	}
 	// default template repo units
 	setDefaultTemplateRepoUnits, invalidKeys := FindUnitTypes(setting.Repository.DefaultTemplateRepoUnits...)
 	if len(invalidKeys) > 0 {
@@ -206,11 +161,6 @@ func LoadUnitConfig() error {
 // UnitGlobalDisabled checks if unit type is global disabled
 func (u Type) UnitGlobalDisabled() bool {
 	return slices.Contains(DisabledRepoUnitsGet(), u)
-}
-
-// CanBeDefault checks if the unit type can be a default repo unit
-func (u *Type) CanBeDefault() bool {
-	return !slices.Contains(NotAllowedDefaultRepoUnits, *u)
 }
 
 // Unit is a section of one repository
@@ -230,9 +180,6 @@ func (u Unit) IsLessThan(unit Unit) bool {
 
 // MaxPerm returns the max perms of this unit
 func (u Unit) MaxPerm() perm.AccessMode {
-	if u.Type == TypeExternalTracker || u.Type == TypeExternalWiki {
-		return perm.AccessModeRead
-	}
 	return perm.AccessModeAdmin
 }
 
@@ -256,15 +203,6 @@ var (
 		perm.AccessModeOwner,
 	}
 
-	UnitExternalTracker = Unit{
-		TypeExternalTracker,
-		"repo.ext_issues",
-		"/issues",
-		"repo.ext_issues.desc",
-		101,
-		perm.AccessModeRead,
-	}
-
 	UnitPullRequests = Unit{
 		TypePullRequests,
 		"repo.pulls",
@@ -283,63 +221,12 @@ var (
 		perm.AccessModeOwner,
 	}
 
-	UnitWiki = Unit{
-		TypeWiki,
-		"repo.wiki",
-		"/wiki",
-		"repo.wiki.desc",
-		4,
-		perm.AccessModeOwner,
-	}
-
-	UnitExternalWiki = Unit{
-		TypeExternalWiki,
-		"repo.ext_wiki",
-		"/wiki",
-		"repo.ext_wiki.desc",
-		102,
-		perm.AccessModeRead,
-	}
-
-	UnitProjects = Unit{
-		TypeProjects,
-		"repo.projects",
-		"/projects",
-		"repo.projects.desc",
-		5,
-		perm.AccessModeOwner,
-	}
-
-	UnitPackages = Unit{
-		TypePackages,
-		"repo.packages",
-		"/packages",
-		"packages.desc",
-		6,
-		perm.AccessModeRead,
-	}
-
-	UnitActions = Unit{
-		TypeActions,
-		"repo.actions",
-		"/actions",
-		"actions.unit.desc",
-		7,
-		perm.AccessModeOwner,
-	}
-
 	// Units contains all the units
 	Units = map[Type]Unit{
-		TypeCode:            UnitCode,
-		TypeIssues:          UnitIssues,
-		TypeExternalTracker: UnitExternalTracker,
-		TypePullRequests:    UnitPullRequests,
-		TypeReleases:        UnitReleases,
-		TypeWiki:            UnitWiki,
-		TypeExternalWiki:    UnitExternalWiki,
-		TypeProjects:        UnitProjects,
-		TypePackages:        UnitPackages,
-		TypeActions:         UnitActions,
+		TypeCode:         UnitCode,
+		TypeIssues:       UnitIssues,
+		TypePullRequests: UnitPullRequests,
+		TypeReleases:     UnitReleases,
 	}
 )
 

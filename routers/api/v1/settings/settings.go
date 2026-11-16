@@ -11,23 +11,6 @@ import (
 	"gitea.dev/services/context"
 )
 
-// GetGeneralUISettings returns instance's global settings for ui
-func GetGeneralUISettings(ctx *context.APIContext) {
-	// swagger:operation GET /settings/ui settings getGeneralUISettings
-	// ---
-	// summary: Get instance's global settings for ui
-	// produces:
-	// - application/json
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/GeneralUISettings"
-	ctx.JSON(http.StatusOK, api.GeneralUISettings{
-		DefaultTheme:     setting.UI.DefaultTheme,
-		AllowedReactions: setting.UI.Reactions,
-		CustomEmojis:     setting.UI.CustomEmojis,
-	})
-}
-
 // GetGeneralAPISettings returns instance's global settings for api
 func GetGeneralAPISettings(ctx *context.APIContext) {
 	// swagger:operation GET /settings/api settings getGeneralAPISettings
@@ -58,29 +41,10 @@ func GetGeneralRepoSettings(ctx *context.APIContext) {
 	//   "200":
 	//     "$ref": "#/responses/GeneralRepoSettings"
 	ctx.JSON(http.StatusOK, api.GeneralRepoSettings{
-		MirrorsDisabled:      !setting.Mirror.Enabled,
-		HTTPGitDisabled:      setting.Repository.DisableHTTPGit,
-		MigrationsDisabled:   setting.Repository.DisableMigrations,
-		StarsDisabled:        setting.Repository.DisableStars,
-		TimeTrackingDisabled: !setting.Service.EnableTimetracking,
-		LFSDisabled:          !setting.LFS.StartServer,
-	})
-}
-
-// GetGeneralAttachmentSettings returns instance's global settings for Attachment
-func GetGeneralAttachmentSettings(ctx *context.APIContext) {
-	// swagger:operation GET /settings/attachment settings getGeneralAttachmentSettings
-	// ---
-	// summary: Get instance's global settings for Attachment
-	// produces:
-	// - application/json
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/GeneralAttachmentSettings"
-	ctx.JSON(http.StatusOK, api.GeneralAttachmentSettings{
-		Enabled:      setting.Attachment.Enabled,
-		AllowedTypes: setting.Attachment.AllowedTypes,
-		MaxFiles:     setting.Attachment.MaxFiles,
-		MaxSize:      setting.Attachment.MaxSize,
+		MirrorsDisabled:    true,
+		HTTPGitDisabled:    setting.Repository.DisableHTTPGit,
+		MigrationsDisabled: true,
+		StarsDisabled:      true,
+		LFSDisabled:        !setting.LFS.StartServer,
 	})
 }

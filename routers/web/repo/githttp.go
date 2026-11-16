@@ -28,7 +28,6 @@ import (
 	"gitea.dev/modules/log"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	"gitea.dev/services/context"
 	repo_service "gitea.dev/services/repository"
@@ -58,11 +57,6 @@ func CorsHandler() func(next http.Handler) http.Handler {
 // httpBase does the common work for git http services,
 // including early response, authentication, repository lookup and permission check.
 func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
-	if ctx.FormString("go-get") == "1" {
-		context.EarlyResponseForGoGetMeta(ctx)
-		return nil
-	}
-
 	var serviceType string
 	var isPull, receivePack bool
 	switch util.OptionalArg(optGitService) {
@@ -89,14 +83,8 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 		accessMode = perm.AccessModeWrite
 	}
 
-	isWiki := false
 	unitType := unit.TypeCode
 	repoName := strings.TrimSuffix(ctx.PathParam("reponame"), ".git")
-	if strings.HasSuffix(repoName, ".wiki") {
-		isWiki = true
-		unitType = unit.TypeWiki
-		repoName = repoName[:len(repoName)-5]
-	}
 
 	owner := ctx.ContextUser
 	if !owner.IsOrganization() && !owner.IsActive {
@@ -125,92 +113,45 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 		return nil
 	}
 
-	// Only public pulls don't need auth: repo must exist, not require-sign-in
-	canAnonymousPull := false
-	if isPull && repoExist && !setting.Service.RequireSignInViewStrict {
-		// allow anonymous pulls if owner is public and repo is public (not private)
-		if owner.Visibility == structs.VisibleTypePublic && !repo.IsPrivate {
-			canAnonymousPull = true
-		}
-		// then check "public anonymous access" permission
-		if !canAnonymousPull && ctx.Doer == nil {
-			anonPerm, err := access_model.GetDoerRepoPermission(ctx, repo, nil)
-			if err != nil {
-				ctx.ServerError("GetDoerRepoPermission", err)
-				return nil
-			}
-			canAnonymousPull = anonPerm.CanAccess(accessMode, unitType)
-		}
+	// every git request needs a token, pulls included
+	if !ctx.IsSigned {
+		// TODO: support digit auth - which would be Authorization header with digit
+		// No OAuth2 provider, so use a realm that keeps GCM from attempting its builtin Gitea OAuth2 flow
+		ctx.Resp.Header().Set("WWW-Authenticate", `Basic realm="Gitea (Basic Auth)"`)
+		ctx.HTTPError(http.StatusUnauthorized)
+		return nil
 	}
 
-	// check access
-	if !canAnonymousPull { // not public pull, then either the pull needs auth, or the push needs "write" permission, so ask auth
-		if !ctx.IsSigned {
-			// TODO: support digit auth - which would be Authorization header with digit
-			if setting.OAuth2.Enabled {
-				// `Basic realm="Gitea"` tells the GCM to use builtin OAuth2 application: https://github.com/git-ecosystem/git-credential-manager/pull/1442
-				ctx.Resp.Header().Set("WWW-Authenticate", `Basic realm="Gitea"`)
-			} else {
-				// If OAuth2 is disabled, then use another realm to avoid GCM OAuth2 attempt
-				ctx.Resp.Header().Set("WWW-Authenticate", `Basic realm="Gitea (Basic Auth)"`)
-			}
-			ctx.HTTPError(http.StatusUnauthorized)
+	context.CheckRepoScopedToken(ctx, repo, auth_model.GetScopeLevelFromAccessMode(accessMode))
+	if ctx.Written() {
+		return nil
+	}
+
+	if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {
+		ctx.PlainText(http.StatusForbidden, "Your account is disabled.")
+		return nil
+	}
+
+	if repoExist {
+		p, err := access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
+		if err != nil {
+			ctx.ServerError("GetDoerRepoPermission", err)
 			return nil
 		}
 
-		context.CheckRepoScopedToken(ctx, repo, auth_model.GetScopeLevelFromAccessMode(accessMode))
-		if ctx.Written() {
+		if !p.CanAccess(accessMode, unitType) {
+			ctx.PlainText(http.StatusNotFound, "Repository not found")
 			return nil
 		}
 
-		if ctx.IsBasicAuth && ctx.Data["IsApiToken"] != true && !ctx.Doer.IsGiteaActions() {
-			_, err = auth_model.GetTwoFactorByUID(ctx, ctx.Doer.ID)
-			if err == nil {
-				// TODO: This response should be changed to "invalid credentials" for security reasons once the expectation behind it (creating an app token to authenticate) is properly documented
-				ctx.PlainText(http.StatusUnauthorized, "Users with two-factor authentication enabled cannot perform HTTP/HTTPS operations via plain username and password. Please create and use a personal access token on the user settings page")
-				return nil
-			} else if !auth_model.IsErrTwoFactorNotEnrolled(err) {
-				ctx.ServerError("IsErrTwoFactorNotEnrolled", err)
-				return nil
-			}
-		}
-
-		if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {
-			ctx.PlainText(http.StatusForbidden, "Your account is disabled.")
+		if !isPull && repo.IsMirror {
+			ctx.PlainText(http.StatusForbidden, "mirror repository is read-only")
 			return nil
-		}
-
-		if repoExist {
-			// Only the main code repo accepts refs/for pushes, so wiki pushes must keep write checks.
-			if git.DefaultFeatures().SupportProcReceive && !isWiki {
-				accessMode = perm.AccessModeRead
-			}
-
-			p, err := access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
-			if err != nil {
-				ctx.ServerError("GetDoerRepoPermission", err)
-				return nil
-			}
-
-			if !p.CanAccess(accessMode, unitType) {
-				ctx.PlainText(http.StatusNotFound, "Repository not found")
-				return nil
-			}
-
-			if !isPull && repo.IsMirror {
-				ctx.PlainText(http.StatusForbidden, "mirror repository is read-only")
-				return nil
-			}
 		}
 	}
 
 	if !repoExist {
 		if !receivePack {
-			ctx.PlainText(http.StatusNotFound, "Repository not found")
-			return nil
-		}
-
-		if isWiki { // you cannot send wiki operation before create the repository
 			ctx.PlainText(http.StatusNotFound, "Repository not found")
 			return nil
 		}
@@ -238,25 +179,13 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 		}
 	}
 
-	if isWiki {
-		// Ensure the wiki is enabled before we allow access to it
-		if _, err := repo.GetUnit(ctx, unit.TypeWiki); err != nil {
-			if repo_model.IsErrUnitTypeNotExist(err) {
-				ctx.PlainText(http.StatusForbidden, "repository wiki is disabled")
-				return nil
-			}
-			ctx.ServerError("GetUnit(UnitTypeWiki) for "+repo.FullName(), err)
-			return nil
-		}
-	}
-
 	var environ []string
 	if !isPull {
 		// if not "pull", then must be "push", and doer must exist
-		environ = repo_module.DoerPushingEnvironment(ctx.Doer, repo, isWiki)
+		environ = repo_module.DoerPushingEnvironment(ctx.Doer, repo)
 	}
 
-	return &serviceHandler{serviceType, repo, isWiki, environ}
+	return &serviceHandler{serviceType, repo, environ}
 }
 
 var (
@@ -302,14 +231,10 @@ type serviceHandler struct {
 	serviceType string
 
 	repo    *repo_model.Repository
-	isWiki  bool
 	environ []string
 }
 
 func (h *serviceHandler) getStorageRepo() gitrepo.Repository {
-	if h.isWiki {
-		return h.repo.WikiStorageRepo()
-	}
 	return h.repo
 }
 

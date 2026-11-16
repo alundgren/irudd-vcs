@@ -13,16 +13,13 @@ import (
 	"strings"
 	"time"
 
-	asymkey_model "gitea.dev/models/asymkey"
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/commitstatus"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
-	"gitea.dev/modules/translation"
 	"gitea.dev/modules/util"
 
 	"xorm.io/builder"
@@ -56,80 +53,11 @@ func init() {
 	db.RegisterModel(new(CommitStatusIndex))
 }
 
-func postgresGetCommitStatusIndex(ctx context.Context, repoID int64, sha string) (int64, error) {
-	res, err := db.GetEngine(ctx).Query("INSERT INTO `commit_status_index` (repo_id, sha, max_index) "+
-		"VALUES (?,?,1) ON CONFLICT (repo_id, sha) DO UPDATE SET max_index = `commit_status_index`.max_index+1 RETURNING max_index",
-		repoID, sha)
-	if err != nil {
-		return 0, err
-	}
-	if len(res) == 0 {
-		return 0, db.ErrGetResourceIndexFailed
-	}
-	return strconv.ParseInt(string(res[0]["max_index"]), 10, 64)
-}
-
-func mysqlGetCommitStatusIndex(ctx context.Context, repoID int64, sha string) (int64, error) {
-	if _, err := db.GetEngine(ctx).Exec("INSERT INTO `commit_status_index` (repo_id, sha, max_index) "+
-		"VALUES (?,?,1) ON DUPLICATE KEY UPDATE max_index = max_index+1",
-		repoID, sha); err != nil {
-		return 0, err
-	}
-
-	var idx int64
-	_, err := db.GetEngine(ctx).SQL("SELECT max_index FROM `commit_status_index` WHERE repo_id = ? AND sha = ?",
-		repoID, sha).Get(&idx)
-	if err != nil {
-		return 0, err
-	}
-	if idx == 0 {
-		return 0, errors.New("cannot get the correct index")
-	}
-	return idx, nil
-}
-
-func mssqlGetCommitStatusIndex(ctx context.Context, repoID int64, sha string) (int64, error) {
-	if _, err := db.GetEngine(ctx).Exec(`
-MERGE INTO commit_status_index WITH (HOLDLOCK) AS target
-USING (SELECT ? AS repo_id, ? AS sha) AS source
-(repo_id, sha)
-ON target.repo_id = source.repo_id AND target.sha = source.sha
-WHEN MATCHED
-	THEN UPDATE
-			SET max_index = max_index + 1
-WHEN NOT MATCHED
-	THEN INSERT (repo_id, sha, max_index)
-			VALUES (?, ?, 1);
-`, repoID, sha, repoID, sha); err != nil {
-		return 0, err
-	}
-
-	var idx int64
-	_, err := db.GetEngine(ctx).SQL("SELECT max_index FROM `commit_status_index` WHERE repo_id = ? AND sha = ?",
-		repoID, sha).Get(&idx)
-	if err != nil {
-		return 0, err
-	}
-	if idx == 0 {
-		return 0, errors.New("cannot get the correct index")
-	}
-	return idx, nil
-}
-
 // GetNextCommitStatusIndex retried 3 times to generate a resource index
 func GetNextCommitStatusIndex(ctx context.Context, repoID int64, sha string) (int64, error) {
 	_, err := git.NewIDFromString(sha)
 	if err != nil {
 		return 0, util.NewInvalidArgumentErrorf("invalid sha: %v", err)
-	}
-
-	switch {
-	case setting.Database.Type.IsPostgreSQL():
-		return postgresGetCommitStatusIndex(ctx, repoID, sha)
-	case setting.Database.Type.IsMySQL():
-		return mysqlGetCommitStatusIndex(ctx, repoID, sha)
-	case setting.Database.Type.IsMSSQL():
-		return mssqlGetCommitStatusIndex(ctx, repoID, sha)
 	}
 
 	e := db.GetEngine(ctx)
@@ -206,11 +134,6 @@ func (status *CommitStatus) loadAttributes(ctx context.Context) (err error) {
 func (status *CommitStatus) APIURL(ctx context.Context) string {
 	_ = status.loadAttributes(ctx)
 	return status.Repo.APIURL() + "/statuses/" + url.PathEscape(status.SHA)
-}
-
-// LocaleString returns the locale string name of the Status
-func (status *CommitStatus) LocaleString(lang translation.Locale) string {
-	return lang.TrString("repo.commitstatus." + status.State.String())
 }
 
 // HideActionsURL set `TargetURL` to an empty string if the status comes from Gitea Actions
@@ -304,20 +227,22 @@ func (opts *CommitStatusOptions) ToConds() builder.Cond {
 	return cond
 }
 
+// ToOrders breaks ties in the second-resolution timestamps by the per-commit index,
+// so statuses posted within the same second keep their posting order
 func (opts *CommitStatusOptions) ToOrders() string {
 	switch opts.SortType {
 	case "oldest":
-		return "created_unix ASC"
+		return "created_unix ASC, `index` ASC"
 	case "recentupdate":
-		return "updated_unix DESC"
+		return "updated_unix DESC, `index` DESC"
 	case "leastupdate":
-		return "updated_unix ASC"
+		return "updated_unix ASC, `index` ASC"
 	case "leastindex":
 		return "`index` DESC"
 	case "highestindex":
 		return "`index` ASC"
 	default:
-		return "created_unix DESC"
+		return "created_unix DESC, `index` DESC"
 	}
 }
 
@@ -358,110 +283,6 @@ func CountLatestCommitStatus(ctx context.Context, repoID int64, sha string) (int
 		Select("count(context_hash)").
 		GroupBy("context_hash").
 		Count()
-}
-
-// GetLatestCommitStatusForPairs returns all statuses with a unique context for a given list of repo-sha pairs
-func GetLatestCommitStatusForPairs(ctx context.Context, repoSHAs []RepoSHA) (map[int64][]*CommitStatus, error) {
-	type result struct {
-		Index  int64
-		RepoID int64
-		SHA    string
-	}
-
-	results := make([]result, 0, len(repoSHAs))
-
-	getBase := func() db.Session {
-		return db.GetEngine(ctx).Table(&CommitStatus{})
-	}
-
-	// Create a disjunction of conditions for each repoID and SHA pair
-	conds := make([]builder.Cond, 0, len(repoSHAs))
-	for _, repoSHA := range repoSHAs {
-		conds = append(conds, builder.Eq{"repo_id": repoSHA.RepoID, "sha": repoSHA.SHA})
-	}
-	sess := getBase().Where(builder.Or(conds...)).
-		Select("max( `index` ) as `index`, repo_id, sha").
-		GroupBy("context_hash, repo_id, sha").OrderBy("max( `index` ) desc")
-
-	err := sess.Find(&results)
-	if err != nil {
-		return nil, err
-	}
-
-	repoStatuses := make(map[int64][]*CommitStatus)
-
-	if len(results) > 0 {
-		statuses := make([]*CommitStatus, 0, len(results))
-
-		conds = make([]builder.Cond, 0, len(results))
-		for _, result := range results {
-			cond := builder.Eq{
-				"`index`": result.Index,
-				"repo_id": result.RepoID,
-				"sha":     result.SHA,
-			}
-			conds = append(conds, cond)
-		}
-		err = getBase().Where(builder.Or(conds...)).Find(&statuses)
-		if err != nil {
-			return nil, err
-		}
-
-		// Group the statuses by repo ID
-		for _, status := range statuses {
-			repoStatuses[status.RepoID] = append(repoStatuses[status.RepoID], status)
-		}
-	}
-
-	return repoStatuses, nil
-}
-
-// GetLatestCommitStatusForRepoCommitIDs returns all statuses with a unique context for a given list of repo-sha pairs
-func GetLatestCommitStatusForRepoCommitIDs(ctx context.Context, repoID int64, commitIDs []string) (map[string][]*CommitStatus, error) {
-	type result struct {
-		Index int64
-		SHA   string
-	}
-
-	getBase := func() db.Session {
-		return db.GetEngine(ctx).Table(&CommitStatus{}).Where("repo_id = ?", repoID)
-	}
-	results := make([]result, 0, len(commitIDs))
-
-	conds := make([]builder.Cond, 0, len(commitIDs))
-	for _, sha := range commitIDs {
-		conds = append(conds, builder.Eq{"sha": sha})
-	}
-	sess := getBase().And(builder.Or(conds...)).
-		Select("max( `index` ) as `index`, sha").
-		GroupBy("context_hash, sha").OrderBy("max( `index` ) desc")
-
-	err := sess.Find(&results)
-	if err != nil {
-		return nil, err
-	}
-
-	repoStatuses := make(map[string][]*CommitStatus)
-
-	if len(results) > 0 {
-		statuses := make([]*CommitStatus, 0, len(results))
-
-		conds = make([]builder.Cond, 0, len(results))
-		for _, result := range results {
-			conds = append(conds, builder.Eq{"`index`": result.Index, "sha": result.SHA})
-		}
-		err = getBase().And(builder.Or(conds...)).Find(&statuses)
-		if err != nil {
-			return nil, err
-		}
-
-		// Group the statuses by commit
-		for _, status := range statuses {
-			repoStatuses[status.SHA] = append(repoStatuses[status.SHA], status)
-		}
-	}
-
-	return repoStatuses, nil
 }
 
 // FindRepoRecentCommitStatusContexts returns repository's recent commit status contexts
@@ -527,13 +348,6 @@ func NewCommitStatus(ctx context.Context, opts NewCommitStatusOptions) error {
 
 		return nil
 	})
-}
-
-// SignCommitWithStatuses represents a commit with validation of signature and status state.
-type SignCommitWithStatuses struct {
-	Status   *CommitStatus
-	Statuses []*CommitStatus
-	*asymkey_model.SignCommit
 }
 
 // HashCommitStatusContext returns the sha1 hash used to dedupe commit statuses

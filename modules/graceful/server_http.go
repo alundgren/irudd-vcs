@@ -5,7 +5,6 @@ package graceful
 
 import (
 	"context"
-	"crypto/tls"
 	"net"
 	"net/http"
 )
@@ -29,14 +28,7 @@ func newHTTPServer(network, address, name string, handler http.Handler) (*Server
 
 // HTTPListenAndServe listens on the provided network address and then calls Serve
 // to handle requests on incoming connections.
-func HTTPListenAndServe(network, address, name string, handler http.Handler, useProxyProtocol bool) error {
+func HTTPListenAndServe(network, address, name string, handler http.Handler) error {
 	server, lHandler := newHTTPServer(network, address, name, handler)
-	return server.ListenAndServe(lHandler, useProxyProtocol)
-}
-
-// HTTPListenAndServeTLSConfig listens on the provided network address and then calls Serve
-// to handle requests on incoming connections.
-func HTTPListenAndServeTLSConfig(network, address, name string, tlsConfig *tls.Config, handler http.Handler, useProxyProtocol, proxyProtocolTLSBridging bool) error {
-	server, lHandler := newHTTPServer(network, address, name, handler)
-	return server.ListenAndServeTLSConfig(tlsConfig, lHandler, useProxyProtocol, proxyProtocolTLSBridging)
+	return server.ListenAndServe(lHandler)
 }

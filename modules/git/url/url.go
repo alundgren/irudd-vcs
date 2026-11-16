@@ -140,7 +140,7 @@ func ParseRepositoryURL(ctx context.Context, repoURL string) (*RepositoryURL, er
 		}
 		fillPathParts(strings.TrimPrefix(parsed.URL.Path, setting.AppSubURL))
 	case "ssh", "git+ssh":
-		domainSSH := setting.SSH.Domain
+		domainSSH := setting.Domain
 		domainCur := httplib.GuessCurrentHostDomain(ctx)
 		urlDomain, _, _ := net.SplitHostPort(parsed.URL.Host)
 		urlDomain = util.IfZero(urlDomain, parsed.URL.Host)

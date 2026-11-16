@@ -9,46 +9,7 @@ import (
 	"gitea.dev/models/db"
 	"gitea.dev/modules/indexer"
 	"gitea.dev/modules/optional"
-	"gitea.dev/modules/timeutil"
 )
-
-// IndexerData data stored in the issue indexer
-type IndexerData struct {
-	ID       int64 `json:"id"`
-	RepoID   int64 `json:"repo_id"`
-	IsPublic bool  `json:"is_public"` // If the repo is public
-
-	// Fields used for keyword searching
-	Title    string   `json:"title"`
-	Content  string   `json:"content"`
-	Comments []string `json:"comments"`
-
-	// Fields used for filtering
-	IsPull             bool               `json:"is_pull"`
-	IsClosed           bool               `json:"is_closed"`
-	IsArchived         bool               `json:"is_archived"`
-	LabelIDs           []int64            `json:"label_ids"`
-	NoLabel            bool               `json:"no_label"` // True if LabelIDs is empty
-	MilestoneID        int64              `json:"milestone_id"`
-	ProjectIDs         []int64            `json:"project_ids"`
-	NoProject          bool               `json:"no_project"`                   // True if ProjectIDs is empty
-	ProjectColumnMap   map[int64]int64    `json:"project_column_map,omitempty"` // Maps project ID to column ID for each project the issue is in
-	PosterID           int64              `json:"poster_id"`
-	AssigneeIDs        []int64            `json:"assignee_ids"`
-	NoAssignee         bool               `json:"no_assignee"` // True if the issue has no assignees
-	MentionIDs         []int64            `json:"mention_ids"`
-	ReviewedIDs        []int64            `json:"reviewed_ids"`
-	ReviewRequestedIDs []int64            `json:"review_requested_ids"`
-	SubscriberIDs      []int64            `json:"subscriber_ids"`
-	UpdatedUnix        timeutil.TimeStamp `json:"updated_unix"`
-
-	// Fields used for sorting
-	// UpdatedUnix is both used for filtering and sorting.
-	// ID is used for sorting too, to make the sorting stable.
-	CreatedUnix  timeutil.TimeStamp `json:"created_unix"`
-	DeadlineUnix timeutil.TimeStamp `json:"deadline_unix"`
-	CommentCount int64              `json:"comment_count"`
-}
 
 // Match represents on search result
 type Match struct {
@@ -94,11 +55,6 @@ type SearchOptions struct {
 	IncludedAnyLabelIDs []int64 // labels the issues have at least one. It will be ignored if IncludedLabelIDs is not empty. It's an uncommon filter, but it has been supported accidentally by issues.IssuesOptions.IncludedLabelNames.
 	NoLabelOnly         bool    // if the issues have no label, if true, IncludedLabelIDs and ExcludedLabelIDs, IncludedAnyLabelIDs will be ignored
 
-	MilestoneIDs []int64 // milestones the issues have
-
-	ProjectIDs    []int64 // project the issues belong to. FIXME: ISSUE-MULTIPLE-PROJECTS-FILTER: no multiple project filter support yet. Search logic is wrong.
-	NoProjectOnly bool    // if the issues have no project, if true, ProjectIDs will be ignored
-
 	PosterID   string // poster of the issues, "(none)" or "(any)" or a user ID
 	AssigneeID string // assignee of the issues, "(none)" or "(any)" or a user ID
 
@@ -106,8 +62,6 @@ type SearchOptions struct {
 
 	ReviewedID        optional.Option[int64] // reviewer of the issues
 	ReviewRequestedID optional.Option[int64] // requested reviewer of the issues
-
-	SubscriberID optional.Option[int64] // subscriber of the issues
 
 	UpdatedAfterUnix  optional.Option[int64]
 	UpdatedBeforeUnix optional.Option[int64]
@@ -154,9 +108,4 @@ const (
 	//                    It is based on the specified repository in the request, so we cannot add static field to the indexer.
 	//                    If we do something like that query the issues in the specified repository first then append other issues,
 	//                    it will break the pagination.
-	//
-	// - "project-column-sorting":
-	//                    Although it's possible to support it by adding project.ProjectIssue.Sorting to the indexer,
-	//                    but what if the issue belongs to multiple projects?
-	//                    Since it's unsupported to search issues with keyword in project page, we don't need to support it.
 )

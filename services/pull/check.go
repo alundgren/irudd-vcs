@@ -15,7 +15,6 @@ import (
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
-	"gitea.dev/models/pull"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
@@ -29,8 +28,6 @@ import (
 	"gitea.dev/modules/queue"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
-	asymkey_service "gitea.dev/services/asymkey"
-	"gitea.dev/services/automergequeue"
 	notify_service "gitea.dev/services/notify"
 )
 
@@ -45,7 +42,6 @@ var (
 	ErrIsWorkInProgress          = errors.New("work in progress PRs cannot be merged")
 	ErrIsChecking                = errors.New("cannot merge while conflict checking is in progress")
 	ErrNotMergeableState         = errors.New("not in mergeable state")
-	ErrDependenciesLeft          = errors.New("is blocked by an open dependency")
 	ErrHeadCommitsNotAllVerified = errors.New("the branch requires signed commits but not all head commits are verified")
 )
 
@@ -216,17 +212,7 @@ func CheckPullMergeable(stdCtx context.Context, doer *user_model.User, perm *acc
 			}
 		}
 
-		if err := checkSigningRequirements(ctx, pr, doer, mergeStyle); err != nil {
-			return err
-		}
-
-		if noDeps, err := issues_model.IssueNoDependenciesLeft(ctx, pr.Issue); err != nil {
-			return err
-		} else if !noDeps {
-			return ErrDependenciesLeft
-		}
-
-		return nil
+		return checkSigningRequirements(ctx, pr, doer, mergeStyle)
 	})
 }
 
@@ -247,28 +233,8 @@ func checkSigningRequirements(ctx context.Context, pr *issues_model.PullRequest,
 		return nil
 	}
 
-	gitRepo, closer, err := gitrepo.RepositoryFromContextOrOpen(ctx, pr.BaseRepo)
-	if err != nil {
-		return err
-	}
-	defer closer.Close()
-
-	if mergeStyle == repo_model.MergeStyleFastForwardOnly || mergeStyle == repo_model.MergeStyleMerge {
-		verified, err := asymkey_service.AllHeadCommitsVerified(ctx, pr, gitRepo)
-		if err != nil {
-			return err
-		}
-		if !verified {
-			return ErrHeadCommitsNotAllVerified
-		}
-	}
-
-	if mergeStyle != repo_model.MergeStyleFastForwardOnly {
-		if _, _, _, err := asymkey_service.SignMerge(ctx, pr, doer, gitRepo, pr.BaseBranch, pr.GetGitHeadRefName()); err != nil {
-			return err
-		}
-	}
-	return nil
+	// Commit signatures are neither verified nor created, so a branch that requires them can't be merged into
+	return ErrHeadCommitsNotAllVerified
 }
 
 // markPullRequestAsMergeable checks if pull request is possible to leaving checking status,
@@ -294,15 +260,6 @@ func markPullRequestAsMergeable(ctx context.Context, pr *issues_model.PullReques
 		log.Error("Update[%-v]: %v", pr, err)
 	}
 
-	// if there is a scheduled merge for this pull request, start the auto merge check (again)
-	exist, _, err := pull.GetScheduledMergeByPullID(ctx, pr.ID)
-	if err != nil {
-		log.Error("GetScheduledMergeByPullID[%-v]: %v", pr, err)
-		return
-	} else if !exist {
-		return
-	}
-	automergequeue.StartPRCheckAndAutoMerge(ctx, pr)
 }
 
 // getMergeCommit checks if a pull request has been merged

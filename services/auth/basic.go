@@ -8,12 +8,10 @@ import (
 	"errors"
 	"net/http"
 
-	actions_model "gitea.dev/models/actions"
 	auth_model "gitea.dev/models/auth"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/httpauth"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 )
@@ -27,8 +25,6 @@ var (
 const (
 	BasicMethodName       = "basic"
 	AccessTokenMethodName = "access_token"
-	OAuth2TokenMethodName = "oauth2_token"
-	ActionTokenMethodName = "action_token"
 )
 
 // Basic implements the Auth interface and authenticates requests (API requests
@@ -68,28 +64,11 @@ func (b *Basic) parseAuthBasic(req *http.Request) (ret struct{ authToken, uname,
 }
 
 // VerifyAuthToken only the access token provided as parameter, used by other auth methods that want to reuse access token verification logic
-func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore, authToken string) (*user_model.User, error) {
-	// get oauth2 token's user's ID
-	accessTokenScope, uid := GetOAuthAccessTokenScopeAndUserID(req.Context(), authToken)
-	if uid != 0 {
-		log.Trace("Basic Authorization: Valid OAuthAccessToken for user[%d]", uid)
-
-		u, err := user_model.GetUserByID(req.Context(), uid)
-		if err != nil {
-			log.Error("GetUserByID:  %v", err)
-			return nil, err
-		}
-
-		store.GetData()["LoginMethod"] = OAuth2TokenMethodName
-		store.GetData()["IsApiToken"] = true
-		store.GetData()["ApiTokenScope"] = accessTokenScope
-		return u, nil
-	}
-
+func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store DataStore, authToken string) (*user_model.User, error) {
 	// check personal access token
 	token, err := auth_model.GetAccessTokenBySHA(req.Context(), authToken)
 	if err == nil {
-		log.Trace("Basic Authorization: Valid AccessToken for user[%d]", uid)
+		log.Trace("Basic Authorization: Valid AccessToken for user[%d]", token.UID)
 		u, err := user_model.GetUserByID(req.Context(), token.UID)
 		if err != nil {
 			log.Error("GetUserByID:  %v", err)
@@ -109,13 +88,6 @@ func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store 
 		log.Error("GetAccessTokenBySHA: %v", err)
 	}
 
-	// check task token
-	task, err := actions_model.GetRunningTaskByToken(req.Context(), authToken)
-	if err == nil && task != nil {
-		log.Trace("Basic Authorization: Valid AccessToken for task[%d]", task.ID)
-		store.GetData()["LoginMethod"] = ActionTokenMethodName
-		return user_model.NewActionsUserWithTaskID(task.ID), nil
-	}
 	return nil, nil //nolint:nilnil // the auth method is not applicable
 }
 
@@ -123,81 +95,14 @@ func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store 
 // "Authorization" header of the request and returns the corresponding user object for that
 // name/token on successful validation.
 // Returns nil if header is empty or validation fails.
-func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore) (*user_model.User, error) {
+func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore) (*user_model.User, error) {
 	parseBasicRet := b.parseAuthBasic(req)
-	authToken, uname, passwd := parseBasicRet.authToken, parseBasicRet.uname, parseBasicRet.passwd
-	if authToken == "" && uname == "" {
+	if parseBasicRet.authToken == "" && parseBasicRet.uname == "" {
 		return nil, nil //nolint:nilnil // the auth method is not applicable
 	}
-	u, err := b.VerifyAuthToken(req, w, store, sess, authToken)
+	u, err := b.VerifyAuthToken(req, w, store, parseBasicRet.authToken)
 	if u != nil || err != nil {
 		return u, err
 	}
-
-	if !setting.Service.EnableBasicAuth {
-		return nil, nil //nolint:nilnil // the auth method is not applicable
-	}
-
-	log.Trace("Basic Authorization: Attempting SignIn for %s", uname)
-	u, source, err := UserSignIn(req.Context(), uname, passwd)
-	if err != nil {
-		if !user_model.IsErrUserNotExist(err) {
-			log.Error("UserSignIn: %v", err)
-		}
-		return nil, err
-	}
-
-	if !source.TwoFactorShouldSkip() {
-		// Check if the user has WebAuthn registration
-		hasWebAuthn, err := auth_model.HasWebAuthnRegistrationsByUID(req.Context(), u.ID)
-		if err != nil {
-			return nil, err
-		}
-		if hasWebAuthn {
-			return nil, ErrUserAuthMessage("basic authorization is not allowed while WebAuthn enrolled")
-		}
-
-		if err := validateTOTP(req, u); err != nil {
-			return nil, err
-		}
-	}
-
-	store.GetData()["LoginMethod"] = BasicMethodName
-	log.Trace("Basic Authorization: Logged in user %-v", u)
-
-	return u, nil
-}
-
-func validateTOTP(req *http.Request, u *user_model.User) error {
-	twofa, err := auth_model.GetTwoFactorByUID(req.Context(), u.ID)
-	if err != nil {
-		if auth_model.IsErrTwoFactorNotEnrolled(err) {
-			// No 2FA enrollment for this user
-			return nil
-		}
-		return err
-	}
-	// Consume the passcode atomically so a captured OTP cannot be replayed within its validity window.
-	if ok, err := twofa.ValidateAndConsumeTOTP(req.Context(), req.Header.Get("X-Gitea-OTP")); err != nil {
-		return err
-	} else if !ok {
-		return util.NewInvalidArgumentErrorf("invalid provided OTP")
-	}
-	return nil
-}
-
-func GetAccessScope(store DataStore) auth_model.AccessTokenScope {
-	if v, ok := store.GetData()["ApiTokenScope"]; ok {
-		return v.(auth_model.AccessTokenScope)
-	}
-	switch store.GetData()["LoginMethod"] {
-	case OAuth2TokenMethodName:
-		fallthrough
-	case BasicMethodName, AccessTokenMethodName:
-		return auth_model.AccessTokenScopeAll
-	case ActionTokenMethodName:
-		fallthrough
-	default:
-		return ""
-	}
+	return nil, ErrUserAuthMessage("invalid token") // there are no passwords, only tokens
 }

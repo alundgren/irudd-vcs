@@ -8,10 +8,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
-	"time"
 
-	actions_model "gitea.dev/models/actions"
 	auth_model "gitea.dev/models/auth"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/httpauth"
@@ -19,54 +16,9 @@ import (
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
-	"gitea.dev/services/actions"
-	"gitea.dev/services/oauth2_provider"
 )
 
 var _ Method = &OAuth2{}
-
-// GetOAuthAccessTokenScopeAndUserID returns access token scope and user id
-func GetOAuthAccessTokenScopeAndUserID(ctx context.Context, accessToken string) (auth_model.AccessTokenScope, int64) {
-	var accessTokenScope auth_model.AccessTokenScope
-	if !setting.OAuth2.Enabled {
-		return accessTokenScope, 0
-	}
-
-	// JWT tokens require a ".", if the token isn't like that, return early
-	if !strings.Contains(accessToken, ".") {
-		return accessTokenScope, 0
-	}
-
-	token, err := oauth2_provider.ParseToken(accessToken, oauth2_provider.DefaultSigningKey)
-	if err != nil {
-		log.Trace("oauth2.ParseToken: %v", err)
-		return accessTokenScope, 0
-	}
-	var grant *auth_model.OAuth2Grant
-	if grant, err = auth_model.GetOAuth2GrantByID(ctx, token.GrantID); err != nil || grant == nil {
-		return accessTokenScope, 0
-	}
-	if token.Kind != oauth2_provider.KindAccessToken {
-		return accessTokenScope, 0
-	}
-	if token.ExpiresAt.Before(time.Now()) || token.IssuedAt.After(time.Now()) {
-		return accessTokenScope, 0
-	}
-	accessTokenScope = oauth2_provider.GrantAdditionalScopes(grant.Scope)
-	return accessTokenScope, grant.UserID
-}
-
-// CheckTaskIsRunning verifies that the TaskID corresponds to a running task
-func CheckTaskIsRunning(ctx context.Context, taskID int64) bool {
-	// Verify the task exists
-	task, err := actions_model.GetTaskByID(ctx, taskID)
-	if err != nil {
-		return false
-	}
-
-	// Verify that it's running
-	return task.Status == actions_model.StatusRunning
-}
 
 // OAuth2 implements the Auth interface and authenticates requests
 // (API requests only) by looking for an OAuth token in query parameters or the
@@ -109,32 +61,8 @@ func parseToken(req *http.Request) (string, bool) {
 // It will set 'IsApiToken' to true if the token is an API token and
 // set 'ApiTokenScope' to the scope of the access token (TODO: this behavior should be fixed, don't set ctx.Data)
 func (o *OAuth2) userFromToken(ctx context.Context, tokenSHA string, store DataStore) (*user_model.User, error) {
-	// Let's see if token is valid.
-	if strings.Contains(tokenSHA, ".") {
-		// First attempt to decode an actions JWT, returning the actions user
-		if taskID, err := actions.TokenToTaskID(tokenSHA); err == nil {
-			if CheckTaskIsRunning(ctx, taskID) {
-				return user_model.NewActionsUserWithTaskID(taskID), nil
-			}
-		}
-
-		// Otherwise, check if this is an OAuth access token
-		accessTokenScope, uid := GetOAuthAccessTokenScopeAndUserID(ctx, tokenSHA)
-		if uid != 0 {
-			store.GetData()["IsApiToken"] = true
-			store.GetData()["ApiTokenScope"] = accessTokenScope
-		}
-		return user_model.GetUserByID(ctx, uid)
-	}
 	t, err := auth_model.GetAccessTokenBySHA(ctx, tokenSHA)
 	if err != nil {
-		if errors.Is(err, util.ErrNotExist) {
-			// check task token
-			if task, err := actions_model.GetRunningTaskByToken(ctx, tokenSHA); err == nil {
-				log.Trace("Basic Authorization: Valid AccessToken for task[%d]", task.ID)
-				return user_model.NewActionsUserWithTaskID(task.ID), nil
-			}
-		}
 		return nil, err
 	}
 
@@ -151,7 +79,7 @@ func (o *OAuth2) userFromToken(ctx context.Context, tokenSHA string, store DataS
 // or the "Authorization" header and returns the corresponding user object for that ID.
 // If verification is successful returns an existing user object.
 // Returns nil if verification fails.
-func (o *OAuth2) Verify(req *http.Request, w http.ResponseWriter, store DataStore, sess SessionStore) (*user_model.User, error) {
+func (o *OAuth2) Verify(req *http.Request, w http.ResponseWriter, store DataStore) (*user_model.User, error) {
 	token, ok := parseToken(req)
 	if !ok {
 		return nil, nil //nolint:nilnil // the auth method is not applicable

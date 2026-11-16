@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	issues_model "gitea.dev/models/issues"
+	"gitea.dev/models/perm"
 	"gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
@@ -42,12 +43,14 @@ func TestPreReceiveCanWriteCodePerBranch(t *testing.T) {
 		BaseBranch:          "master",
 		AllowMaintainerEdit: true,
 	}
-	require.NoError(t, issues_model.NewPullRequest(t.Context(), baseRepo, pr.Issue, nil, nil, pr))
+	require.NoError(t, issues_model.NewPullRequest(t.Context(), baseRepo, pr.Issue, nil, pr))
 
 	// The pusher is the base repo owner (the maintainer) with only read access on the head repo.
+	// Every signed-in user owns every repo now, so build the read-only permission by hand.
 	maintainer := baseRepo.Owner
-	headPerm, err := access.GetIndividualUserRepoPermission(t.Context(), headRepo, maintainer)
-	require.NoError(t, err)
+	require.NoError(t, headRepo.LoadUnits(t.Context()))
+	var headPerm access.Permission
+	headPerm.SetUnitsWithDefaultAccessMode(headRepo.Units, perm.AccessModeRead)
 
 	mockCtx, _ := contexttest.MockPrivateContext(t, "/")
 	ctx := &preReceiveContext{

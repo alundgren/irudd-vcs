@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 
-	asymkey_model "gitea.dev/models/asymkey"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	perm_model "gitea.dev/models/perm"
@@ -21,9 +20,7 @@ import (
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
-	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
-	"gitea.dev/services/agit"
 	gitea_context "gitea.dev/services/context"
 	pull_service "gitea.dev/services/pull"
 )
@@ -131,8 +128,6 @@ func HookPreReceive(ctx *gitea_context.PrivateContext) {
 			preReceiveBranch(ourCtx, oldCommitID, newCommitID, refFullName)
 		case refFullName.IsTag():
 			preReceiveTag(ourCtx, refFullName)
-		case git.DefaultFeatures().SupportProcReceive && refFullName.IsFor():
-			preReceiveFor(ourCtx, refFullName)
 		default:
 			ourCtx.assertCanWriteRef(refFullName)
 		}
@@ -155,11 +150,7 @@ func preReceiveBranch(ctx *preReceiveContext, oldCommitID, newCommitID string, r
 	gitRepo := ctx.Repo.GitRepo
 	objectFormat := ctx.Repo.GetObjectFormat()
 
-	defaultBranch := repo.DefaultBranch
-	if ctx.opts.IsWiki && repo.DefaultWikiBranch != "" {
-		defaultBranch = repo.DefaultWikiBranch
-	}
-	if branchName == defaultBranch && newCommitID == objectFormat.EmptyObjectID().String() {
+	if branchName == repo.DefaultBranch && newCommitID == objectFormat.EmptyObjectID().String() {
 		log.Warn("Forbidden: Branch: %s is the default branch in %-v and cannot be deleted", branchName, repo)
 		ctx.JSON(http.StatusForbidden, private.Response{
 			UserMsg: fmt.Sprintf("branch %s is the default branch and cannot be deleted", branchName),
@@ -226,22 +217,12 @@ func preReceiveBranch(ctx *preReceiveContext, oldCommitID, newCommitID string, r
 
 	// 3. Enforce require signed commits
 	if protectBranch.RequireSignedCommits {
-		err := verifyCommits(oldCommitID, newCommitID, gitRepo, ctx.env)
-		if err != nil {
-			if !isErrUnverifiedCommit(err) {
-				log.Error("Unable to check commits from %s to %s in %-v: %v", oldCommitID, newCommitID, repo, err)
-				ctx.JSON(http.StatusInternalServerError, private.Response{
-					Err: fmt.Sprintf("Unable to check commits from %s to %s: %v", oldCommitID, newCommitID, err),
-				})
-				return
-			}
-			unverifiedCommit := err.(*errUnverifiedCommit).sha
-			log.Warn("Forbidden: Branch: %s in %-v is protected from unverified commit %s", branchName, repo, unverifiedCommit)
-			ctx.JSON(http.StatusForbidden, private.Response{
-				UserMsg: fmt.Sprintf("branch %s is protected from unverified commit %s", branchName, unverifiedCommit),
-			})
-			return
-		}
+		// Commit signatures can't be verified without stored GPG or SSH keys
+		log.Warn("Forbidden: Branch: %s in %-v requires signed commits, which are not supported", branchName, repo)
+		ctx.JSON(http.StatusForbidden, private.Response{
+			UserMsg: fmt.Sprintf("branch %s requires signed commits, which this server cannot verify", branchName),
+		})
+		return
 	}
 
 	// Now there are several tests which can be overridden:
@@ -429,39 +410,6 @@ func preReceiveTag(ctx *preReceiveContext, refFullName git.RefName) {
 	}
 }
 
-func preReceiveFor(ctx *preReceiveContext, refFullName git.RefName) {
-	if !ctx.AssertCreatePullRequest() {
-		return
-	}
-
-	if ctx.Repo.Repository.IsEmpty {
-		ctx.JSON(http.StatusForbidden, private.Response{
-			UserMsg: "Can't create pull request for an empty repository.",
-		})
-		return
-	}
-
-	if ctx.opts.IsWiki {
-		ctx.JSON(http.StatusForbidden, private.Response{
-			UserMsg: "Pull requests are not supported on the wiki.",
-		})
-		return
-	}
-
-	_, _, err := agit.GetAgitBranchInfo(ctx, ctx.Repo.Repository.ID, refFullName.ForBranchName())
-	if err != nil {
-		if !errors.Is(err, util.ErrNotExist) {
-			ctx.JSON(http.StatusForbidden, private.Response{
-				UserMsg: fmt.Sprintf("Unexpected ref: %s", refFullName),
-			})
-		} else {
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: err.Error(),
-			})
-		}
-	}
-}
-
 func generateGitEnv(opts *private.HookOptions) (env []string) {
 	env = os.Environ()
 	if opts.GitAlternativeObjectDirectories != "" {
@@ -482,25 +430,11 @@ func generateGitEnv(opts *private.HookOptions) (env []string) {
 // loadPusherAndPermission returns false if an error occurs, and it writes the error response
 func (ctx *preReceiveContext) loadPusherAndPermission() bool {
 	if ctx.opts.UserID == user_model.ActionsUserID {
-		taskID := ctx.opts.ActionsTaskID
-		ctx.user = user_model.NewActionsUserWithTaskID(taskID)
-		if taskID == 0 {
-			log.Error("HookPreReceive: ActionsUser with task ID 0")
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: "ActionsUser with task ID 0",
-			})
-			return false
-		}
-
-		userPerm, err := access_model.GetActionsUserRepoPermission(ctx, ctx.Repo.Repository, ctx.user, taskID)
-		if err != nil {
-			log.Error("Unable to get Actions user repo permission for task %d Error: %v", taskID, err)
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: fmt.Sprintf("Unable to get Actions user repo permission for task %d Error: %v", taskID, err),
-			})
-			return false
-		}
-		ctx.userPerm = userPerm
+		log.Error("HookPreReceive: pushes by the Actions user are not supported")
+		ctx.JSON(http.StatusForbidden, private.Response{
+			UserMsg: "Pushes by the Actions user are not supported",
+		})
+		return false
 	} else {
 		user, err := user_model.GetUserByID(ctx, ctx.opts.UserID)
 		if err != nil {
@@ -522,16 +456,5 @@ func (ctx *preReceiveContext) loadPusherAndPermission() bool {
 		ctx.userPerm = userPerm
 	}
 
-	if ctx.opts.DeployKeyID != 0 {
-		deployKey, err := asymkey_model.GetDeployKeyByID(ctx, ctx.opts.DeployKeyID)
-		if err != nil {
-			log.Error("Unable to get DeployKey id %d Error: %v", ctx.opts.DeployKeyID, err)
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: fmt.Sprintf("Unable to get DeployKey id %d Error: %v", ctx.opts.DeployKeyID, err),
-			})
-			return false
-		}
-		ctx.deployKeyAccessMode = deployKey.Mode
-	}
 	return true
 }

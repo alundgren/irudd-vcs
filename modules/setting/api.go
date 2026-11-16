@@ -37,6 +37,6 @@ func loadAPIFrom(rootCfg ConfigProvider) {
 	if err != nil {
 		log.Fatal("Invalid ROOT_URL '%s': %s", AppURL, err)
 	}
-	u.Path = path.Join(u.Path, "api", "swagger")
+	u.Path = path.Join(u.Path, "swagger.v1.json") // the spec, since the Swagger UI page went with the web UI
 	API.SwaggerURL = u.String()
 }

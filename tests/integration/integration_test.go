@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -22,20 +21,18 @@ import (
 
 	"gitea.dev/models/auth"
 	"gitea.dev/models/unittest"
+	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/testlogger"
-	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
-	"gitea.dev/modules/web/middleware"
 	"gitea.dev/routers"
-	gitea_context "gitea.dev/services/context"
 	"gitea.dev/tests"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var testWebRoutes *web.Router
@@ -66,12 +63,6 @@ func testMain(m *testing.M) int {
 	// Instead, "No tests were found",  last nonsense log is "According to the configuration, subsequent logs will not be printed to the console"
 	exitCode := m.Run()
 
-	if err = util.RemoveAll(setting.Indexer.IssuePath); err != nil {
-		log.Error("Failed to remove indexer path: %v", err)
-	}
-	if err = util.RemoveAll(setting.Indexer.RepoPath); err != nil {
-		log.Error("Failed to remove indexer path: %v", err)
-	}
 	return exitCode
 }
 
@@ -84,66 +75,31 @@ func TestMain(m *testing.M) {
 	os.Exit(testMain(m))
 }
 
+// TestSession sends requests as a user with an all-scope token, the server has no sessions or passwords
 type TestSession struct {
-	jar http.CookieJar
-}
-
-func (s *TestSession) GetRawCookie(name string) *http.Cookie {
-	baseURL, err := url.Parse(setting.AppURL)
-	if err != nil {
-		return nil
-	}
-	for _, c := range s.jar.Cookies(baseURL) {
-		if c.Name == name {
-			return c
-		}
-	}
-	return nil
-}
-
-func (s *TestSession) GetSiteCookie(name string) string {
-	c := s.GetRawCookie(name)
-	if c != nil {
-		v, _ := url.QueryUnescape(c.Value)
-		return v
-	}
-	return ""
-}
-
-func (s *TestSession) GetCookieFlashMessage() *middleware.Flash {
-	cookie := s.GetSiteCookie(gitea_context.CookieNameFlash)
-	return middleware.ParseCookieFlashMessage(cookie)
+	userName string
+	token    string
 }
 
 func (s *TestSession) MakeRequest(t testing.TB, rw *RequestWrapper, expectedStatus int) *httptest.ResponseRecorder {
 	t.Helper()
-	if s == nil {
-		return MakeRequest(t, rw, expectedStatus)
+	if s != nil && s.userName != "" && rw.Header.Get("Authorization") == "" {
+		if s.token == "" {
+			s.token = getTokenForLoggedInUser(t, s, auth.AccessTokenScopeAll)
+		}
+		rw.SetBasicAuth(s.userName, s.token) // like git clients, so the git and LFS routes accept it too
 	}
-	req := rw.Request
-	baseURL, err := url.Parse(setting.AppURL)
-	assert.NoError(t, err)
-	for _, c := range s.jar.Cookies(baseURL) {
-		req.AddCookie(c)
-	}
-	resp := MakeRequest(t, rw, expectedStatus)
-
-	ch := http.Header{}
-	ch.Add("Cookie", strings.Join(resp.Header()["Set-Cookie"], ";"))
-	cr := http.Request{Header: ch}
-	s.jar.SetCookies(baseURL, cr.Cookies())
-
-	return resp
+	return MakeRequest(t, rw, expectedStatus)
 }
 
-const userPassword = "password"
+// gitUserInfo is the userinfo of a git remote URL, with an all-scope token as the password
+func gitUserInfo(t testing.TB, userName string) *url.Userinfo {
+	return url.UserPassword(userName, getUserToken(t, userName, auth.AccessTokenScopeAll))
+}
 
 func emptyTestSession(t testing.TB) *TestSession {
 	t.Helper()
-	jar, err := cookiejar.New(nil)
-	assert.NoError(t, err)
-
-	return &TestSession{jar: jar}
+	return &TestSession{}
 }
 
 func getUserToken(t testing.TB, userName string, scope ...auth.AccessTokenScope) string {
@@ -152,58 +108,39 @@ func getUserToken(t testing.TB, userName string, scope ...auth.AccessTokenScope)
 
 func loginUser(t testing.TB, userName string) *TestSession {
 	t.Helper()
-
-	return loginUserWithPassword(t, userName, userPassword)
-}
-
-func loginUserWithPassword(t testing.TB, userName, password string) *TestSession {
-	t.Helper()
-	req := NewRequestWithValues(t, "POST", "/user/login", map[string]string{
-		"user_name": userName,
-		"password":  password,
-	})
-	resp := MakeRequest(t, req, http.StatusSeeOther)
-
-	ch := http.Header{}
-	ch.Add("Cookie", strings.Join(resp.Header()["Set-Cookie"], ";"))
-	cr := http.Request{Header: ch}
-
-	session := emptyTestSession(t)
-
-	baseURL, err := url.Parse(setting.AppURL)
-	assert.NoError(t, err)
-	session.jar.SetCookies(baseURL, cr.Cookies())
-
-	return session
+	return &TestSession{userName: userName}
 }
 
 // token has to be unique this counter take care of
 var tokenCounter atomic.Int64
 
 // getTokenForLoggedInUser returns a token for a logged-in user.
+// It is created directly because the API refuses scope-less tokens, which some tests rely on.
 func getTokenForLoggedInUser(t testing.TB, session *TestSession, scopes ...auth.AccessTokenScope) string {
 	t.Helper()
-	urlValues := url.Values{}
-	urlValues.Add("name", fmt.Sprintf("api-testing-token-%d", tokenCounter.Add(1)))
+	scopeNames := make([]string, 0, len(scopes))
 	for _, scope := range scopes {
-		urlValues.Add("scope-dummy", string(scope)) // it only needs to start with "scope-" to be accepted
+		scopeNames = append(scopeNames, string(scope))
 	}
-	req := NewRequestWithURLValues(t, "POST", "/user/settings/applications", urlValues)
-	session.MakeRequest(t, req, http.StatusSeeOther)
-	flashes := session.GetCookieFlashMessage()
-	assert.NotNil(t, flashes)
-	if flashes != nil {
-		return flashes.InfoMsg
+	scope, err := auth.AccessTokenScope(strings.Join(scopeNames, ",")).Normalize()
+	require.NoError(t, err)
+	u := unittest.AssertExistsAndLoadBean(t, &user_model.User{LowerName: strings.ToLower(session.userName)})
+	token := &auth.AccessToken{
+		UID:   u.ID,
+		Name:  fmt.Sprintf("api-testing-token-%d", tokenCounter.Add(1)),
+		Scope: scope,
 	}
-	return ""
+	require.NoError(t, auth.NewAccessToken(t.Context(), token))
+	return token.Token
 }
 
 type RequestWrapper struct {
 	*http.Request
 }
 
-func (req *RequestWrapper) AddBasicAuth(username string, password ...string) *RequestWrapper {
-	req.Request.SetBasicAuth(username, util.OptionalArg(password, userPassword))
+// AddBasicAuth sends a token as the basic auth password, like git clients do
+func (req *RequestWrapper) AddBasicAuth(username, token string) *RequestWrapper {
+	req.Request.SetBasicAuth(username, token)
 	return req
 }
 
@@ -310,17 +247,6 @@ func logUnexpectedResponse(t testing.TB, recorder *httptest.ResponseRecorder) {
 		return
 	}
 	t.Log("Response length: ", len(respBytes))
-
-	// log the "flash" error message, if one exists
-	// we must create a new buffer, so that we don't "use up" resp.Body
-	htmlDoc, err := goquery.NewDocumentFromReader(bytes.NewBuffer(respBytes))
-	if err != nil {
-		return // probably a non-HTML response
-	}
-	errMsg := htmlDoc.Find(".ui.negative.message:not(.tw-hidden)").Text()
-	if len(errMsg) > 0 {
-		t.Log("A flash error message was found:", errMsg)
-	}
 }
 
 // DecodeJSON decodes then response as JSON into typed variable and return it

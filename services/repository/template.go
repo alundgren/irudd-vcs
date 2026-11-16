@@ -143,9 +143,6 @@ func GenerateRepository(ctx context.Context, doer, owner *user_model.User, templ
 
 	// Topics
 	if opts.Topics {
-		if err = repo_model.GenerateTopics(ctx, templateRepo, generateRepo); err != nil {
-			return nil, err
-		}
 	}
 
 	// Git Hooks
@@ -158,13 +155,6 @@ func GenerateRepository(ctx context.Context, doer, owner *user_model.User, templ
 	// Webhooks
 	if opts.Webhooks {
 		if err = GenerateWebhooks(ctx, templateRepo, generateRepo); err != nil {
-			return nil, err
-		}
-	}
-
-	// Avatar
-	if opts.Avatar && len(templateRepo.Avatar) > 0 {
-		if err = generateAvatar(ctx, templateRepo, generateRepo); err != nil {
 			return nil, err
 		}
 	}

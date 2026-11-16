@@ -252,11 +252,6 @@ func CommonGitCmdEnvs() []string {
 	}...)
 }
 
-// CommonCmdServEnvs is like CommonGitCmdEnvs, but it only returns minimal required environment variables for the "gitea serv" command
-func CommonCmdServEnvs() []string {
-	return commonBaseEnvs()
-}
-
 var ErrBrokenCommand = errors.New("git command is broken")
 
 func (c *Command) WithDir(dir string) *Command {

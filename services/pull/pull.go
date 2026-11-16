@@ -11,19 +11,16 @@ import (
 	"io"
 	"slices"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/base"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
@@ -34,7 +31,6 @@ import (
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
-	git_service "gitea.dev/services/git"
 	issue_service "gitea.dev/services/issue"
 	notify_service "gitea.dev/services/notify"
 )
@@ -44,51 +40,32 @@ func getPullWorkingLockKey(prID int64) string {
 }
 
 type NewPullRequestOptions struct {
-	Repo            *repo_model.Repository
-	Issue           *issues_model.Issue
-	LabelIDs        []int64
-	AttachmentUUIDs []string
-	PullRequest     *issues_model.PullRequest
-	AssigneeIDs     []int64
-	Reviewers       []*user_model.User
-	TeamReviewers   []*organization.Team
-	ProjectIDs      []int64
+	Repo        *repo_model.Repository
+	Issue       *issues_model.Issue
+	LabelIDs    []int64
+	PullRequest *issues_model.PullRequest
+	AssigneeIDs []int64
+	Reviewers   []*user_model.User
 }
 
 // NewPullRequest creates new pull request with labels for repository.
 func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
-	repo, issue, labelIDs, uuids, pr, assigneeIDs := opts.Repo, opts.Issue, opts.LabelIDs, opts.AttachmentUUIDs, opts.PullRequest, opts.AssigneeIDs
+	repo, issue, labelIDs, pr, assigneeIDs := opts.Repo, opts.Issue, opts.LabelIDs, opts.PullRequest, opts.AssigneeIDs
 	if err := issue.LoadPoster(ctx); err != nil {
 		return err
 	}
 
-	if user_model.IsUserBlockedBy(ctx, issue.Poster, repo.OwnerID) || user_model.IsUserBlockedBy(ctx, issue.Poster, assigneeIDs...) {
-		return user_model.ErrBlockedUser
-	}
-
-	// user should be a collaborator or a member of the organization for base repo
-	canCreate := issue.Poster.IsAdmin || pr.Flow == issues_model.PullRequestFlowAGit
-	canAssignProject := canCreate
-	if !canCreate {
-		canCreate, err := repo_model.IsOwnerMemberCollaborator(ctx, repo, issue.Poster.ID)
+	// the poster should have write permission in the head repo
+	if !issue.Poster.IsAdmin && pr.Flow != issues_model.PullRequestFlowAGit {
+		if err := pr.LoadHeadRepo(ctx); err != nil {
+			return err
+		}
+		perm, err := access_model.GetDoerRepoPermission(ctx, pr.HeadRepo, issue.Poster)
 		if err != nil {
 			return err
 		}
-		canAssignProject = canCreate
-
-		if !canCreate {
-			// or user should have write permission in the head repo
-			if err := pr.LoadHeadRepo(ctx); err != nil {
-				return err
-			}
-			perm, err := access_model.GetDoerRepoPermission(ctx, pr.HeadRepo, issue.Poster)
-			if err != nil {
-				return err
-			}
-			if !perm.CanWrite(unit.TypeCode) {
-				return issues_model.ErrMustCollaborator
-			}
-			canAssignProject = perm.CanWrite(unit.TypeProjects)
+		if !perm.CanWrite(unit.TypeCode) {
+			return issues_model.ErrMustCollaborator
 		}
 	}
 
@@ -100,7 +77,7 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 	assignees := make(map[int64]*user_model.User)
 	var reviewNotifiers []*issue_service.ReviewRequestNotifier
 	if err := db.WithTx(ctx, func(ctx context.Context) error {
-		if err := issues_model.NewPullRequest(ctx, repo, issue, labelIDs, uuids, pr); err != nil {
+		if err := issues_model.NewPullRequest(ctx, repo, issue, labelIDs, pr); err != nil {
 			return err
 		}
 
@@ -116,12 +93,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 			}
 			assignees[assigneeID] = assignee
 			assigneeCommentMap[assigneeID] = comment
-		}
-
-		if len(opts.ProjectIDs) > 0 && canAssignProject {
-			if err := issues_model.IssueAssignOrRemoveProject(ctx, issue, issue.Poster, opts.ProjectIDs); err != nil {
-				return err
-			}
 		}
 
 		pr.Issue = issue
@@ -176,11 +147,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 			return err
 		}
 	}
-	for _, teamReviewer := range opts.TeamReviewers {
-		if _, err = issue_service.TeamReviewRequest(ctx, pr.Issue, issue.Poster, teamReviewer, true); err != nil {
-			return err
-		}
-	}
 
 	mentions, err := issues_model.FindAndUpdateIssueMentions(ctx, issue, issue.Poster, issue.Content)
 	if err != nil {
@@ -189,9 +155,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 	notify_service.NewPullRequest(ctx, pr, mentions)
 	if len(issue.Labels) > 0 {
 		notify_service.IssueChangeLabels(ctx, issue.Poster, issue, issue.Labels, nil)
-	}
-	if issue.Milestone != nil {
-		notify_service.IssueChangeMilestone(ctx, issue.Poster, issue, 0)
 	}
 	for _, assignee := range assignees {
 		notify_service.IssueChangeAssignee(ctx, issue.Poster, issue, assignee, false, assigneeCommentMap[assignee.ID])
@@ -695,7 +658,7 @@ func AdjustPullsCausedByBranchDeleted(ctx context.Context, doer *user_model.User
 
 	var errs []error
 	for _, pr := range prs {
-		if err = issue_service.CloseIssue(ctx, pr.Issue, doer, ""); err != nil && !issues_model.IsErrIssueIsClosed(err) && !issues_model.IsErrDependenciesLeft(err) {
+		if err = issue_service.CloseIssue(ctx, pr.Issue, doer, ""); err != nil && !issues_model.IsErrIssueIsClosed(err) {
 			errs = append(errs, err)
 		}
 		if err == nil {
@@ -735,7 +698,7 @@ func AdjustPullsCausedByBranchDeleted(ctx context.Context, doer *user_model.User
 			errs = append(errs, err)
 		}
 		if err == nil {
-			if err = issue_service.CloseIssue(ctx, pr.Issue, doer, ""); err != nil && !issues_model.IsErrIssueIsClosed(err) && !issues_model.IsErrDependenciesLeft(err) {
+			if err = issue_service.CloseIssue(ctx, pr.Issue, doer, ""); err != nil && !issues_model.IsErrIssueIsClosed(err) {
 				errs = append(errs, err)
 			}
 		}
@@ -933,64 +896,6 @@ func formatSquashMergeCommitMessages(commits []*git.Commit) string {
 	return util.UnsafeBytesToString(buf)
 }
 
-// GetIssuesAllCommitStatus returns a map of issue ID to a list of all statuses for the most recent commit as well as a map of issue ID to only the commit's latest status
-func GetIssuesAllCommitStatus(ctx context.Context, issues issues_model.IssueList) (map[int64][]*git_model.CommitStatus, map[int64]*git_model.CommitStatus, error) {
-	if err := issues.LoadPullRequests(ctx); err != nil {
-		return nil, nil, err
-	}
-	if _, err := issues.LoadRepositories(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	var (
-		gitRepos = make(map[int64]*git.Repository)
-		res      = make(map[int64][]*git_model.CommitStatus)
-		lastRes  = make(map[int64]*git_model.CommitStatus)
-		err      error
-	)
-	defer func() {
-		for _, gitRepo := range gitRepos {
-			gitRepo.Close()
-		}
-	}()
-
-	for _, issue := range issues {
-		if !issue.IsPull {
-			continue
-		}
-		gitRepo, ok := gitRepos[issue.RepoID]
-		if !ok {
-			gitRepo, err = gitrepo.OpenRepository(ctx, issue.Repo)
-			if err != nil {
-				log.Error("Cannot open git repository %-v for issue #%d[%d]. Error: %v", issue.Repo, issue.Index, issue.ID, err)
-				continue
-			}
-			gitRepos[issue.RepoID] = gitRepo
-		}
-
-		statuses, lastStatus, err := getAllCommitStatus(ctx, gitRepo, issue.PullRequest)
-		if err != nil {
-			log.Error("getAllCommitStatus: cant get commit statuses of pull [%d]: %v", issue.PullRequest.ID, err)
-			continue
-		}
-		res[issue.PullRequest.ID] = statuses
-		lastRes[issue.PullRequest.ID] = lastStatus
-	}
-	return res, lastRes, nil
-}
-
-// getAllCommitStatus get pr's commit statuses.
-func getAllCommitStatus(ctx context.Context, gitRepo *git.Repository, pr *issues_model.PullRequest) (statuses []*git_model.CommitStatus, lastStatus *git_model.CommitStatus, err error) {
-	sha, shaErr := gitRepo.GetRefCommitID(pr.GetGitHeadRefName())
-	if shaErr != nil {
-		return nil, nil, shaErr
-	}
-
-	statuses, err = git_model.GetLatestCommitStatus(ctx, pr.BaseRepo.ID, sha, db.ListOptionsAll)
-	lastStatus = git_model.CalcCommitStatus(statuses)
-	return statuses, lastStatus, err
-}
-
 // IsHeadEqualWithBranch returns if the commits of branchName are available in pull request head
 func IsHeadEqualWithBranch(ctx context.Context, pr *issues_model.PullRequest, branchName string) (bool, error) {
 	var err error
@@ -1048,68 +953,4 @@ type CommitInfo struct {
 	ID                    string `json:"id"`
 	ShortSha              string `json:"short_sha"`
 	Time                  string `json:"time"`
-}
-
-// GetPullCommits returns all commits on given pull request and the last review commit sha
-// Attention: The last review commit sha must be from the latest review whose commit id is not empty.
-// So the type of the latest review cannot be "ReviewTypeRequest".
-func GetPullCommits(ctx context.Context, baseGitRepo *git.Repository, doer *user_model.User, issue *issues_model.Issue) ([]CommitInfo, string, error) {
-	pull := issue.PullRequest
-
-	if err := pull.LoadBaseRepo(ctx); err != nil {
-		return nil, "", err
-	}
-	baseBranch := pull.BaseBranch
-	if pull.HasMerged {
-		baseBranch = pull.MergeBase
-	}
-	compareInfo, err := git_service.GetCompareInfo(ctx, pull.BaseRepo, pull.BaseRepo, baseGitRepo, git.RefNameFromBranch(baseBranch), git.RefName(pull.GetGitHeadRefName()), false, false)
-	if err != nil {
-		return nil, "", err
-	}
-
-	commits := make([]CommitInfo, 0, len(compareInfo.Commits))
-
-	for _, commit := range compareInfo.Commits {
-		var committerOrAuthorName string
-		var commitTime time.Time
-		if commit.Author != nil {
-			committerOrAuthorName = commit.Author.Name
-			commitTime = commit.Author.When
-		} else {
-			committerOrAuthorName = commit.Committer.Name
-			commitTime = commit.Committer.When
-		}
-
-		commits = append(commits, CommitInfo{
-			Summary:               commit.MessageTitle(),
-			CommitterOrAuthorName: committerOrAuthorName,
-			ID:                    commit.ID.String(),
-			ShortSha:              base.ShortSha(commit.ID.String()),
-			Time:                  commitTime.Format(time.RFC3339),
-		})
-	}
-
-	var lastReviewCommitID string
-	if doer != nil {
-		// get last review of current user and store information in context (if available)
-		lastreview, err := issues_model.FindLatestReviews(ctx, issues_model.FindReviewOptions{
-			IssueID:    issue.ID,
-			ReviewerID: doer.ID,
-			Types: []issues_model.ReviewType{
-				issues_model.ReviewTypeApprove,
-				issues_model.ReviewTypeComment,
-				issues_model.ReviewTypeReject,
-			},
-		})
-
-		if err != nil && !issues_model.IsErrReviewNotExist(err) {
-			return nil, "", err
-		}
-		if len(lastreview) > 0 {
-			lastReviewCommitID = lastreview[0].CommitID
-		}
-	}
-
-	return commits, lastReviewCommitID, nil
 }

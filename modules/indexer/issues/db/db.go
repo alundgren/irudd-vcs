@@ -6,43 +6,15 @@ package db
 import (
 	"context"
 	"strings"
-	"sync"
 
 	"gitea.dev/models/db"
 	issue_model "gitea.dev/models/issues"
 	"gitea.dev/modules/indexer"
-	indexer_internal "gitea.dev/modules/indexer/internal"
-	inner_db "gitea.dev/modules/indexer/internal/db"
 	"gitea.dev/modules/indexer/issues/internal"
 	"gitea.dev/modules/util"
 
 	"xorm.io/builder"
 )
-
-var _ internal.Indexer = (*Indexer)(nil)
-
-// Indexer implements Indexer interface to use database's like search
-type Indexer struct {
-	indexer_internal.Indexer
-}
-
-func (i *Indexer) SupportedSearchModes() []indexer.SearchMode {
-	return indexer.SearchModesExactWords()
-}
-
-var GetIndexer = sync.OnceValue(func() *Indexer {
-	return &Indexer{Indexer: &inner_db.Indexer{}}
-})
-
-// Index dummy function
-func (i *Indexer) Index(_ context.Context, _ ...*internal.IndexerData) error {
-	return nil
-}
-
-// Delete dummy function
-func (i *Indexer) Delete(_ context.Context, _ ...int64) error {
-	return nil
-}
 
 func buildMatchQuery(mode indexer.SearchModeType, colName, keyword string) builder.Cond {
 	if mode == indexer.SearchModeExact {
@@ -65,17 +37,7 @@ func buildMatchQuery(mode indexer.SearchModeType, colName, keyword string) build
 }
 
 // Search searches for issues
-func (i *Indexer) Search(ctx context.Context, options *internal.SearchOptions) (*internal.SearchResult, error) {
-	// FIXME: I tried to avoid importing models here, but it seems to be impossible.
-	//        We can provide a function to register the search function, so models/issues can register it.
-	//        So models/issues will import modules/indexer/issues, it's OK because it's by design.
-	//        But modules/indexer/issues has already imported models/issues to do UpdateRepoIndexer and UpdateIssueIndexer.
-	//        And to avoid circular import, we have to move the functions to another package.
-	//        I believe it should be services/indexer, sounds great!
-	//        But the two functions are used in modules/notification/indexer, that means we will import services/indexer in modules/notification/indexer.
-	//        So that's the root problem:
-	//        The notification is defined in modules, but it's using lots of things should be in services.
-
+func Search(ctx context.Context, options *internal.SearchOptions) (*internal.SearchResult, error) {
 	cond := builder.NewCond()
 
 	if options.Keyword != "" {
@@ -84,7 +46,7 @@ func (i *Indexer) Search(ctx context.Context, options *internal.SearchOptions) (
 			repoCond = builder.Eq{"repo_id": options.RepoIDs[0]}
 		}
 		subQuery := builder.Select("id").From("issue").Where(repoCond)
-		searchMode := util.IfZero(options.SearchMode, i.SupportedSearchModes()[0].ModeValue)
+		searchMode := util.IfZero(options.SearchMode, indexer.SearchModeExact)
 		cond = builder.Or(
 			buildMatchQuery(searchMode, "issue.name", options.Keyword),
 			buildMatchQuery(searchMode, "issue.content", options.Keyword),
@@ -121,10 +83,10 @@ func (i *Indexer) Search(ctx context.Context, options *internal.SearchOptions) (
 		}, nil
 	}
 
-	return i.FindWithIssueOptions(ctx, opt, cond)
+	return findWithIssueOptions(ctx, opt, cond)
 }
 
-func (i *Indexer) FindWithIssueOptions(ctx context.Context, opt *issue_model.IssuesOptions, otherConds ...builder.Cond) (*internal.SearchResult, error) {
+func findWithIssueOptions(ctx context.Context, opt *issue_model.IssuesOptions, otherConds ...builder.Cond) (*internal.SearchResult, error) {
 	ids, total, err := issue_model.IssueIDs(ctx, opt, otherConds...)
 	if err != nil {
 		return nil, err

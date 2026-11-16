@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"gitea.dev/models/db"
-	project_model "gitea.dev/models/project"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
@@ -150,77 +149,6 @@ func (issues IssueList) LoadLabels(ctx context.Context) error {
 	return nil
 }
 
-func (issues IssueList) getMilestoneIDs() []int64 {
-	return container.FilterSlice(issues, func(issue *Issue) (int64, bool) {
-		return issue.MilestoneID, true
-	})
-}
-
-func (issues IssueList) LoadMilestones(ctx context.Context) error {
-	milestoneIDs := issues.getMilestoneIDs()
-	if len(milestoneIDs) == 0 {
-		return nil
-	}
-
-	milestoneMaps := make(map[int64]*Milestone, len(milestoneIDs))
-	left := len(milestoneIDs)
-	for left > 0 {
-		limit := min(left, db.DefaultMaxInSize)
-		err := db.GetEngine(ctx).
-			In("id", milestoneIDs[:limit]).
-			Find(&milestoneMaps)
-		if err != nil {
-			return err
-		}
-		left -= limit
-		milestoneIDs = milestoneIDs[limit:]
-	}
-
-	for _, issue := range issues {
-		issue.Milestone = milestoneMaps[issue.MilestoneID]
-		issue.isMilestoneLoaded = true
-	}
-	return nil
-}
-
-func (issues IssueList) LoadProjects(ctx context.Context) error {
-	issueIDs := issues.getIssueIDs()
-	issueProjectMaps := make(map[int64][]*project_model.Project, len(issues))
-	left := len(issueIDs)
-
-	type projectWithIssueID struct {
-		*project_model.Project `xorm:"extends"`
-		IssueID                int64
-	}
-
-	for left > 0 {
-		limit := min(left, db.DefaultMaxInSize)
-
-		projects := make([]*projectWithIssueID, 0, limit)
-		err := db.GetEngine(ctx).
-			Table("project").
-			Select("project.*, project_issue.issue_id").
-			Join("INNER", "project_issue", "project.id = project_issue.project_id").
-			In("project_issue.issue_id", issueIDs[:limit]).
-			OrderBy("project_issue.issue_id ASC, project.id ASC").
-			Find(&projects)
-		if err != nil {
-			return err
-		}
-		for _, project := range projects {
-			issueProjectMaps[project.IssueID] = append(issueProjectMaps[project.IssueID], project.Project)
-		}
-		left -= limit
-		issueIDs = issueIDs[limit:]
-	}
-
-	for _, issue := range issues {
-		issue.Projects = issueProjectMaps[issue.ID]
-		issue.isProjectsLoaded = true
-	}
-	return nil
-}
-
 func (issues IssueList) LoadAssignees(ctx context.Context) error {
 	if len(issues) == 0 {
 		return nil
@@ -328,49 +256,6 @@ func (issues IssueList) LoadPullRequests(ctx context.Context) error {
 	return nil
 }
 
-// LoadAttachments loads attachments
-func (issues IssueList) LoadAttachments(ctx context.Context) (err error) {
-	if len(issues) == 0 {
-		return nil
-	}
-
-	attachments := make(map[int64][]*repo_model.Attachment, len(issues))
-	issuesIDs := issues.getIssueIDs()
-	left := len(issuesIDs)
-	for left > 0 {
-		limit := min(left, db.DefaultMaxInSize)
-		rows, err := db.GetEngine(ctx).
-			In("issue_id", issuesIDs[:limit]).
-			Rows(new(repo_model.Attachment))
-		if err != nil {
-			return err
-		}
-
-		for rows.Next() {
-			var attachment repo_model.Attachment
-			err = rows.Scan(&attachment)
-			if err != nil {
-				if err1 := rows.Close(); err1 != nil {
-					return fmt.Errorf("IssueList.loadAttachments: Close: %w", err1)
-				}
-				return err
-			}
-			attachments[attachment.IssueID] = append(attachments[attachment.IssueID], &attachment)
-		}
-		if err1 := rows.Close(); err1 != nil {
-			return fmt.Errorf("IssueList.loadAttachments: Close: %w", err1)
-		}
-		left -= limit
-		issuesIDs = issuesIDs[limit:]
-	}
-
-	for _, issue := range issues {
-		issue.Attachments = attachments[issue.ID]
-		issue.isAttachmentsLoaded = true
-	}
-	return nil
-}
-
 func (issues IssueList) loadComments(ctx context.Context, cond builder.Cond) (err error) {
 	if len(issues) == 0 {
 		return nil
@@ -415,106 +300,7 @@ func (issues IssueList) loadComments(ctx context.Context, cond builder.Cond) (er
 	return nil
 }
 
-func (issues IssueList) loadTotalTrackedTimes(ctx context.Context) (err error) {
-	type totalTimesByIssue struct {
-		IssueID int64
-		Time    int64
-	}
-	if len(issues) == 0 {
-		return nil
-	}
-	trackedTimes := make(map[int64]int64, len(issues))
-
-	reposMap := make(map[int64]*repo_model.Repository, len(issues))
-	for _, issue := range issues {
-		reposMap[issue.RepoID] = issue.Repo
-	}
-	repos := repo_model.RepositoryListOfMap(reposMap)
-
-	if err := repos.LoadUnits(ctx); err != nil {
-		return err
-	}
-
-	ids := make([]int64, 0, len(issues))
-	for _, issue := range issues {
-		if issue.Repo.IsTimetrackerEnabled(ctx) {
-			ids = append(ids, issue.ID)
-		}
-	}
-
-	left := len(ids)
-	for left > 0 {
-		limit := min(left, db.DefaultMaxInSize)
-
-		// select issue_id, sum(time) from tracked_time where issue_id in (<issue ids in current page>) group by issue_id
-		rows, err := db.GetEngine(ctx).Table("tracked_time").
-			Where("deleted = ?", false).
-			Select("issue_id, sum(time) as time").
-			In("issue_id", ids[:limit]).
-			GroupBy("issue_id").
-			Rows(new(totalTimesByIssue))
-		if err != nil {
-			return err
-		}
-
-		for rows.Next() {
-			var totalTime totalTimesByIssue
-			err = rows.Scan(&totalTime)
-			if err != nil {
-				if err1 := rows.Close(); err1 != nil {
-					return fmt.Errorf("IssueList.loadTotalTrackedTimes: Close: %w", err1)
-				}
-				return err
-			}
-			trackedTimes[totalTime.IssueID] = totalTime.Time
-		}
-		if err1 := rows.Close(); err1 != nil {
-			return fmt.Errorf("IssueList.loadTotalTrackedTimes: Close: %w", err1)
-		}
-		left -= limit
-		ids = ids[limit:]
-	}
-
-	for _, issue := range issues {
-		issue.TotalTrackedTime = trackedTimes[issue.ID]
-	}
-	return nil
-}
-
-func (issues IssueList) LoadPinOrder(ctx context.Context) error {
-	if len(issues) == 0 {
-		return nil
-	}
-
-	issueIDs := container.FilterSlice(issues, func(issue *Issue) (int64, bool) {
-		return issue.ID, issue.PinOrder == 0
-	})
-	if len(issueIDs) == 0 {
-		return nil
-	}
-	issuePins, err := GetIssuePinsByIssueIDs(ctx, issueIDs)
-	if err != nil {
-		return err
-	}
-
-	for _, issue := range issues {
-		if issue.PinOrder != 0 {
-			continue
-		}
-		for _, pin := range issuePins {
-			if pin.IssueID == issue.ID {
-				issue.PinOrder = pin.PinOrder
-				break
-			}
-		}
-		if issue.PinOrder == 0 {
-			issue.PinOrder = -1
-		}
-	}
-	return nil
-}
-
-// loadAttributes loads all attributes, expect for attachments and comments
+// loadAttributes loads all attributes, expect for comments
 func (issues IssueList) LoadAttributes(ctx context.Context) error {
 	if _, err := issues.LoadRepositories(ctx); err != nil {
 		return fmt.Errorf("issue.loadAttributes: LoadRepositories: %w", err)
@@ -528,24 +314,12 @@ func (issues IssueList) LoadAttributes(ctx context.Context) error {
 		return fmt.Errorf("issue.loadAttributes: LoadLabels: %w", err)
 	}
 
-	if err := issues.LoadMilestones(ctx); err != nil {
-		return fmt.Errorf("issue.loadAttributes: LoadMilestones: %w", err)
-	}
-
-	if err := issues.LoadProjects(ctx); err != nil {
-		return fmt.Errorf("issue.loadAttributes: loadProjects: %w", err)
-	}
-
 	if err := issues.LoadAssignees(ctx); err != nil {
 		return fmt.Errorf("issue.loadAttributes: loadAssignees: %w", err)
 	}
 
 	if err := issues.LoadPullRequests(ctx); err != nil {
 		return fmt.Errorf("issue.loadAttributes: loadPullRequests: %w", err)
-	}
-
-	if err := issues.loadTotalTrackedTimes(ctx); err != nil {
-		return fmt.Errorf("issue.loadAttributes: loadTotalTrackedTimes: %w", err)
 	}
 
 	return nil
