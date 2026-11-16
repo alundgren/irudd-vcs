@@ -166,9 +166,17 @@ func (opts ListAccessTokensOptions) ToOrders() string {
 	return "created_unix DESC"
 }
 
-// UpdateAccessToken updates information of access token.
-func UpdateAccessToken(ctx context.Context, t *AccessToken) error {
-	_, err := db.GetEngine(ctx).ID(t.ID).AllCols().Update(t)
+// accessTokenTouchInterval limits how often a token's last use is written: a write on every request is costly
+const accessTokenTouchInterval = timeutil.TimeStamp(60)
+
+// TouchAccessToken records that the token was used, at most once per accessTokenTouchInterval
+func TouchAccessToken(ctx context.Context, t *AccessToken) error {
+	now := timeutil.TimeStampNow()
+	if now-t.UpdatedUnix < accessTokenTouchInterval {
+		return nil
+	}
+	t.UpdatedUnix = now
+	_, err := db.GetEngine(ctx).ID(t.ID).Cols("updated_unix").NoAutoTime().Update(t)
 	return err
 }
 

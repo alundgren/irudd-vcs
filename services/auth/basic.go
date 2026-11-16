@@ -12,7 +12,6 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/httpauth"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 )
 
@@ -75,9 +74,8 @@ func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store 
 			return nil, err
 		}
 
-		token.UpdatedUnix = timeutil.TimeStampNow()
-		if err = auth_model.UpdateAccessToken(req.Context(), token); err != nil {
-			log.Error("UpdateAccessToken:  %v", err)
+		if err = auth_model.TouchAccessToken(req.Context(), token); err != nil {
+			log.Error("TouchAccessToken: %v", err)
 		}
 
 		store.GetData()["LoginMethod"] = AccessTokenMethodName
