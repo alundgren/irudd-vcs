@@ -31,8 +31,7 @@ type CompareInfo struct {
 	// for direct comparison "..": it is base commit ID
 	CompareBase string
 
-	Commits  []*git.Commit
-	NumFiles int
+	Commits []*git.Commit
 }
 
 // GetCompareInfo generates and returns compare information between base and head branches of repositories.
@@ -90,10 +89,5 @@ func GetCompareInfo(ctx context.Context, baseRepo, headRepo *repo_model.Reposito
 			return compareInfo, fmt.Errorf("ShowPrettyFormatLogToList: %w", err)
 		}
 	}
-
-	// Count number of changed files.
-	// TODO: This probably should be removed as we need to use shortstat elsewhere
-	// Now there is git diff --shortstat but this appears to be slower than simply iterating with --nameonly
-	compareInfo.NumFiles, err = headGitRepo.GetDiffNumChangedFiles(compareInfo.BaseCommitID, compareInfo.HeadCommitID, directComparison)
-	return compareInfo, err
+	return compareInfo, nil
 }
