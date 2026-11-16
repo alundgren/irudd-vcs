@@ -10,8 +10,11 @@ import (
 	"testing"
 
 	issues_model "gitea.dev/models/issues"
+	repo_model "gitea.dev/models/repo"
+	"gitea.dev/models/unittest"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
+	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/setting"
 
@@ -718,3 +721,30 @@ func TestGeneratePatchForUnchangedLineFromReader(t *testing.T) {
 
 // testMaxDiffFiles is the former default of the removed MAX_GIT_DIFF_FILES setting
 const testMaxDiffFiles = 100
+
+func TestGetDiffShortStatCached(t *testing.T) {
+	require.NoError(t, unittest.PrepareTestDatabase())
+	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
+	gitRepo, err := gitrepo.OpenRepository(t.Context(), repo)
+	require.NoError(t, err)
+	defer gitRepo.Close()
+
+	commit, err := gitRepo.GetBranchCommit("branch2")
+	require.NoError(t, err)
+	parent, err := commit.ParentID(0)
+	require.NoError(t, err)
+	key := parent.String() + ".." + commit.ID.String()
+	diffShortStatCache.Remove(key)
+
+	// a ref and an empty before resolve to the same commit IDs, so they share the entry
+	stat, err := GetDiffShortStat(t.Context(), repo, gitRepo, "", "branch2")
+	require.NoError(t, err)
+	assert.Positive(t, stat.NumFiles)
+	cached, ok := diffShortStatCache.Get(key)
+	require.True(t, ok)
+	assert.Equal(t, *stat, cached)
+
+	again, err := GetDiffShortStat(t.Context(), repo, gitRepo, parent.String(), commit.ID.String())
+	require.NoError(t, err)
+	assert.Equal(t, stat, again)
+}

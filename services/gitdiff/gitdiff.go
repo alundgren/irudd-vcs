@@ -23,6 +23,7 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	stdcharset "golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/transform"
@@ -889,6 +890,10 @@ type DiffShortStat struct {
 	NumFiles, TotalAddition, TotalDeletion int
 }
 
+// diffShortStatCache maps a pair of commit IDs, which fix the result, to its shortstat; pull and commit
+// API responses include it, and the pull commits list runs one git process per commit without it
+var diffShortStatCache, _ = lru.New[string, DiffShortStat](4096)
+
 func GetDiffShortStat(ctx context.Context, repoStorage gitrepo.Repository, gitRepo *git.Repository, beforeCommitID, afterCommitID string) (*DiffShortStat, error) {
 	afterCommit, err := gitRepo.GetCommit(afterCommitID)
 	if err != nil {
@@ -900,11 +905,16 @@ func GetDiffShortStat(ctx context.Context, repoStorage gitrepo.Repository, gitRe
 		return nil, err
 	}
 
+	key := actualBeforeCommitID.String() + ".." + afterCommit.ID.String()
+	if cached, ok := diffShortStatCache.Get(key); ok {
+		return &cached, nil
+	}
 	diff := &DiffShortStat{}
-	diff.NumFiles, diff.TotalAddition, diff.TotalDeletion, err = gitrepo.GetDiffShortStatByCmdArgs(ctx, repoStorage, nil, actualBeforeCommitID.String(), afterCommitID)
+	diff.NumFiles, diff.TotalAddition, diff.TotalDeletion, err = gitrepo.GetDiffShortStatByCmdArgs(ctx, repoStorage, nil, actualBeforeCommitID.String(), afterCommit.ID.String())
 	if err != nil {
 		return nil, err
 	}
+	diffShortStatCache.Add(key, *diff)
 	return diff, nil
 }
 
