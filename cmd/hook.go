@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"gitea.dev/modules/git"
-	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
 	repo_module "gitea.dev/modules/repository"
@@ -284,10 +283,7 @@ func runHookUpdate(_ context.Context, c *cli.Command) error {
 func runHookPostReceive(ctx context.Context, c *cli.Command) error {
 	setup(ctx, c.Bool("debug"))
 
-	// First of all run update-server-info no matter what
-	if err := gitcmd.NewCommand("update-server-info").RunWithStderr(ctx); err != nil {
-		return fmt.Errorf("failed to call 'git update-server-info': %w", err)
-	}
+	// no update-server-info here: dumb HTTP runs it when info/refs is requested
 
 	// Now if we're an internal don't do anything else
 	if isInternal, _ := strconv.ParseBool(os.Getenv(repo_module.EnvIsInternal)); isInternal {

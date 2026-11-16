@@ -6,6 +6,8 @@ package gitrepo
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"gitea.dev/modules/git"
@@ -36,6 +38,11 @@ func GetBranchCommitID(ctx context.Context, repo Repository, branch string) (str
 
 // SetDefaultBranch sets default branch of repository.
 func SetDefaultBranch(ctx context.Context, repo Repository, name string) error {
+	// each push to the default branch syncs HEAD, so skip the git process when it already points there;
+	// a reftable HEAD never matches and still goes through git
+	if head, err := os.ReadFile(filepath.Join(repoPath(repo), "HEAD")); err == nil && string(head) == "ref: "+git.BranchPrefix+name+"\n" {
+		return nil
+	}
 	_, _, err := RunCmdString(ctx, repo, gitcmd.NewCommand("symbolic-ref", "HEAD").
 		AddDynamicArguments(git.BranchPrefix+name))
 	return err

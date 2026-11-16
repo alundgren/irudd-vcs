@@ -9,7 +9,6 @@ import (
 	"os"
 	"unicode"
 
-	"gitea.dev/modules/git"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
 	"gitea.dev/modules/setting"
@@ -28,9 +27,7 @@ func setup(ctx context.Context, debug bool) {
 		_ = fail(ctx, "Unable to access repository path", "Unable to access repository path %q, err: %v", setting.RepoRootPath, err)
 		return
 	}
-	if err := git.InitSimple(); err != nil {
-		_ = fail(ctx, "Failed to init git", "Failed to init git, err: %v", err)
-	}
+	// no git.InitSimple: these commands only call the private API, and git version is a process per hook
 }
 
 // fail prints message to stdout, it's mainly used for git serv and git hook commands.
