@@ -136,8 +136,6 @@ SWAGGER_SPEC_INPUT := modules/apispec/v1_input.json
 SWAGGER_EXCLUDE := gitea.dev/sdk
 OPENAPI3_SPEC := modules/apispec/v1_openapi3_json.tmpl
 
-TEST_MINIO_ENDPOINT ?= minio:9000
-
 # Include local Makefile
 # Makefile.local is listed in .gitignore
 ifneq ("$(wildcard Makefile.local)","")

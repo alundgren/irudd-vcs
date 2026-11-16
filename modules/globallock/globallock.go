@@ -7,8 +7,6 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
-
-	"gitea.dev/modules/setting"
 )
 
 var (
@@ -17,12 +15,7 @@ var (
 )
 
 func initDefaultLocker() Locker {
-	switch setting.GlobalLock.ServiceType {
-	case "redis":
-		return NewRedisLocker(setting.GlobalLock.ServiceConnStr)
-	default: // "memory"
-		return NewMemoryLocker()
-	}
+	return NewMemoryLocker() // a single server process needs no shared lock service
 }
 
 // DefaultLocker returns the default locker.

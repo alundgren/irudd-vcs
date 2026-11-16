@@ -5,22 +5,13 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
-	"path"
-	"strings"
 
-	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/util"
 )
-
-// ErrURLNotSupported represents url is not supported
-var ErrURLNotSupported = errors.New("url method not supported")
 
 type Type = setting.StorageType
 
@@ -41,37 +32,6 @@ type Object interface {
 	Stat() (os.FileInfo, error)
 }
 
-// ServeDirectOptions customizes HTTP headers for a generated signed URL.
-type ServeDirectOptions struct {
-	// Overrides the automatically detected MIME type.
-	ContentType string
-}
-
-// Safe defaults are applied only when not explicitly overridden by the caller.
-func prepareServeDirectOptions(optsOptional *ServeDirectOptions, name string) (ret struct {
-	ContentType        string
-	ContentDisposition string
-},
-) {
-	// Here we might not know the real filename, and it's quite inefficient to detect the MIME type by pre-fetching the object head.
-	// So we just do a quick detection by extension name, at least it works for the "View Raw File" for an LFS file on the Web UI.
-	// TODO: OBJECT-STORAGE-CONTENT-TYPE: need a complete solution and refactor for Azure in the future
-
-	if optsOptional != nil {
-		ret.ContentType = optsOptional.ContentType
-	}
-	name = path.Base(name)
-	if ret.ContentType == "" {
-		ext := path.Ext(name)
-		ret.ContentType = DetectWellKnownMimeType(ext)
-	}
-	// When using ServeDirect, the URL is from the object storage's web server,
-	// it is not the same origin as Gitea server, so it should be safe enough to use "inline" to render the content directly.
-	// If a browser doesn't support the content type to be displayed inline, browser will download with the filename.
-	ret.ContentDisposition = httplib.EncodeContentDispositionInline(name)
-	return ret
-}
-
 // ObjectStorage represents an object storage to handle a bucket and files
 type ObjectStorage interface {
 	Open(path string) (Object, error)
@@ -83,15 +43,6 @@ type ObjectStorage interface {
 
 	Stat(path string) (os.FileInfo, error)
 	Delete(path string) error
-
-	// ServeDirectURL generates a "serve-direct" URL for the specified blob storage file,
-	// end user (browser) will use this URL to access the file directly from the object storage, bypassing Gitea server.
-	// Usually the link is time-limited (a few minutes) and contains a signature to ensure security.
-	// The generated URL must NOT use the same origin as Gitea server, otherwise it will cause security issues.
-	// * method defines which HTTP method is permitted for certain storage providers (e.g., MinIO).
-	// * opt allows customizing the Content-Type and Content-Disposition headers.
-	// TODO: need to merge "ServeDirect()" check into this function, avoid duplicate code and potential inconsistency.
-	ServeDirectURL(path, name, method string, opt *ServeDirectOptions) (*url.URL, error)
 
 	// IterateObjects calls the iterator function for each object in the storage with the given path as prefix
 	// The "fullPath" argument in callback is the full path in this storage.
@@ -123,23 +74,6 @@ func Clean(storage ObjectStorage) error {
 		_ = obj.Close()
 		return storage.Delete(path)
 	})
-}
-
-func buildObjectStorePath(base, p string) string {
-	p = strings.TrimPrefix(util.PathJoinRelX(base, p), "/") // object store doesn't use slash for root path
-	if p == "." {
-		p = "" // object store doesn't use dot as relative path
-	}
-	return p
-}
-
-func buildObjectStorePathPrefix(base, p string) string {
-	// ending slash is required for avoiding matching like "foo/" and "foobar/" with prefix "foo"
-	p = buildObjectStorePath(base, p) + "/"
-	if p == "/" {
-		p = "" // object store doesn't use slash for root path
-	}
-	return p
 }
 
 // LFS represents lfs storage

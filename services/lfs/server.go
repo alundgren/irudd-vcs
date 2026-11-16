@@ -31,7 +31,6 @@ import (
 	lfs_module "gitea.dev/modules/lfs"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/storage"
 	"gitea.dev/modules/util"
 	"gitea.dev/services/context"
 
@@ -479,19 +478,7 @@ func buildObjectResponse(rc *requestContext, pointer lfs_module.Pointer, downloa
 	} else {
 		rep.Actions = make(map[string]*lfs_module.Link)
 		if download {
-			var link *lfs_module.Link
-			if setting.LFS.Storage.ServeDirect() {
-				// If we have a signed url (S3, object storage), redirect to this directly.
-				// DO NOT USE the http POST method coming from the lfs batch endpoint
-				u, err := storage.LFS.ServeDirectURL(pointer.RelativePath(), pointer.Oid, http.MethodGet, nil)
-				if u != nil && err == nil {
-					link = lfs_module.NewLink(u.String()) // Presigned url does not need the Authorization header
-				}
-			}
-			if link == nil {
-				link = lfs_module.NewLink(rc.DownloadLink(pointer)).WithHeader("Authorization", rc.Authorization)
-			}
-			rep.Actions["download"] = link
+			rep.Actions["download"] = lfs_module.NewLink(rc.DownloadLink(pointer)).WithHeader("Authorization", rc.Authorization)
 		}
 		if upload {
 			// Set Transfer-Encoding header to enable chunked uploads. Required by git-lfs client to do chunked transfer.

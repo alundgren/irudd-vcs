@@ -24,7 +24,6 @@ func createTestCache() {
 func TestNewContext(t *testing.T) {
 	assert.NoError(t, Init())
 
-	setting.CacheService.Cache = setting.Cache{Adapter: "redis", Conn: "some random string"}
 	con, err := NewStringCache(setting.Cache{
 		Adapter:  "rand",
 		Conn:     "false conf",

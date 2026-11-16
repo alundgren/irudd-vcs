@@ -20,8 +20,6 @@ import (
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/lfs"
-	"gitea.dev/modules/setting"
-	"gitea.dev/modules/storage"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
@@ -181,15 +179,6 @@ func GetRawFileOrLFS(ctx *context.APIContext) {
 	// Handle caching for the LFS object OID
 	if httpcache.HandleGenericETagPrivateCache(ctx.Req, ctx.Resp, `"`+pointer.Oid+`"`, meta.UpdatedUnix.AsTimePtr()) {
 		return
-	}
-
-	if setting.LFS.Storage.ServeDirect() {
-		// If we have a signed url (S3, object storage), redirect to this directly.
-		u, err := storage.LFS.ServeDirectURL(pointer.RelativePath(), blob.Name(), ctx.Req.Method, nil)
-		if u != nil && err == nil {
-			ctx.Redirect(u.String())
-			return
-		}
 	}
 
 	lfsDataFile, err := lfs.ReadMetaObject(meta.Pointer)

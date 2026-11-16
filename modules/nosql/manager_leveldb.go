@@ -17,6 +17,9 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
+// replacer normalizes option names, so block_size and block-size match blocksize
+var replacer = strings.NewReplacer("_", "", "-", "")
+
 // CloseLevelDB closes a levelDB
 func (m *Manager) CloseLevelDB(connection string) error {
 	m.mutex.Lock()

@@ -22,9 +22,6 @@ go test -run '^TestName$' ./modulepath/
 make test-backend#TestName
 ```
 
-Outside CI, the MinIO and Azure Blob storage tests are skipped when the service at
-`TEST_MINIO_ENDPOINT` or `TEST_AZURESTORAGE_ENDPOINT` is not reachable.
-
 ## Integration tests
 
 Integration tests exercise the server against a real SQLite database. They live in
