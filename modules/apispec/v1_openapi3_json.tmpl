@@ -11,19 +11,6 @@
         },
         "description": "AccessToken represents an API access token."
       },
-      "AccessTokenList": {
-        "content": {
-          "application/json": {
-            "schema": {
-              "items": {
-                "$ref": "#/components/schemas/AccessToken"
-              },
-              "type": "array"
-            }
-          }
-        },
-        "description": "AccessTokenList represents a list of API access token."
-      },
       "AnnotatedTag": {
         "content": {
           "application/json": {
@@ -2002,38 +1989,6 @@
             "x-go-name": "URL"
           }
         },
-        "type": "object",
-        "x-go-package": "gitea.dev/modules/structs"
-      },
-      "CreateAccessTokenOption": {
-        "description": "CreateAccessTokenOption options when create access token",
-        "properties": {
-          "name": {
-            "type": "string",
-            "x-go-name": "Name"
-          },
-          "scopes": {
-            "example": [
-              "all",
-              "read:activitypub",
-              "read:issue",
-              "write:misc",
-              "read:notification",
-              "read:organization",
-              "read:package",
-              "read:repository",
-              "read:user"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "x-go-name": "Scopes"
-          }
-        },
-        "required": [
-          "name"
-        ],
         "type": "object",
         "x-go-package": "gitea.dev/modules/structs"
       },
@@ -6382,18 +6337,6 @@
       "BasicAuth": {
         "scheme": "basic",
         "type": "http"
-      },
-      "SudoHeader": {
-        "description": "Sudo API request as the user provided as the key. Admin privileges are required.",
-        "in": "header",
-        "name": "Sudo",
-        "type": "apiKey"
-      },
-      "SudoParam": {
-        "description": "Sudo API request as the user provided as the key. Admin privileges are required.",
-        "in": "query",
-        "name": "sudo",
-        "type": "apiKey"
       },
       "Token": {
         "description": "This authentication option is deprecated for removal in Gitea 1.23. Please use AuthorizationHeaderToken instead.",
@@ -17375,132 +17318,6 @@
         ]
       }
     },
-    "/users/{username}/tokens": {
-      "get": {
-        "operationId": "userGetTokens",
-        "parameters": [
-          {
-            "description": "username of to user whose access tokens are to be listed",
-            "in": "path",
-            "name": "username",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "page number of results to return (1-based)",
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "page size of results",
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "$ref": "#/components/responses/AccessTokenList"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          }
-        },
-        "summary": "List the authenticated user's access tokens",
-        "tags": [
-          "user"
-        ]
-      },
-      "post": {
-        "operationId": "userCreateToken",
-        "parameters": [
-          {
-            "description": "username of the user whose token is to be created",
-            "in": "path",
-            "name": "username",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAccessTokenOption"
-              }
-            }
-          },
-          "x-originalParamName": "body"
-        },
-        "responses": {
-          "201": {
-            "$ref": "#/components/responses/AccessToken"
-          },
-          "400": {
-            "$ref": "#/components/responses/error"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          }
-        },
-        "summary": "Create an access token",
-        "tags": [
-          "user"
-        ]
-      }
-    },
-    "/users/{username}/tokens/{token}": {
-      "delete": {
-        "operationId": "userDeleteAccessToken",
-        "parameters": [
-          {
-            "description": "username of the user whose token is to be deleted",
-            "in": "path",
-            "name": "username",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "token to be deleted, identified by ID and if not available by name",
-            "in": "path",
-            "name": "token",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "$ref": "#/components/responses/empty"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/notFound"
-          },
-          "422": {
-            "$ref": "#/components/responses/error"
-          }
-        },
-        "summary": "delete an access token",
-        "tags": [
-          "user"
-        ]
-      }
-    },
     "/version": {
       "get": {
         "operationId": "getVersion",
@@ -17528,12 +17345,6 @@
     },
     {
       "AuthorizationHeaderToken": []
-    },
-    {
-      "SudoParam": []
-    },
-    {
-      "SudoHeader": []
     }
   ],
   "servers": [
