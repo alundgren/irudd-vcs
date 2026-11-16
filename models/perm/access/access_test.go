@@ -12,7 +12,6 @@ import (
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/setting"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,14 +60,7 @@ func testAccessLevel(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, perm_model.AccessModeNone, level)
 
-	// restricted user has default access to a public repo if no sign-in is required
-	setting.Service.RequireSignInViewStrict = false
-	level, err = access_model.AccessLevel(t.Context(), user29, repo1)
-	assert.NoError(t, err)
-	assert.Equal(t, perm_model.AccessModeRead, level)
-
-	// restricted user has no access to a public repo if sign-in is required
-	setting.Service.RequireSignInViewStrict = true
+	// restricted user has no default access to a public repo
 	level, err = access_model.AccessLevel(t.Context(), user29, repo1)
 	assert.NoError(t, err)
 	assert.Equal(t, perm_model.AccessModeNone, level)

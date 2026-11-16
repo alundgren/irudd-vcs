@@ -51,9 +51,9 @@ func TestAuthenticate(t *testing.T) {
 	t.Run("authenticate", func(t *testing.T) {
 		const prefixBearer = "Bearer "
 		token := getUserToken("download", 2, repo1)
-		assert.False(t, authenticate(ctx, repo1, "", true, false))
-		assert.False(t, authenticate(ctx, repo1, prefixBearer+"invalid", true, false))
-		assert.True(t, authenticate(ctx, repo1, prefixBearer+token, true, false))
+		assert.False(t, authenticate(ctx, repo1, "", false))
+		assert.False(t, authenticate(ctx, repo1, prefixBearer+"invalid", false))
+		assert.True(t, authenticate(ctx, repo1, prefixBearer+token, false))
 	})
 
 	handleLFSTokenTestPerm := func(op string, userID int64, repo *repo_model.Repository, accessMode perm_model.AccessMode) error {

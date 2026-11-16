@@ -4,7 +4,6 @@
 package auth
 
 import (
-	"context"
 	"net/http"
 
 	user_model "gitea.dev/models/user"
@@ -24,9 +23,4 @@ type Method interface {
 	Verify(http *http.Request, w http.ResponseWriter, store DataStore) (*user_model.User, error)
 
 	Name() string
-}
-
-// PasswordAuthenticator represents a source of authentication
-type PasswordAuthenticator interface {
-	Authenticate(ctx context.Context, user *user_model.User, login, password string) (*user_model.User, error)
 }

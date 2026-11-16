@@ -125,30 +125,3 @@ ALLOWED_USER_VISIBILITY_MODES = public, limit, privated
 		})
 	}
 }
-
-func TestLoadServiceRequireSignInView(t *testing.T) {
-	defer test.MockVariableValue(&Service)()
-
-	cfg, err := NewConfigProviderFromData(`
-[service]
-`)
-	assert.NoError(t, err)
-	loadServiceFrom(cfg)
-	assert.False(t, Service.RequireSignInViewStrict)
-
-	cfg, err = NewConfigProviderFromData(`
-[service]
-REQUIRE_SIGNIN_VIEW = true
-`)
-	assert.NoError(t, err)
-	loadServiceFrom(cfg)
-	assert.True(t, Service.RequireSignInViewStrict)
-
-	cfg, err = NewConfigProviderFromData(`
-[service]
-REQUIRE_SIGNIN_VIEW = expensive
-`)
-	assert.NoError(t, err)
-	loadServiceFrom(cfg)
-	assert.False(t, Service.RequireSignInViewStrict)
-}

@@ -26,16 +26,3 @@ type AccessToken struct {
 	// The timestamp when the token was last used
 	Updated time.Time `json:"last_used_at"`
 }
-
-// AccessTokenList represents a list of API access token.
-// swagger:response AccessTokenList
-type AccessTokenList []*AccessToken
-
-// CreateAccessTokenOption options when create access token
-// swagger:model CreateAccessTokenOption
-type CreateAccessTokenOption struct {
-	// required: true
-	Name string `json:"name" binding:"Required"`
-	// example: ["all", "read:activitypub","read:issue", "write:misc", "read:notification", "read:organization", "read:package", "read:repository", "read:user"]
-	Scopes []string `json:"scopes"`
-}

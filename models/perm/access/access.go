@@ -13,8 +13,6 @@ import (
 	"gitea.dev/models/perm"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/setting"
-	"gitea.dev/modules/structs"
 
 	"xorm.io/builder"
 )
@@ -47,8 +45,7 @@ func accessLevel(ctx context.Context, user *user_model.User, repo *repo_model.Re
 		return mode, err
 	}
 
-	repoIsFullyPublic := !setting.Service.RequireSignInViewStrict && repo.Owner.Visibility == structs.VisibleTypePublic && !repo.IsPrivate
-	if (restricted && repoIsFullyPublic) || (!restricted && !repo.IsPrivate) {
+	if !restricted && !repo.IsPrivate {
 		mode = perm.AccessModeRead
 	}
 

@@ -27,9 +27,8 @@ type Context struct {
 
 	Link string // current request URL (without query string)
 
-	Doer        *user_model.User // current signed-in user
-	IsSigned    bool
-	IsBasicAuth bool
+	Doer     *user_model.User // current signed-in user
+	IsSigned bool
 
 	ContextUser *user_model.User // the user which is being visited, in most cases it differs from Doer
 

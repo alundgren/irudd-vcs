@@ -28,7 +28,6 @@ import (
 	"gitea.dev/modules/log"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
-	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	"gitea.dev/services/context"
 	repo_service "gitea.dev/services/repository"
@@ -114,60 +113,40 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 		return nil
 	}
 
-	// Only public pulls don't need auth: repo must exist, not require-sign-in
-	canAnonymousPull := false
-	if isPull && repoExist && !setting.Service.RequireSignInViewStrict {
-		// allow anonymous pulls if owner is public and repo is public (not private)
-		if owner.Visibility == structs.VisibleTypePublic && !repo.IsPrivate {
-			canAnonymousPull = true
-		}
-		// then check "public anonymous access" permission
-		if !canAnonymousPull && ctx.Doer == nil {
-			anonPerm, err := access_model.GetDoerRepoPermission(ctx, repo, nil)
-			if err != nil {
-				ctx.ServerError("GetDoerRepoPermission", err)
-				return nil
-			}
-			canAnonymousPull = anonPerm.CanAccess(accessMode, unitType)
-		}
+	// every git request needs a token, pulls included
+	if !ctx.IsSigned {
+		// TODO: support digit auth - which would be Authorization header with digit
+		// No OAuth2 provider, so use a realm that keeps GCM from attempting its builtin Gitea OAuth2 flow
+		ctx.Resp.Header().Set("WWW-Authenticate", `Basic realm="Gitea (Basic Auth)"`)
+		ctx.HTTPError(http.StatusUnauthorized)
+		return nil
 	}
 
-	// check access
-	if !canAnonymousPull { // not public pull, then either the pull needs auth, or the push needs "write" permission, so ask auth
-		if !ctx.IsSigned {
-			// TODO: support digit auth - which would be Authorization header with digit
-			// No OAuth2 provider, so use a realm that keeps GCM from attempting its builtin Gitea OAuth2 flow
-			ctx.Resp.Header().Set("WWW-Authenticate", `Basic realm="Gitea (Basic Auth)"`)
-			ctx.HTTPError(http.StatusUnauthorized)
+	context.CheckRepoScopedToken(ctx, repo, auth_model.GetScopeLevelFromAccessMode(accessMode))
+	if ctx.Written() {
+		return nil
+	}
+
+	if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {
+		ctx.PlainText(http.StatusForbidden, "Your account is disabled.")
+		return nil
+	}
+
+	if repoExist {
+		p, err := access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
+		if err != nil {
+			ctx.ServerError("GetDoerRepoPermission", err)
 			return nil
 		}
 
-		context.CheckRepoScopedToken(ctx, repo, auth_model.GetScopeLevelFromAccessMode(accessMode))
-		if ctx.Written() {
+		if !p.CanAccess(accessMode, unitType) {
+			ctx.PlainText(http.StatusNotFound, "Repository not found")
 			return nil
 		}
 
-		if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {
-			ctx.PlainText(http.StatusForbidden, "Your account is disabled.")
+		if !isPull && repo.IsMirror {
+			ctx.PlainText(http.StatusForbidden, "mirror repository is read-only")
 			return nil
-		}
-
-		if repoExist {
-			p, err := access_model.GetDoerRepoPermission(ctx, repo, ctx.Doer)
-			if err != nil {
-				ctx.ServerError("GetDoerRepoPermission", err)
-				return nil
-			}
-
-			if !p.CanAccess(accessMode, unitType) {
-				ctx.PlainText(http.StatusNotFound, "Repository not found")
-				return nil
-			}
-
-			if !isPull && repo.IsMirror {
-				ctx.PlainText(http.StatusForbidden, "mirror repository is read-only")
-				return nil
-			}
 		}
 	}
 

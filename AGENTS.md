@@ -11,6 +11,9 @@ supports Gitea as a backend.
 
 - Keep the APIs, so we can build a UI on top later
 - Remove anything that a Gitea API client like t3code does not need
+- Single owner: one person uses it on a private network for their own repos, with agents.
+  There is one user account and no organizations, teams or collaborators. Every API and git
+  request needs that user's access token; only `/version` and the API spec are anonymous
 
 ## Plan
 
@@ -24,6 +27,7 @@ Work through these phases in order. Do not jump ahead to a later phase.
 ## Current rules
 
 - We are in the optimize phase (4): improve performance, footprint and startup time without changing API behaviour; measure before and after each change
+- Exception: the single-owner strip (organizations, teams, collaborators, per-user permissions, anonymous and password access) may remove or change API behaviour
 - Work directly on `main`. Do not open pull requests for now
 
 ## Conventions

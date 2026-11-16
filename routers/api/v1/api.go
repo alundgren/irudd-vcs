@@ -20,8 +20,6 @@
 //	- Token :
 //	- AccessToken :
 //	- AuthorizationHeaderToken :
-//	- SudoParam :
-//	- SudoHeader :
 //
 //	SecurityDefinitions:
 //	BasicAuth:
@@ -41,16 +39,6 @@
 //	     name: Authorization
 //	     in: header
 //	     description: API tokens must be prepended with "token" followed by a space.
-//	SudoParam:
-//	     type: apiKey
-//	     name: sudo
-//	     in: query
-//	     description: Sudo API request as the user provided as the key. Admin privileges are required.
-//	SudoHeader:
-//	     type: apiKey
-//	     name: Sudo
-//	     in: header
-//	     description: Sudo API request as the user provided as the key. Admin privileges are required.
 //
 // swagger:meta
 package v1
@@ -90,36 +78,6 @@ import (
 	chi_middleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 )
-
-func sudo() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		sudo := ctx.FormString("sudo")
-		if len(sudo) == 0 {
-			sudo = ctx.Req.Header.Get("Sudo")
-		}
-
-		if len(sudo) > 0 {
-			if ctx.IsSigned && ctx.Doer.IsAdmin {
-				user, err := user_model.GetUserByName(ctx, sudo)
-				if err != nil {
-					if user_model.IsErrUserNotExist(err) {
-						ctx.APIErrorNotFound()
-					} else {
-						ctx.APIErrorInternal(err)
-					}
-					return
-				}
-				log.Trace("Sudo from (%s) to: %s", ctx.Doer.Name, user.Name)
-				ctx.Doer = user
-			} else {
-				ctx.JSON(http.StatusForbidden, map[string]string{
-					"message": "Only administrators allowed to sudo.",
-				})
-				return
-			}
-		}
-	}
-}
 
 func repoAssignment() func(ctx *context.APIContext) {
 	return func(ctx *context.APIContext) {
@@ -318,31 +276,6 @@ func reqToken() func(ctx *context.APIContext) {
 	}
 }
 
-func reqExploreSignIn() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if (setting.Service.RequireSignInViewStrict || setting.Service.Explore.RequireSigninView) && !ctx.IsSigned {
-			ctx.APIError(http.StatusUnauthorized, "you must be signed in to search for users")
-		}
-	}
-}
-
-func reqUsersExploreEnabled() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if setting.Service.Explore.DisableUsersPage {
-			ctx.APIErrorNotFound()
-		}
-	}
-}
-
-func reqBasicAuth() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if !ctx.IsBasicAuth {
-			ctx.APIError(http.StatusUnauthorized, "auth required")
-			return
-		}
-	}
-}
-
 // reqSiteAdmin user should be the site admin
 func reqSiteAdmin() func(ctx *context.APIContext) {
 	return func(ctx *context.APIContext) {
@@ -358,16 +291,6 @@ func reqOwner() func(ctx *context.APIContext) {
 	return func(ctx *context.APIContext) {
 		if !ctx.Repo.Permission.IsOwner() && !ctx.IsUserSiteAdmin() {
 			ctx.APIError(http.StatusForbidden, "user should be the owner of the repo")
-			return
-		}
-	}
-}
-
-// reqSelfOrAdmin doer should be the same as the contextUser or site admin
-func reqSelfOrAdmin() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if !ctx.IsUserSiteAdmin() && ctx.ContextUser != ctx.Doer {
-			ctx.APIError(http.StatusForbidden, "doer should be the site admin or be same as the contextUser")
 			return
 		}
 	}
@@ -738,61 +661,20 @@ func apiAuth(authMethod auth.Method) func(*context.APIContext) {
 		ar, err := common.AuthShared(ctx.Base, authMethod)
 		if err != nil {
 			msg, ok := auth.ErrAsUserAuthMessage(err)
-			msg = util.Iif(ok, msg, "invalid username, password or token")
+			msg = util.Iif(ok, msg, "invalid token")
 			ctx.APIError(http.StatusUnauthorized, msg)
 			return
 		}
 		ctx.Doer = ar.Doer
 		ctx.IsSigned = ar.Doer != nil
-		ctx.IsBasicAuth = ar.IsBasicAuth
 	}
 }
 
-// verifyAuthWithOptions checks authentication according to options
-func verifyAuthWithOptions(options *common.VerifyOptions) func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		// Check prohibit login users.
-		if ctx.IsSigned {
-			if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {
-				log.Info("Failed authentication attempt for %s from %s", ctx.Doer.Name, ctx.RemoteAddr())
-				ctx.JSON(http.StatusForbidden, map[string]string{
-					"message": "This account is prohibited from signing in, please contact your site administrator.",
-				})
-				return
-			}
-
-			if ctx.Doer.MustChangePassword {
-				ctx.JSON(http.StatusForbidden, map[string]string{
-					"message": "You must change your password. Change it at: " + setting.AppURL + "/user/change_password",
-				})
-				return
-			}
-		}
-
-		// Redirect to dashboard if user tries to visit any non-login page.
-		if options.SignOutRequired && ctx.IsSigned && ctx.Req.URL.RequestURI() != "/" {
-			ctx.Redirect(setting.AppSubURL + "/")
-			return
-		}
-
-		if options.SignInRequired {
-			if !ctx.IsSigned {
-				// Restrict API calls with error message.
-				ctx.JSON(http.StatusForbidden, map[string]string{
-					"message": "Only signed in user is allowed to call APIs.",
-				})
-				return
-			}
-		}
-
-		if options.AdminRequired {
-			if !ctx.Doer.IsAdmin {
-				ctx.JSON(http.StatusForbidden, map[string]string{
-					"message": "You have no permission to request for this.",
-				})
-				return
-			}
-		}
+// checkSignedInUser rejects tokens of users who may not log in
+func checkSignedInUser(ctx *context.APIContext) {
+	if ctx.IsSigned && (!ctx.Doer.IsActive || ctx.Doer.ProhibitLogin) {
+		log.Info("Failed authentication attempt for %s from %s", ctx.Doer.Name, ctx.RemoteAddr())
+		ctx.APIError(http.StatusForbidden, "This account is prohibited from signing in")
 	}
 }
 
@@ -830,22 +712,16 @@ func Routes() *web.Router {
 	m.AfterRouting(context.APIContexter())
 	m.AfterRouting(checkDeprecatedAuthMethods)
 
-	// Get user from session if logged in.
 	m.AfterRouting(apiAuth(buildAuthGroup()))
+	m.AfterRouting(checkSignedInUser)
 
-	m.AfterRouting(verifyAuthWithOptions(&common.VerifyOptions{
-		SignInRequired: setting.Service.RequireSignInViewStrict,
-	}))
+	// the only anonymous endpoint, so clients and health checks can probe the server before authenticating
+	m.Get("/version", misc.Version)
 
 	m.Group("", func() {
-		// Misc (public accessible)
-		m.Group("", func() {
-			m.Get("/version", misc.Version)
-
-			m.Group("/settings", func() {
-				m.Get("/api", settings.GetGeneralAPISettings)
-				m.Get("/repository", settings.GetGeneralRepoSettings)
-			})
+		m.Group("/settings", func() {
+			m.Get("/api", settings.GetGeneralAPISettings)
+			m.Get("/repository", settings.GetGeneralRepoSettings)
 		})
 
 		// Token introspection and deletion endpoint
@@ -855,16 +731,11 @@ func Routes() *web.Router {
 
 		// Users (requires user scope)
 		m.Group("/users", func() {
-			m.Get("/search", reqExploreSignIn(), reqUsersExploreEnabled(), user.Search)
+			m.Get("/search", user.Search)
 
 			m.Group("/{username}", func() {
-				m.Get("", reqExploreSignIn(), user.GetInfo)
-				m.Get("/repos", tokenRequiresScopes(auth_model.AccessTokenScopeCategoryRepository), reqExploreSignIn(), user.ListUserRepos)
-				m.Group("/tokens", func() {
-					m.Combo("").Get(user.ListAccessTokens).
-						Post(bind(api.CreateAccessTokenOption{}), reqToken(), user.CreateAccessToken)
-					m.Combo("/{id}").Delete(reqToken(), user.DeleteAccessToken)
-				}, reqSelfOrAdmin(), reqBasicAuth())
+				m.Get("", user.GetInfo)
+				m.Get("/repos", tokenRequiresScopes(auth_model.AccessTokenScopeCategoryRepository), user.ListUserRepos)
 			}, context.UserAssignmentAPI(), checkTokenPublicOnly(), individualPermsChecker)
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser))
 
@@ -1235,7 +1106,7 @@ func Routes() *web.Router {
 					Delete(admin.DeleteHook)
 			})
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryAdmin), reqToken(), reqSiteAdmin())
-	}, sudo())
+	}, reqToken())
 
 	return m
 }

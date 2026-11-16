@@ -799,7 +799,7 @@ func TestPullSquashMergeEmpty(t *testing.T) {
 		dstPath := t.TempDir()
 
 		u.Path = httpContext.GitPath()
-		u.User = url.UserPassword("user2", userPassword)
+		u.User = gitUserInfo(t, "user2")
 
 		t.Run("Clone", doGitClone(dstPath, u))
 		doGitCheckoutBranch(dstPath, "-b", "pr-squash-empty", "remotes/origin/pr-squash-empty")(t)

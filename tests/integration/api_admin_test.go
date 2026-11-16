@@ -21,31 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAPISudoUser(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	adminUsername := "user1"
-	normalUsername := "user2"
-	token := getUserToken(t, adminUsername, auth_model.AccessTokenScopeReadUser)
-
-	req := NewRequest(t, "GET", "/api/v1/user?sudo="+normalUsername).
-		AddTokenAuth(token)
-	resp := MakeRequest(t, req, http.StatusOK)
-	user := DecodeJSON(t, resp, &api.User{})
-
-	assert.Equal(t, normalUsername, user.UserName)
-}
-
-func TestAPISudoUserForbidden(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	adminUsername := "user1"
-	normalUsername := "user2"
-
-	token := getUserToken(t, normalUsername, auth_model.AccessTokenScopeReadAdmin)
-	req := NewRequest(t, "GET", "/api/v1/user?sudo="+adminUsername).
-		AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusForbidden)
-}
-
 func TestAPIListUsers(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 	adminUsername := "user1"

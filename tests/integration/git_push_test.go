@@ -159,7 +159,7 @@ func TestGitPushVisibilityOption(t *testing.T) {
 		oldPath, oldUser := u.Path, u.User
 		defer func() { u.Path, u.User = oldPath, oldUser }()
 		u.Path = repo.FullName() + ".git"
-		u.User = url.UserPassword(user.LowerName, userPassword)
+		u.User = gitUserInfo(t, user.LowerName)
 		doGitAddRemote(gitPath, "origin", u)(t)
 
 		// The first push into an empty repository is a "push-to-create", so the
@@ -201,7 +201,7 @@ func runTestGitPush(t *testing.T, u *url.URL, gitOperation func(t *testing.T, gi
 		u.User = oldUser
 	}()
 	u.Path = repo.FullName() + ".git"
-	u.User = url.UserPassword(user.LowerName, userPassword)
+	u.User = gitUserInfo(t, user.LowerName)
 
 	doGitAddRemote(gitPath, "origin", u)(t)
 
@@ -242,7 +242,7 @@ func TestPushPullRefs(t *testing.T) {
 		baseAPITestContext := NewAPITestContext(t, "user2", "repo1", auth_model.AccessTokenScopeWriteRepository, auth_model.AccessTokenScopeWriteUser)
 
 		u.Path = baseAPITestContext.GitPath()
-		u.User = url.UserPassword("user2", userPassword)
+		u.User = gitUserInfo(t, "user2")
 
 		dstPath := t.TempDir()
 		doGitClone(dstPath, u)(t)

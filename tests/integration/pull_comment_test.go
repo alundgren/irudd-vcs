@@ -58,7 +58,7 @@ func testPullCommentRebase(t *testing.T, u *url.URL, session *TestSession) {
 
 	// do force push
 	u.Path = "/user1/repo1.git"
-	u.User = url.UserPassword("user1", userPassword)
+	u.User = gitUserInfo(t, "user1")
 	doGitAddRemote(dstPath, "base-repo", u)(t)
 	doGitPushTestRepositoryFail(dstPath, "base-repo", "local-branch/rebase:test-branch/rebase")(t)
 	doGitPushTestRepository(dstPath, "--force", "base-repo", "local-branch/rebase:test-branch/rebase")(t)

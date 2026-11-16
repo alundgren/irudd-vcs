@@ -27,7 +27,6 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/testlogger"
-	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
 	"gitea.dev/routers"
 	"gitea.dev/tests"
@@ -76,21 +75,27 @@ func TestMain(m *testing.M) {
 	os.Exit(testMain(m))
 }
 
-// TestSession sends requests as a user via basic auth, the server has no browser sessions
+// TestSession sends requests as a user with an all-scope token, the server has no sessions or passwords
 type TestSession struct {
 	userName string
-	password string
+	token    string
 }
 
 func (s *TestSession) MakeRequest(t testing.TB, rw *RequestWrapper, expectedStatus int) *httptest.ResponseRecorder {
 	t.Helper()
 	if s != nil && s.userName != "" && rw.Header.Get("Authorization") == "" {
-		rw.SetBasicAuth(s.userName, s.password)
+		if s.token == "" {
+			s.token = getTokenForLoggedInUser(t, s, auth.AccessTokenScopeAll)
+		}
+		rw.SetBasicAuth(s.userName, s.token) // like git clients, so the git and LFS routes accept it too
 	}
 	return MakeRequest(t, rw, expectedStatus)
 }
 
-const userPassword = "password"
+// gitUserInfo is the userinfo of a git remote URL, with an all-scope token as the password
+func gitUserInfo(t testing.TB, userName string) *url.Userinfo {
+	return url.UserPassword(userName, getUserToken(t, userName, auth.AccessTokenScopeAll))
+}
 
 func emptyTestSession(t testing.TB) *TestSession {
 	t.Helper()
@@ -103,13 +108,7 @@ func getUserToken(t testing.TB, userName string, scope ...auth.AccessTokenScope)
 
 func loginUser(t testing.TB, userName string) *TestSession {
 	t.Helper()
-
-	return loginUserWithPassword(t, userName, userPassword)
-}
-
-func loginUserWithPassword(t testing.TB, userName, password string) *TestSession {
-	t.Helper()
-	return &TestSession{userName: userName, password: password}
+	return &TestSession{userName: userName}
 }
 
 // token has to be unique this counter take care of
@@ -139,8 +138,9 @@ type RequestWrapper struct {
 	*http.Request
 }
 
-func (req *RequestWrapper) AddBasicAuth(username string, password ...string) *RequestWrapper {
-	req.Request.SetBasicAuth(username, util.OptionalArg(password, userPassword))
+// AddBasicAuth sends a token as the basic auth password, like git clients do
+func (req *RequestWrapper) AddBasicAuth(username, token string) *RequestWrapper {
+	req.Request.SetBasicAuth(username, token)
 	return req
 }
 

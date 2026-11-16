@@ -20,8 +20,6 @@ var Service = struct {
 	AllowedUserVisibilityModesSlice AllowedVisibility `ini:"-"`
 	EmailDomainAllowList            []glob.Glob
 	EmailDomainBlockList            []glob.Glob
-	RequireSignInViewStrict         bool
-	EnableBasicAuth                 bool
 	DefaultKeepEmailPrivate         bool
 	DefaultAllowCreateOrganization  bool
 	DefaultUserIsRestricted         bool
@@ -29,12 +27,6 @@ var Service = struct {
 	DefaultOrgMemberVisible         bool
 	UserDeleteWithCommentsMaxTime   time.Duration
 	ValidSiteURLSchemes             []string
-
-	// Explore settings, they apply to the user search API
-	Explore struct {
-		RequireSigninView bool `ini:"REQUIRE_SIGNIN_VIEW"`
-		DisableUsersPage  bool `ini:"DISABLE_USERS_PAGE"`
-	} `ini:"service.explore"`
 }{
 	AllowedUserVisibilityModesSlice: []bool{true, true, true},
 }
@@ -72,15 +64,6 @@ func loadServiceFrom(rootCfg ConfigProvider) {
 	Service.EmailDomainAllowList = CompileEmailGlobList(sec, "EMAIL_DOMAIN_WHITELIST", "EMAIL_DOMAIN_ALLOWLIST")
 	Service.EmailDomainBlockList = CompileEmailGlobList(sec, "EMAIL_DOMAIN_BLOCKLIST")
 
-	// boolean values are considered as "strict"
-	var err error
-	Service.RequireSignInViewStrict, err = sec.Key("REQUIRE_SIGNIN_VIEW").Bool()
-	// non-boolean value only supports "expensive", which only concerned web UI pages and is accepted as a no-op
-	if s := sec.Key("REQUIRE_SIGNIN_VIEW").String(); err != nil && s != "" && s != "expensive" {
-		log.Fatal("Invalid config option: REQUIRE_SIGNIN_VIEW = %s", s)
-	}
-
-	Service.EnableBasicAuth = sec.Key("ENABLE_BASIC_AUTHENTICATION").MustBool(true)
 	Service.DefaultKeepEmailPrivate = sec.Key("DEFAULT_KEEP_EMAIL_PRIVATE").MustBool()
 	Service.DefaultAllowCreateOrganization = sec.Key("DEFAULT_ALLOW_CREATE_ORGANIZATION").MustBool(true)
 	Service.DefaultUserIsRestricted = sec.Key("DEFAULT_USER_IS_RESTRICTED").MustBool(false)
@@ -124,6 +107,4 @@ func loadServiceFrom(rootCfg ConfigProvider) {
 		}
 	}
 	Service.ValidSiteURLSchemes = schemes
-
-	mustMapSetting(rootCfg, "service.explore", &Service.Explore)
 }

@@ -13,9 +13,7 @@ import (
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/optional"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/structs"
-	"gitea.dev/modules/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -250,14 +248,6 @@ func testSearchRepositoryRestricted(t *testing.T) {
 
 	normalPublicRepoIDs := performSearch(t, user2)
 	require.Greater(t, len(normalPublicRepoIDs), 10) // quite a lot
-
-	t.Run("RestrictedUser-NoSignInRequirement", func(t *testing.T) {
-		// restricted user can also see public repositories if no "required sign-in"
-		repoIDs := performSearch(t, restrictedUser)
-		assert.ElementsMatch(t, normalPublicRepoIDs, repoIDs)
-	})
-
-	defer test.MockVariableValue(&setting.Service.RequireSignInViewStrict, true)()
 
 	t.Run("NormalUser-RequiredSignIn", func(t *testing.T) {
 		// normal user can still see all public repos, not affected by "required sign-in"

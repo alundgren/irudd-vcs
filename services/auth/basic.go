@@ -12,7 +12,6 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/httpauth"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 )
@@ -98,30 +97,12 @@ func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store 
 // Returns nil if header is empty or validation fails.
 func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore) (*user_model.User, error) {
 	parseBasicRet := b.parseAuthBasic(req)
-	authToken, uname, passwd := parseBasicRet.authToken, parseBasicRet.uname, parseBasicRet.passwd
-	if authToken == "" && uname == "" {
+	if parseBasicRet.authToken == "" && parseBasicRet.uname == "" {
 		return nil, nil //nolint:nilnil // the auth method is not applicable
 	}
-	u, err := b.VerifyAuthToken(req, w, store, authToken)
+	u, err := b.VerifyAuthToken(req, w, store, parseBasicRet.authToken)
 	if u != nil || err != nil {
 		return u, err
 	}
-
-	if !setting.Service.EnableBasicAuth {
-		return nil, nil //nolint:nilnil // the auth method is not applicable
-	}
-
-	log.Trace("Basic Authorization: Attempting SignIn for %s", uname)
-	u, _, err = UserSignIn(req.Context(), uname, passwd)
-	if err != nil {
-		if !user_model.IsErrUserNotExist(err) {
-			log.Error("UserSignIn: %v", err)
-		}
-		return nil, err
-	}
-
-	store.GetData()["LoginMethod"] = BasicMethodName
-	log.Trace("Basic Authorization: Logged in user %-v", u)
-
-	return u, nil
+	return nil, ErrUserAuthMessage("invalid token") // there are no passwords, only tokens
 }

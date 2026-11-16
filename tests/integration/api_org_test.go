@@ -18,9 +18,7 @@ import (
 	unit_model "gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/setting"
 	api "gitea.dev/modules/structs"
-	"gitea.dev/modules/test"
 	"gitea.dev/tests"
 
 	"github.com/stretchr/testify/assert"
@@ -194,7 +192,6 @@ func testAPIOrgGeneral(t *testing.T) {
 	})
 
 	t.Run("OrgDeny", func(t *testing.T) {
-		defer test.MockVariableValue(&setting.Service.RequireSignInViewStrict, true)()
 
 		orgName := "user1_org"
 		req := NewRequestf(t, "GET", "/api/v1/orgs/%s", orgName)

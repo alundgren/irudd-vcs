@@ -11,8 +11,7 @@ import (
 )
 
 type AuthResult struct {
-	Doer        *user_model.User
-	IsBasicAuth bool
+	Doer *user_model.User
 }
 
 func AuthShared(ctx *context.Base, authMethod auth_service.Method) (ar AuthResult, err error) {
@@ -21,8 +20,6 @@ func AuthShared(ctx *context.Base, authMethod auth_service.Method) (ar AuthResul
 		return ar, err
 	}
 	if ar.Doer != nil {
-		ar.IsBasicAuth = ctx.Data["AuthedMethod"].(string) == auth_service.BasicMethodName
-
 		ctx.Data["IsSigned"] = true
 		ctx.Data[middleware.ContextDataKeySignedUser] = ar.Doer
 		ctx.Data["SignedUserID"] = ar.Doer.ID
@@ -31,11 +28,4 @@ func AuthShared(ctx *context.Base, authMethod auth_service.Method) (ar AuthResul
 		ctx.Data["SignedUserID"] = int64(0)
 	}
 	return ar, nil
-}
-
-// VerifyOptions contains required or check options
-type VerifyOptions struct {
-	SignInRequired  bool
-	SignOutRequired bool
-	AdminRequired   bool
 }

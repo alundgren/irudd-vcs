@@ -15,9 +15,7 @@ import (
 	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/structs"
-	"gitea.dev/modules/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -459,8 +457,6 @@ func TestHasOrgVisibleTypePublic(t *testing.T) {
 
 	restrictedUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 29, IsRestricted: true})
 	require.True(t, restrictedUser.IsRestricted)
-	assert.True(t, organization.HasOrgOrUserVisible(t.Context(), org.AsUser(), restrictedUser))
-	defer test.MockVariableValue(&setting.Service.RequireSignInViewStrict, true)()
 	assert.False(t, organization.HasOrgOrUserVisible(t.Context(), org.AsUser(), restrictedUser))
 }
 
@@ -630,7 +626,6 @@ func TestCreateOrganization4(t *testing.T) {
 }
 
 func TestOrAnyRepoUnitPermission(t *testing.T) {
-	defer test.MockVariableValue(&setting.Service.RequireSignInViewStrict, true)()
 	org := organization.Organization{Visibility: structs.VisibleTypeLimited}
 	assert.Equal(t, perm.AccessModeNone, org.UnitPermission(t.Context(), nil, unit.TypeReleases))
 	assert.Equal(t, perm.AccessModeRead, org.UnitPermission(t.Context(), &user_model.User{}, unit.TypeReleases))

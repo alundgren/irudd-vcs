@@ -62,7 +62,7 @@ func testGitGeneral(t *testing.T, u *url.URL) {
 		t.Run("ForkFromDifferentUser", doAPIForkRepository(httpContext, forkedUserCtx.Username))
 
 		u.Path = httpContext.GitPath()
-		u.User = url.UserPassword(username, userPassword)
+		u.User = gitUserInfo(t, username)
 
 		t.Run("Clone", doGitClone(dstPath, u))
 
@@ -89,9 +89,9 @@ func testGitGeneral(t *testing.T, u *url.URL) {
 	})
 }
 
+// ensureAnonymousClone checks that cloning without a token is refused, even for a public repository
 func ensureAnonymousClone(t *testing.T, u *url.URL) {
-	dstLocalPath := t.TempDir()
-	t.Run("CloneAnonymous", doGitClone(dstLocalPath, u))
+	t.Run("CloneAnonymous", doGitCloneFail(u))
 }
 
 func standardCommitAndPushTest(t *testing.T, dstPath string, sizes ...int) (pushedFiles []string) {

@@ -451,10 +451,6 @@ func ownerVisibilitySatisfiesDoer(orgOrUser, user *user_model.User) bool {
 		return true
 	}
 
-	if !setting.Service.RequireSignInViewStrict && orgOrUser.Visibility == structs.VisibleTypePublic {
-		return true
-	}
-
 	return orgOrUser.Visibility != structs.VisibleTypePrivate && !user.IsRestricted
 }
 

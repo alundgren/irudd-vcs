@@ -66,7 +66,6 @@ func newWebAuthMiddleware() *AuthMiddleware {
 		}
 		ctx.Doer = ar.Doer
 		ctx.IsSigned = ar.Doer != nil
-		ctx.IsBasicAuth = ar.IsBasicAuth
 	}
 	return webAuth
 }
@@ -79,10 +78,6 @@ func checkSignedInUser(ctx *context.Context) {
 	if !ctx.Doer.IsActive || ctx.Doer.ProhibitLogin {
 		log.Info("Failed authentication attempt for %s from %s", ctx.Doer.Name, ctx.RemoteAddr())
 		ctx.HTTPError(http.StatusForbidden, "This account is prohibited from signing in")
-		return
-	}
-	if ctx.Doer.MustChangePassword {
-		ctx.HTTPError(http.StatusUnauthorized, "You must change your password")
 	}
 }
 

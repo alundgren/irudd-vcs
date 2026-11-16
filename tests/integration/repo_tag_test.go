@@ -49,7 +49,7 @@ func TestCreateNewTagProtected(t *testing.T) {
 			dstPath := t.TempDir()
 
 			u.Path = httpContext.GitPath()
-			u.User = url.UserPassword(owner.Name, userPassword)
+			u.User = gitUserInfo(t, owner.Name)
 
 			doGitClone(dstPath, u)(t)
 
@@ -69,7 +69,7 @@ func TestCreateNewTagProtected(t *testing.T) {
 			dstPath := t.TempDir()
 
 			u.Path = httpContext.GitPath()
-			u.User = url.UserPassword(owner.Name, userPassword)
+			u.User = gitUserInfo(t, owner.Name)
 
 			doGitClone(dstPath, u)(t)
 
