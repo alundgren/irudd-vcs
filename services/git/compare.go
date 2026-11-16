@@ -38,8 +38,19 @@ type CompareInfo struct {
 // It does its best to fill the fields as many as it can.
 // MergeBase can be empty if the base and head are unrelated.
 func GetCompareInfo(ctx context.Context, baseRepo, headRepo *repo_model.Repository, headGitRepo *git.Repository, baseRef, headRef git.RefName, directComparison, fileOnly bool) (compareInfo CompareInfo, err error) {
-	baseCommitID, err1 := gitrepo.GetFullCommitID(ctx, baseRepo, baseRef.String())
-	headCommitID, err2 := gitrepo.GetFullCommitID(ctx, headRepo, headRef.String())
+	// the head repository is open, so its cat-file batch resolves refs without a rev-parse process each
+	resolve := func(repo *repo_model.Repository, ref git.RefName) (string, error) {
+		if repo.ID != headRepo.ID {
+			return gitrepo.GetFullCommitID(ctx, repo, ref.String())
+		}
+		id, err := headGitRepo.ConvertToGitID(ref.String())
+		if err != nil {
+			return "", err
+		}
+		return id.String(), nil
+	}
+	baseCommitID, err1 := resolve(baseRepo, baseRef)
+	headCommitID, err2 := resolve(headRepo, headRef)
 	compareInfo = CompareInfo{
 		BaseRepo:         baseRepo,
 		BaseRef:          baseRef,
