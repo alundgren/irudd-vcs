@@ -120,3 +120,28 @@ func TestHookDispatcher(t *testing.T) {
 		assert.Zero(t, code)
 	})
 }
+
+func TestGiteaUpdateHook(t *testing.T) {
+	sh := hookShell(t)
+	_, _, giteaHookTpls := getHookTemplates()
+	hook := filepath.Join(t.TempDir(), "gitea")
+	require.NoError(t, os.WriteFile(hook, []byte(giteaHookTpls[1]), 0o755))
+	run := func(ref, internal string) int {
+		cmd := exec.Command(sh, filepath.ToSlash(hook), ref, "old", "new")
+		cmd.Env = append(os.Environ(), "GITEA_INTERNAL_PUSH="+internal)
+		err := cmd.Run()
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+			return exitErr.ExitCode()
+		}
+		require.NoError(t, err)
+		return 0
+	}
+	// the same answers as runHookUpdate
+	assert.Zero(t, run("refs/heads/main", ""))
+	assert.Zero(t, run("refs/tags/v1", "false"))
+	assert.Zero(t, run("refs/pull/1", ""))
+	assert.Equal(t, 1, run("refs/pull/1/head", ""))
+	assert.Equal(t, 1, run("refs/pull/1/head", "false"))
+	assert.Zero(t, run("refs/pull/1/head", "true"))
+	assert.Zero(t, run("refs/pull/1/head", "1"))
+}
