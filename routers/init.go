@@ -15,6 +15,7 @@ import (
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
+	"gitea.dev/modules/queue"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/system"
@@ -85,21 +86,30 @@ func syncAppConfForGit(ctx context.Context) error {
 
 // InitWebInstalled is for the global configuration of an installed instance
 func InitWebInstalled(ctx context.Context) {
-	mustInit(git.InitFull)
-	log.Info("Git version: %s (home: %s)", git.DefaultFeatures().VersionInfo(), gitcmd.HomeDir())
-	if !git.DefaultFeatures().SupportHashSha256 {
-		log.Warn("sha256 hash support is disabled - requires Git >= 2.42." + util.Iif(git.DefaultFeatures().UsingGogit, " Gogit is currently unsupported.", ""))
-	}
+	// git init runs two git processes and the queue database takes a while to open, so both overlap
+	// with the settings and the ORM engine, which use neither; everything after them may use git
+	gitInitErr := make(chan error, 1)
+	go func() { gitInitErr <- git.InitFull() }()
 
 	// Setup i18n
 
 	setting.LoadSettings()
+	releaseLevelDB := queue.OpenLevelDBEarly()
 	mustInit(storage.Init)
 
 	mustInit(cache.Init)
 
 	mustInitCtx(ctx, common.InitDBEngine)
 	log.Info("ORM engine initialization successful!")
+
+	if err := <-gitInitErr; err != nil {
+		log.Fatal("git.InitFull failed: %v", err)
+	}
+	log.Info("Git version: %s (home: %s)", git.DefaultFeatures().VersionInfo(), gitcmd.HomeDir())
+	if !git.DefaultFeatures().SupportHashSha256 {
+		log.Warn("sha256 hash support is disabled - requires Git >= 2.42." + util.Iif(git.DefaultFeatures().UsingGogit, " Gogit is currently unsupported.", ""))
+	}
+
 	mustInit(system.Init)
 	mustInit(release_service.Init)
 
@@ -112,6 +122,7 @@ func InitWebInstalled(ctx context.Context) {
 	mustInit(pull_service.Init)
 
 	mustInitCtx(ctx, syncAppConfForGit)
+	releaseLevelDB()
 }
 
 // NormalRoutes represents non install routes

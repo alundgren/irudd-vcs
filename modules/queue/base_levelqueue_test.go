@@ -4,10 +4,12 @@
 package queue
 
 import (
+	"path/filepath"
 	"testing"
 
 	"gitea.dev/modules/queue/lqinternal"
 	"gitea.dev/modules/setting"
+	"gitea.dev/modules/test"
 
 	"gitea.com/lunny/levelqueue"
 	"github.com/stretchr/testify/assert"
@@ -74,4 +76,23 @@ func TestCorruptedLevelQueue(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("item-new-1"), itemValue)
 	assert.NoError(t, lq.Close())
+}
+
+func TestOpenLevelDBEarly(t *testing.T) {
+	dir := filepath.ToSlash(t.TempDir() + "/queues")
+	cfgProvider, err := setting.NewConfigProviderFromData("[queue]\nTYPE = level\nDATADIR = " + dir + "\n")
+	require.NoError(t, err)
+	defer test.MockVariableValue(&setting.CfgProvider, cfgProvider)()
+
+	release := OpenLevelDBEarly()
+	q, err := newBaseLevelQueueSimple(toBaseConfig("early", setting.QueueSettings{Datadir: dir, Length: 10}))
+	require.NoError(t, err)
+	release()
+	require.NoError(t, q.PushItem(t.Context(), []byte("item")))
+	require.NoError(t, q.Close())
+
+	// both references are gone, so the database is closed and its lock released
+	db, err := leveldb.OpenFile(dir, nil)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
 }

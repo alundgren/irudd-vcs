@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"gitea.dev/modules/nosql"
+	"gitea.dev/modules/setting"
 
 	"gitea.com/lunny/levelqueue"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -71,17 +72,22 @@ func baseLevelQueueCommon(cfg *BaseConfig, mu *sync.Mutex, internalFunc func() b
 	return &baseLevelQueueCommonImpl{length: cfg.Length, mu: mu, internalFunc: internalFunc}
 }
 
-func prepareLevelDB(cfg *BaseConfig) (conn string, db *leveldb.DB, err error) {
+func levelDBConn(cfg *BaseConfig) (string, error) {
 	if cfg.ConnStr == "" { // use data dir as conn str
 		if !filepath.IsAbs(cfg.DataFullDir) {
-			return "", nil, fmt.Errorf("invalid leveldb data dir (not absolute): %q", cfg.DataFullDir)
+			return "", fmt.Errorf("invalid leveldb data dir (not absolute): %q", cfg.DataFullDir)
 		}
-		conn = cfg.DataFullDir
-	} else {
-		if !strings.HasPrefix(cfg.ConnStr, "leveldb://") {
-			return "", nil, fmt.Errorf("invalid leveldb connection string: %q", cfg.ConnStr)
-		}
-		conn = cfg.ConnStr
+		return cfg.DataFullDir, nil
+	}
+	if !strings.HasPrefix(cfg.ConnStr, "leveldb://") {
+		return "", fmt.Errorf("invalid leveldb connection string: %q", cfg.ConnStr)
+	}
+	return cfg.ConnStr, nil
+}
+
+func prepareLevelDB(cfg *BaseConfig) (conn string, db *leveldb.DB, err error) {
+	if conn, err = levelDBConn(cfg); err != nil {
+		return "", nil, err
 	}
 	for range 10 {
 		if db, err = nosql.GetManager().GetLevelDB(conn); err == nil {
@@ -90,4 +96,28 @@ func prepareLevelDB(cfg *BaseConfig) (conn string, db *leveldb.DB, err error) {
 		time.Sleep(1 * time.Second)
 	}
 	return conn, db, err
+}
+
+// OpenLevelDBEarly starts opening the level database of the common queue settings, which takes tens of
+// milliseconds, so that it overlaps with other startup work. Call release once the queues are created
+// and hold their own references.
+func OpenLevelDBEarly() (release func()) {
+	cfg, err := setting.GetQueueSettings(setting.CfgProvider, "")
+	if err != nil || cfg.Type != "level" {
+		return func() {}
+	}
+	conn, err := levelDBConn(toBaseConfig("", cfg))
+	if err != nil {
+		return func() {} // the queues report it
+	}
+	opened := make(chan bool, 1)
+	go func() {
+		_, err := nosql.GetManager().GetLevelDB(conn) // a failure is retried and reported by the queues
+		opened <- err == nil
+	}()
+	return func() {
+		if <-opened {
+			_ = nosql.GetManager().CloseLevelDB(conn)
+		}
+	}
 }
