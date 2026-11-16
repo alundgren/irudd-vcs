@@ -74,8 +74,8 @@ func objectFormatFromBareConfig(repoPath string) ObjectFormat {
 	section := ""
 	for line := range strings.Lines(string(data)) {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "[") {
-			name, _, _ := strings.Cut(strings.TrimPrefix(line, "["), "]")
+		if header, ok := strings.CutPrefix(line, "["); ok {
+			name, _, _ := strings.Cut(header, "]")
 			section = strings.ToLower(strings.TrimSpace(name))
 			continue
 		}
