@@ -71,7 +71,8 @@ func PrepareTestEnv(t *testing.T, skip int, syncModels ...any) (db.EngineMigrati
 		if err := unittest.InitFixtures(
 			unittest.FixturesOptions{
 				Dir: fixturesDir,
-			}); err != nil {
+			},
+		); err != nil {
 			t.Errorf("error whilst initializing fixtures from %s: %v", fixturesDir, err)
 			return x, deferFn
 		}

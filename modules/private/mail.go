@@ -3,8 +3,6 @@
 
 package private
 
-import ()
-
 // Email structure holds a data for sending general emails
 type Email struct {
 	Subject string

@@ -11,7 +11,6 @@ import (
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/queue"
@@ -79,7 +78,7 @@ func TestCheckSigningRequirementsHeadCommits(t *testing.T) {
 	require.NoError(t, pr.LoadHeadRepo(ctx))
 
 	check := func() error {
-		return checkSigningRequirements(ctx, pr, nil, repo_model.MergeStyleFastForwardOnly)
+		return checkSigningRequirements(ctx, pr)
 	}
 
 	// No protected branch rule on the base branch: the check must pass.

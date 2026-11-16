@@ -5,12 +5,13 @@
 package apispec
 
 import (
-	_ "embed"
 	"html/template"
 	"strings"
 	"sync"
 
 	"gitea.dev/modules/setting"
+
+	_ "embed"
 )
 
 var (

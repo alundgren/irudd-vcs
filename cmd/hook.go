@@ -425,8 +425,7 @@ func pushOptions() map[string]string {
 type pktLineType int64
 
 const (
-	// Unknown type
-	pktLineTypeUnknown pktLineType = 0
+	_ pktLineType = 0 // unknown type
 	// flush-pkt "0000"
 	pktLineTypeFlush pktLineType = iota
 	// data line
@@ -497,7 +496,7 @@ func writeFlushPktLine(ctx context.Context, out io.Writer) error {
 func writeDataPktLine(ctx context.Context, out io.Writer, data []byte) error {
 	hexchar := []byte("0123456789abcdef")
 	hex := func(n uint64) byte {
-		return hexchar[(n)&15]
+		return hexchar[n&15]
 	}
 
 	length := uint64(len(data) + 4)

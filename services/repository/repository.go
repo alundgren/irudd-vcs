@@ -179,7 +179,6 @@ func updateRepository(ctx context.Context, repo *repo_model.Repository, visibili
 				return fmt.Errorf("updateRepository[%d]: %w", forkRepos[i].ID, err)
 			}
 		}
-
 	}
 
 	return nil

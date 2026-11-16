@@ -109,23 +109,6 @@ func doAPIForkRepository(ctx APITestContext, username string, callback ...func(*
 	}
 }
 
-func doAPIGetRepository(ctx APITestContext, callback ...func(*testing.T, api.Repository)) func(*testing.T) {
-	return func(t *testing.T) {
-		req := NewRequest(t, "GET", fmt.Sprintf("/api/v1/repos/%s/%s", ctx.Username, ctx.Reponame)).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		resp := ctx.Session.MakeRequest(t, req, http.StatusOK)
-
-		repository := DecodeJSON(t, resp, &api.Repository{})
-		if len(callback) > 0 {
-			callback[0](t, *repository)
-		}
-	}
-}
-
 func doAPIDeleteRepository(ctx APITestContext) func(*testing.T) {
 	return func(t *testing.T) {
 		req := NewRequest(t, "DELETE", fmt.Sprintf("/api/v1/repos/%s/%s", ctx.Username, ctx.Reponame)).

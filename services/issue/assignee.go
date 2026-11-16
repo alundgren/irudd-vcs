@@ -107,7 +107,7 @@ func UpdateAssignees(ctx context.Context, issue *issues_model.Issue, oneAssignee
 			return err
 		}
 
-		if err := validateAssignee(ctx, issue, doer, assignee); err != nil {
+		if err := validateAssignee(ctx, issue, assignee); err != nil {
 			return err
 		}
 
@@ -165,8 +165,7 @@ func UpdateAssignees(ctx context.Context, issue *issues_model.Issue, oneAssignee
 	return nil
 }
 
-func validateAssignee(ctx context.Context, issue *issues_model.Issue, doer, assignee *user_model.User) error {
-
+func validateAssignee(ctx context.Context, issue *issues_model.Issue, assignee *user_model.User) error {
 	valid, err := access_model.CanBeAssigned(ctx, assignee, issue.Repo)
 	if err != nil {
 		return err
@@ -191,7 +190,7 @@ func AddAssigneeIfNotAssigned(ctx context.Context, issue *issues_model.Issue, do
 		return nil, nil //nolint:nilnil // return nil because the user is already assigned
 	}
 
-	if err := validateAssignee(ctx, issue, doer, assignee); err != nil {
+	if err := validateAssignee(ctx, issue, assignee); err != nil {
 		return nil, err
 	}
 
@@ -217,7 +216,7 @@ func AddAssignees(ctx context.Context, issue *issues_model.Issue, doer *user_mod
 			if err != nil {
 				return err
 			}
-			if err := validateAssignee(ctx, issue, doer, assignee); err != nil {
+			if err := validateAssignee(ctx, issue, assignee); err != nil {
 				return err
 			}
 

@@ -16,7 +16,6 @@ import (
 
 // CreateIssueComment creates a plain issue comment.
 func CreateIssueComment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository, issue *issues_model.Issue, content string) (*issues_model.Comment, error) {
-
 	comment, err := issues_model.CreateComment(ctx, &issues_model.CreateCommentOptions{
 		Type:    issues_model.CommentTypeComment,
 		Doer:    doer,

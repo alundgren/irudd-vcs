@@ -97,11 +97,6 @@ func gitUserInfo(t testing.TB, userName string) *url.Userinfo {
 	return url.UserPassword(userName, getUserToken(t, userName, auth.AccessTokenScopeAll))
 }
 
-func emptyTestSession(t testing.TB) *TestSession {
-	t.Helper()
-	return &TestSession{}
-}
-
 func getUserToken(t testing.TB, userName string, scope ...auth.AccessTokenScope) string {
 	return getTokenForLoggedInUser(t, loginUser(t, userName), scope...)
 }

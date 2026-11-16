@@ -249,7 +249,7 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 
 	// 1 - create the repository database operations first
 	err := db.WithTx(ctx, func(ctx context.Context) error {
-		return createRepositoryInDB(ctx, doer, owner, repo, false)
+		return createRepositoryInDB(ctx, owner, repo, false)
 	})
 	if err != nil {
 		return nil, err
@@ -310,7 +310,7 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 }
 
 // createRepositoryInDB creates a repository for the user/organization.
-func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository, isFork bool) (err error) {
+func createRepositoryInDB(ctx context.Context, u *user_model.User, repo *repo_model.Repository, isFork bool) (err error) {
 	if err = repo_model.IsUsableRepoName(repo.Name); err != nil {
 		return err
 	}

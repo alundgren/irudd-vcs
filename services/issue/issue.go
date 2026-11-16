@@ -18,7 +18,7 @@ import (
 )
 
 // NewIssue creates new issue with labels for repository.
-func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs []int64, assigneeIDs []int64) error {
+func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs, assigneeIDs []int64) error {
 	if err := issue.LoadPoster(ctx); err != nil {
 		return err
 	}

@@ -215,7 +215,7 @@ func (q *WorkerPoolQueue[T]) doFlush(wg *workerGroup[T], flush flushType) {
 		for {
 			select {
 			case <-wg.popItemChan:
-			case <-wg.popItemErr:
+			case <-wg.popItemErr: //nolint:errcheck // discarding everything, errors too
 			case <-q.batchChan:
 			case <-q.ctxRun.Done():
 				return

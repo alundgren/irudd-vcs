@@ -92,7 +92,7 @@ func initEmbeddedExtractor(c *cli.Command) error {
 		return err
 	}
 
-	collectAssetFilesByPattern(c, patterns, "options", options.BuiltinAssets())
+	collectAssetFilesByPattern(patterns, "options", options.BuiltinAssets())
 
 	return nil
 }
@@ -253,7 +253,7 @@ func extractAsset(d string, a assetFile, overwrite, rename bool) error {
 	return nil
 }
 
-func collectAssetFilesByPattern(c *cli.Command, globs []glob.Glob, path string, layer *assetfs.Layer) {
+func collectAssetFilesByPattern(globs []glob.Glob, path string, layer *assetfs.Layer) {
 	fs := assetfs.Layered(layer)
 	files, err := fs.ListAllFiles(".", true)
 	if err != nil {

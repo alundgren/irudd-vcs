@@ -114,6 +114,9 @@ linters:
       os-temp-dir: true
     perfsprint:
       concat-loop: false
+    modernize:
+      disable:
+        - embedlit # keeps the embedded type in struct literals, so it stays clear where a field lives
     govet:
       enable:
         - nilness

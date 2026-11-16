@@ -543,26 +543,6 @@ index 0000000..6bb8f39
 	}
 }
 
-func setupDefaultDiff() *Diff {
-	return &Diff{
-		Files: []*DiffFile{
-			{
-				Name: "README.md",
-				Sections: []*DiffSection{
-					{
-						Lines: []*DiffLine{
-							{
-								LeftIdx:  4,
-								RightIdx: 4,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
 func TestDiffLine_CanComment(t *testing.T) {
 	assert.False(t, (&DiffLine{Type: DiffLineSection}).CanComment())
 	assert.False(t, (&DiffLine{Type: DiffLineAdd, Comments: []*issues_model.Comment{{Content: "bla"}}}).CanComment())

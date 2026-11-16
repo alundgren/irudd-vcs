@@ -34,7 +34,7 @@ import (
 	webhook_module "gitea.dev/modules/webhook"
 )
 
-func newDefaultRequest(ctx context.Context, w *webhook_model.Webhook, t *webhook_model.HookTask) (req *http.Request, body []byte, err error) {
+func newDefaultRequest(w *webhook_model.Webhook, t *webhook_model.HookTask) (req *http.Request, body []byte, err error) {
 	switch w.HTTPMethod {
 	case "", http.MethodPost:
 		switch w.ContentType {
@@ -149,7 +149,7 @@ func Deliver(ctx context.Context, t *webhook_model.HookTask) error {
 
 	t.IsDelivered = true
 
-	req, body, err := newDefaultRequest(ctx, w, t)
+	req, body, err := newDefaultRequest(w, t)
 	if err != nil {
 		return fmt.Errorf("cannot create http request for webhook %s[%d %s]: %w", w.Type, w.ID, w.URL, err)
 	}

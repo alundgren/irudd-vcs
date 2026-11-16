@@ -445,7 +445,8 @@ func deleteBranchSuccessPostProcess(doer *user_model.User, repo *repo_model.Repo
 			PusherName:   doer.Name,
 			RepoUserName: repo.OwnerName,
 			RepoName:     repo.Name,
-		}); err != nil {
+		},
+	); err != nil {
 		log.Error("PushUpdateOptions: %v", err)
 	}
 }

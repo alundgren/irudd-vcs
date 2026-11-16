@@ -393,7 +393,6 @@ func TestAPIPullReviewCommentResolveEndpoints(t *testing.T) {
 	require.NoError(t, err)
 	req = NewRequest(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/comments/%d/resolve", repo.OwnerName, repo.Name, plainComment.ID)).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusBadRequest)
-
 }
 
 func TestAPIPullReviewStayDismissed(t *testing.T) {
