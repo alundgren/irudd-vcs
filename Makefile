@@ -1,19 +1,15 @@
 DIST := dist
 DIST_DIRS := $(DIST)/binaries $(DIST)/release
 
-# By default use go's 1.25 experimental json v2 library when building
-# TODO: remove when no longer experimental
-export GOEXPERIMENT ?= jsonv2
-
 GO ?= go
 SHASUM ?= shasum -a 256
 COMMA := ,
 
-XGO_VERSION := go-1.26.x
+XGO_VERSION := go-1.27.x
 
 AIR_PACKAGE ?= github.com/air-verse/air@v1.65.3 # renovate: datasource=go
 EDITORCONFIG_CHECKER_PACKAGE ?= github.com/editorconfig-checker/editorconfig-checker/v3/cmd/editorconfig-checker@v3.7.0 # renovate: datasource=go
-GOLANGCI_LINT_PACKAGE ?= github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 # renovate: datasource=go
+GOLANGCI_LINT_PACKAGE ?= github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 # renovate: datasource=go
 GXZ_PACKAGE ?= github.com/ulikunitz/xz/cmd/gxz@v0.5.15 # renovate: datasource=go
 MISSPELL_PACKAGE ?= github.com/golangci/misspell/cmd/misspell@v0.8.0 # renovate: datasource=go
 SWAGGER_PACKAGE ?= github.com/go-swagger/go-swagger/cmd/swagger@v0.34.1 # renovate: datasource=go
