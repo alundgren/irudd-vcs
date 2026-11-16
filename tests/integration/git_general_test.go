@@ -18,7 +18,6 @@ import (
 	"time"
 
 	auth_model "gitea.dev/models/auth"
-	"gitea.dev/models/perm"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
@@ -57,7 +56,6 @@ func testGitGeneral(t *testing.T, u *url.URL) {
 		dstPath := t.TempDir()
 
 		t.Run("CreateRepoInDifferentUser", doAPICreateRepository(forkedUserCtx, false))
-		t.Run("AddUserAsCollaborator", doAPIAddCollaborator(forkedUserCtx, httpContext.Username, perm.AccessModeRead))
 
 		t.Run("ForkFromDifferentUser", doAPIForkRepository(httpContext, forkedUserCtx.Username))
 

@@ -65,8 +65,6 @@ func TestAPIPublicOnlySelfUserRoutes(t *testing.T) {
 			Name: "public-only-private-hook",
 		}).AddTokenAuth(privateWriteUserToken)
 		MakeRequest(t, hookReq, http.StatusForbidden)
-
-		MakeRequest(t, NewRequest(t, "GET", "/api/v1/user/teams").AddTokenAuth(privateReadUserToken), http.StatusForbidden)
 	})
 
 	t.Run("PublicRepoRoutesFilterAndRejectMutations", func(t *testing.T) {

@@ -158,8 +158,8 @@ func TestNewProtectBranchPriority(t *testing.T) {
 func TestCanBypassBranchProtection(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1}) // not in team 1
-	teamMember := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})
+	teamMember := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2}) // team 1 in the fixtures
 
 	pb := &ProtectedBranch{
 		EnableBypassAllowlist:  true,
@@ -192,12 +192,12 @@ func TestCanBypassBranchProtection(t *testing.T) {
 	pb.BypassAllowlistUserIDs = []int64{user.ID}
 	testBypass(t, true, pb, user, true)
 
-	// User bypasses via team allowlist membership.
+	// team allowlists grant nothing, there are no teams
 	pb.EnableBypassAllowlist = true
 	pb.BlockAdminMergeOverride = false
 	pb.BypassAllowlistUserIDs = nil
 	pb.BypassAllowlistTeamIDs = []int64{1} // team 1 contains user 2 in test fixtures
-	testBypass(t, true, pb, teamMember, false)
+	testBypass(t, false, pb, teamMember, false)
 
 	// User does not bypass when not in allowlisted teams.
 	testBypass(t, false, pb, user, false)

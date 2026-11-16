@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	auth_model "gitea.dev/models/auth"
-	"gitea.dev/models/perm"
 	"gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
@@ -44,20 +43,6 @@ func testAPICreateWebhookForRepo(t *testing.T, session *TestSession, userName, r
 		Events:       []string{event},
 		Active:       true,
 		BranchFilter: branchFilterString,
-	}).AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusCreated)
-}
-
-func testAPICreateWebhookForOrg(t *testing.T, session *TestSession, userName, url, event string) {
-	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeAll)
-	req := NewRequestWithJSON(t, "POST", "/api/v1/orgs/"+userName+"/hooks", api.CreateHookOption{
-		Type: "gitea",
-		Config: api.CreateHookOptionConfig{
-			"content_type": "json",
-			"url":          url,
-		},
-		Events: []string{event},
-		Active: true,
 	}).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusCreated)
 }
@@ -528,10 +513,6 @@ func Test_WebhookPullRequest(t *testing.T) {
 		}, http.StatusOK)
 		defer provider.Close()
 
-		testCtx := NewAPITestContext(t, "user2", "repo1", auth_model.AccessTokenScopeAll)
-		// add user4 as collabrator so that it can be a reviewer
-		doAPIAddCollaborator(testCtx, "user4", perm.AccessModeWrite)(t)
-
 		// 1. create a new webhook with special webhook for repo1
 		sessionUser2 := loginUser(t, "user2")
 		sessionUser4 := loginUser(t, "user4")
@@ -641,38 +622,6 @@ func Test_WebhookPullRequestComment(t *testing.T) {
 		assert.Equal(t, "first pull request", payloads[0].Issue.Title)
 		assert.Empty(t, payloads[0].Issue.Body)
 		assert.Equal(t, "pull title2 comment1", payloads[0].Comment.Body)
-	})
-}
-
-func Test_WebhookRepository(t *testing.T) {
-	onGiteaRun(t, func(t *testing.T, giteaURL *url.URL) {
-		var payloads []api.RepositoryPayload
-		var triggeredEvent string
-		provider := newMockWebhookProvider(func(r *http.Request) {
-			content, _ := io.ReadAll(r.Body)
-			var payload api.RepositoryPayload
-			err := json.Unmarshal(content, &payload)
-			assert.NoError(t, err)
-			payloads = append(payloads, payload)
-			triggeredEvent = "repository"
-		}, http.StatusOK)
-		defer provider.Close()
-
-		// 1. create a new webhook with special webhook for repo1
-		session := loginUser(t, "user1")
-
-		testAPICreateWebhookForOrg(t, session, "org3", provider.URL(), "repository")
-
-		// 2. trigger the webhook
-		testAPIOrgCreateRepo(t, session, "org3", "repo_new", http.StatusCreated)
-
-		// 3. validate the webhook is triggered
-		assert.Equal(t, "repository", triggeredEvent)
-		assert.Len(t, payloads, 1)
-		assert.EqualValues(t, "created", payloads[0].Action)
-		assert.Equal(t, "org3", payloads[0].Organization.UserName)
-		assert.Equal(t, "repo_new", payloads[0].Repository.Name)
-		assert.Equal(t, "org3/repo_new", payloads[0].Repository.FullName)
 	})
 }
 

@@ -10,8 +10,6 @@ import (
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/organization"
-	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
 	user_model "gitea.dev/models/user"
@@ -41,7 +39,7 @@ func deleteDBRepository(ctx context.Context, repoID int64) error {
 
 // DeleteRepository deletes a repository for a user or organization.
 // make sure if you call this func to close open sessions (sqlite will otherwise get a deadlock)
-func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams ...bool) error {
+func DeleteRepositoryDirectly(ctx context.Context, repoID int64) error {
 	ctx, committer, err := db.TxContext(ctx)
 	if err != nil {
 		return err
@@ -61,31 +59,8 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 		}
 	}
 
-	// In case owner is a organization, we have to change repo specific teams
-	// if ignoreOrgTeams is not true
-	var org *user_model.User
-	if len(ignoreOrgTeams) == 0 || !ignoreOrgTeams[0] {
-		if org, err = user_model.GetUserByID(ctx, repo.OwnerID); err != nil {
-			return err
-		}
-	}
-
 	if err := deleteDBRepository(ctx, repoID); err != nil {
 		return err
-	}
-
-	if org != nil && org.IsOrganization() {
-		teams, err := organization.FindOrgTeams(ctx, org.ID)
-		if err != nil {
-			return err
-		}
-		for _, t := range teams {
-			if !organization.HasTeamRepo(ctx, t.OrgID, t.ID, repoID) {
-				continue
-			} else if err = removeRepositoryFromTeam(ctx, t, repo, false); err != nil {
-				return err
-			}
-		}
 	}
 
 	if _, err := db.GetEngine(ctx).In("hook_id", builder.Select("id").From("webhook").Where(builder.Eq{"webhook.repo_id": repo.ID})).
@@ -94,8 +69,6 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 	}
 
 	if err := db.DeleteBeans(ctx,
-		&access_model.Access{RepoID: repo.ID},
-		&repo_model.Collaboration{RepoID: repoID},
 		&issues_model.Comment{RefRepoID: repoID},
 		&git_model.CommitStatus{RepoID: repoID},
 		&git_model.CommitStatusIndex{RepoID: repoID},

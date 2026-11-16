@@ -12,7 +12,6 @@ import (
 
 	auth_model "gitea.dev/models/auth"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/perm"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
@@ -150,19 +149,8 @@ func TestAPIPullUpdateByRebase(t *testing.T) {
 		enableRepoAllowUpdateWithRebase(t, pr.BaseRepo.ID, true)
 		assert.NoError(t, pr.LoadHeadRepo(t.Context()))
 
-		// use a user which have write access to the pr but not write permission to the head repository to do the rebase
-		user40 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 40})
-		err = repo_service.AddOrUpdateCollaborator(t.Context(), pr.BaseRepo, user40, perm.AccessModeWrite)
-		assert.NoError(t, err)
+		// every signed-in user owns both repositories, so any of them can rebase
 		token40 := getUserToken(t, "user40", auth_model.AccessTokenScopeWriteRepository)
-
-		req = NewRequestf(t, "POST", "/api/v1/repos/%s/%s/pulls/%d/update?style=rebase", pr.BaseRepo.OwnerName, pr.BaseRepo.Name, pr.Issue.Index).
-			AddTokenAuth(token40)
-		session.MakeRequest(t, req, http.StatusForbidden)
-
-		err = repo_service.AddOrUpdateCollaborator(t.Context(), pr.HeadRepo, user40, perm.AccessModeWrite)
-		assert.NoError(t, err)
-
 		req = NewRequestf(t, "POST", "/api/v1/repos/%s/%s/pulls/%d/update?style=rebase", pr.BaseRepo.OwnerName, pr.BaseRepo.Name, pr.Issue.Index).
 			AddTokenAuth(token40)
 		session.MakeRequest(t, req, http.StatusOK)
@@ -186,10 +174,6 @@ func TestAPIPullUpdateStyleSettings(t *testing.T) {
 			c.AllowRebaseUpdate = true
 			c.DefaultUpdateStyle = repo_model.UpdateStyleRebase
 		})
-
-		user40 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 40})
-		require.NoError(t, repo_service.AddOrUpdateCollaborator(t.Context(), pr.BaseRepo, user40, perm.AccessModeWrite))
-		require.NoError(t, repo_service.AddOrUpdateCollaborator(t.Context(), pr.HeadRepo, user40, perm.AccessModeWrite))
 
 		session := loginUser(t, "user40")
 		token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)

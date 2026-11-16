@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
@@ -30,7 +29,7 @@ func TestPullRequest_APIFormat(t *testing.T) {
 		Ref:        "refs/pull/2/head",
 		Sha:        "4a357436d925b5c974181ff12a994538ddc5a269",
 		RepoID:     1,
-		Repository: ToRepo(t.Context(), headRepo, access_model.Permission{AccessMode: perm.AccessModeRead}),
+		Repository: ToRepo(t.Context(), headRepo, access_model.Permission{}), // no doer, no access
 	}, apiPullRequest.Head)
 
 	// withOut HeadRepo

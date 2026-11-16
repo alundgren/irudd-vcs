@@ -14,7 +14,6 @@ import (
 
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
-	org_model "gitea.dev/models/organization"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
@@ -130,7 +129,6 @@ type PullRequest struct {
 	Issue                      *Issue `xorm:"-"`
 	Index                      int64
 	RequestedReviewers         []*user_model.User `xorm:"-"`
-	RequestedReviewersTeams    []*org_model.Team  `xorm:"-"`
 	isRequestedReviewersLoaded bool               `xorm:"-"`
 
 	HeadRepoID          int64                  `xorm:"INDEX"`
@@ -263,25 +261,6 @@ func (pr *PullRequest) LoadRequestedReviewers(ctx context.Context) error {
 	for _, review := range reviews {
 		if review.ReviewerID != 0 {
 			pr.RequestedReviewers = append(pr.RequestedReviewers, review.Reviewer)
-		}
-	}
-
-	return nil
-}
-
-// LoadRequestedReviewersTeams loads the requested reviewers teams.
-func (pr *PullRequest) LoadRequestedReviewersTeams(ctx context.Context) error {
-	reviews, _, err := GetReviewsByIssueID(ctx, pr.Issue.ID)
-	if err != nil {
-		return err
-	}
-	if err = reviews.LoadReviewersTeams(ctx); err != nil {
-		return err
-	}
-
-	for _, review := range reviews {
-		if review.ReviewerTeamID != 0 {
-			pr.RequestedReviewersTeams = append(pr.RequestedReviewersTeams, review.ReviewerTeam)
 		}
 	}
 
@@ -809,14 +788,12 @@ type CodeOwnerRule struct {
 	Rule     *regexp2.Regexp // it supports negative lookahead, does better for end users
 	Negative bool
 	Users    []*user_model.User
-	Teams    []*org_model.Team
 }
 
 func ParseCodeOwnersLine(ctx context.Context, tokens []string) (*CodeOwnerRule, []string) {
 	var err error
 	rule := &CodeOwnerRule{
 		Users:    make([]*user_model.User, 0),
-		Teams:    make([]*org_model.Team, 0),
 		Negative: strings.HasPrefix(tokens[0], "!"),
 	}
 
@@ -838,44 +815,15 @@ func ParseCodeOwnersLine(ctx context.Context, tokens []string) (*CodeOwnerRule, 
 
 	for _, user := range tokens[1:] {
 		user = strings.TrimPrefix(user, "@")
-
-		// Only @org/team can contain slashes
-		if strings.Contains(user, "/") {
-			s := strings.Split(user, "/")
-			if len(s) != 2 {
-				warnings = append(warnings, "incorrect codeowner group: "+user)
-				continue
-			}
-			orgName := s[0]
-			teamName := s[1]
-
-			org, err := org_model.GetOrgByName(ctx, orgName)
-			if err != nil {
-				warnings = append(warnings, "incorrect codeowner organization: "+user)
-				continue
-			}
-			teams, err := org.LoadTeams(ctx)
-			if err != nil {
-				warnings = append(warnings, "incorrect codeowner team: "+user)
-				continue
-			}
-
-			for _, team := range teams {
-				if team.Name == teamName {
-					rule.Teams = append(rule.Teams, team)
-				}
-			}
-		} else {
-			u, err := user_model.GetUserByName(ctx, user)
-			if err != nil {
-				warnings = append(warnings, "incorrect codeowner user: "+user)
-				continue
-			}
-			rule.Users = append(rule.Users, u)
+		u, err := user_model.GetUserByName(ctx, user) // @org/team owners can't match, there are no teams
+		if err != nil {
+			warnings = append(warnings, "incorrect codeowner user: "+user)
+			continue
 		}
+		rule.Users = append(rule.Users, u)
 	}
 
-	if (len(rule.Users) == 0) && (len(rule.Teams) == 0) {
+	if len(rule.Users) == 0 {
 		warnings = append(warnings, "no users/groups matched")
 		return nil, warnings
 	}

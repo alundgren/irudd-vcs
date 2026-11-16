@@ -102,10 +102,6 @@ func SearchIssues(ctx *context.APIContext) {
 	//   in: query
 	//   description: Only show items which were created by the given user
 	//   type: string
-	// - name: team
-	//   in: query
-	//   description: Filter by team (requires organization owner parameter)
-	//   type: string
 	// - name: page
 	//   in: query
 	//   description: Page number of results to return (1-based)
@@ -137,7 +133,6 @@ func SearchIssues(ctx *context.APIContext) {
 		Doer:       ctx.Doer,
 		PublicOnly: ctx.PublicOnly,
 		OwnerName:  ctx.FormString("owner"),
-		TeamName:   ctx.FormString("team"),
 	})
 	if err != nil {
 		if errors.Is(err, util.ErrNotExist) || errors.Is(err, util.ErrInvalidArgument) {

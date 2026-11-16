@@ -13,9 +13,6 @@ import (
 	"time"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
-	"gitea.dev/models/perm"
-	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
 	"gitea.dev/models/unit"
@@ -370,33 +367,6 @@ func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *r
 		return fmt.Errorf("IncrUserRepoNum: %w", err)
 	}
 	u.NumRepos++
-
-	// Give access to all members in teams with access to all repositories.
-	if u.IsOrganization() {
-		teams, err := organization.FindOrgTeams(ctx, u.ID)
-		if err != nil {
-			return fmt.Errorf("FindOrgTeams: %w", err)
-		}
-		for _, t := range teams {
-			if t.IncludesAllRepositories {
-				if err := addRepositoryToTeam(ctx, t, repo); err != nil {
-					return fmt.Errorf("AddRepository: %w", err)
-				}
-			}
-		}
-
-		if isAdmin, err := access_model.IsUserRepoAdmin(ctx, repo, doer); err != nil {
-			return fmt.Errorf("IsUserRepoAdmin: %w", err)
-		} else if !isAdmin {
-			// Make creator repo admin if it wasn't assigned automatically
-			if err = AddOrUpdateCollaborator(ctx, repo, doer, perm.AccessModeAdmin); err != nil {
-				return fmt.Errorf("AddCollaborator: %w", err)
-			}
-		}
-	} else if err = access_model.RecalculateAccesses(ctx, repo); err != nil {
-		// Organization automatically called this in AddRepository method.
-		return fmt.Errorf("RecalculateAccesses: %w", err)
-	}
 
 	if err = webhook.CopyDefaultWebhooksToRepo(ctx, repo.ID); err != nil {
 		return fmt.Errorf("CopyDefaultWebhooksToRepo: %w", err)

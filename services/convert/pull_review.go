@@ -37,14 +37,6 @@ func ToPullReview(ctx context.Context, r *issues_model.Review, doer *user_model.
 		HTMLPullURL:       r.Issue.HTMLURL(ctx),
 	}
 
-	if r.ReviewerTeam != nil {
-		var err error
-		result.ReviewerTeam, err = ToTeam(ctx, r.ReviewerTeam)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	switch r.Type {
 	case issues_model.ReviewTypeApprove:
 		result.State = api.ReviewStateApproved

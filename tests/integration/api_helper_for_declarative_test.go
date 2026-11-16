@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"gitea.dev/models/auth"
-	"gitea.dev/models/perm"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/queue"
@@ -90,28 +89,6 @@ func doAPIEditRepository(ctx APITestContext, editRepoOption *api.EditRepoOption,
 		if len(callback) > 0 {
 			callback[0](t, *repository)
 		}
-	}
-}
-
-func doAPIAddCollaborator(ctx APITestContext, username string, mode perm.AccessMode) func(*testing.T) {
-	return func(t *testing.T) {
-		permission := api.RepoWritePermissionRead
-
-		if mode == perm.AccessModeAdmin {
-			permission = api.RepoWritePermissionAdmin
-		} else if mode > perm.AccessModeRead {
-			permission = api.RepoWritePermissionWrite
-		}
-		addCollaboratorOption := &api.AddCollaboratorOption{
-			Permission: &permission,
-		}
-		req := NewRequestWithJSON(t, "PUT", fmt.Sprintf("/api/v1/repos/%s/%s/collaborators/%s", ctx.Username, ctx.Reponame, username), addCollaboratorOption).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		ctx.Session.MakeRequest(t, req, http.StatusNoContent)
 	}
 }
 
@@ -283,80 +260,5 @@ func doAPICreateFile(ctx APITestContext, treepath string, options *api.CreateFil
 		if len(callback) > 0 {
 			callback[0](t, *contents)
 		}
-	}
-}
-
-func doAPICreateOrganization(ctx APITestContext, options *api.CreateOrgOption, callback ...func(*testing.T, api.Organization)) func(t *testing.T) {
-	return func(t *testing.T) {
-		req := NewRequestWithJSON(t, "POST", "/api/v1/orgs", &options).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		resp := ctx.Session.MakeRequest(t, req, http.StatusCreated)
-
-		contents := DecodeJSON(t, resp, &api.Organization{})
-		if len(callback) > 0 {
-			callback[0](t, *contents)
-		}
-	}
-}
-
-func doAPICreateOrganizationRepository(ctx APITestContext, orgName string, options *api.CreateRepoOption, callback ...func(*testing.T, api.Repository)) func(t *testing.T) {
-	return func(t *testing.T) {
-		req := NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/orgs/%s/repos", orgName), &options).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		resp := ctx.Session.MakeRequest(t, req, http.StatusCreated)
-
-		contents := DecodeJSON(t, resp, &api.Repository{})
-		if len(callback) > 0 {
-			callback[0](t, *contents)
-		}
-	}
-}
-
-func doAPICreateOrganizationTeam(ctx APITestContext, orgName string, options *api.CreateTeamOption, callback ...func(*testing.T, api.Team)) func(t *testing.T) {
-	return func(t *testing.T) {
-		req := NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/orgs/%s/teams", orgName), &options).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		resp := ctx.Session.MakeRequest(t, req, http.StatusCreated)
-
-		contents := DecodeJSON(t, resp, &api.Team{})
-		if len(callback) > 0 {
-			callback[0](t, *contents)
-		}
-	}
-}
-
-func doAPIAddUserToOrganizationTeam(ctx APITestContext, teamID int64, username string) func(t *testing.T) {
-	return func(t *testing.T) {
-		req := NewRequest(t, "PUT", fmt.Sprintf("/api/v1/teams/%d/members/%s", teamID, username)).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		ctx.Session.MakeRequest(t, req, http.StatusNoContent)
-	}
-}
-
-func doAPIAddRepoToOrganizationTeam(ctx APITestContext, teamID int64, orgName, repoName string) func(t *testing.T) {
-	return func(t *testing.T) {
-		req := NewRequest(t, "PUT", fmt.Sprintf("/api/v1/teams/%d/repos/%s/%s", teamID, orgName, repoName)).
-			AddTokenAuth(ctx.Token)
-		if ctx.ExpectedCode != 0 {
-			ctx.Session.MakeRequest(t, req, ctx.ExpectedCode)
-			return
-		}
-		ctx.Session.MakeRequest(t, req, http.StatusNoContent)
 	}
 }

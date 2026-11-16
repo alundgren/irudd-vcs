@@ -11,13 +11,11 @@ import (
 
 	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
-	org_service "gitea.dev/services/org"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,15 +39,6 @@ func TestDeleteUser(t *testing.T) {
 			return
 		}
 
-		orgUsers := make([]*organization.OrgUser, 0, 10)
-		assert.NoError(t, db.GetEngine(t.Context()).Find(&orgUsers, &organization.OrgUser{UID: userID}))
-		for _, orgUser := range orgUsers {
-			org := unittest.AssertExistsAndLoadBean(t, &organization.Organization{ID: orgUser.OrgID})
-			if err := org_service.RemoveOrgUser(t.Context(), org, user); err != nil {
-				assert.True(t, organization.IsErrLastOrgOwner(err))
-				return
-			}
-		}
 		assert.NoError(t, DeleteUser(t.Context(), user, false))
 		unittest.AssertNotExistsBean(t, &user_model.User{ID: userID})
 		unittest.CheckConsistencyFor(t, &user_model.User{}, &repo_model.Repository{})

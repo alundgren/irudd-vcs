@@ -259,12 +259,11 @@ func TestIssue_ResolveMentions(t *testing.T) {
 	testSuccess("user2", "repo1", "user1", []string{"nonexisting"}, []int64{})
 	// Public repo, doer
 	testSuccess("user2", "repo1", "user1", []string{"user1"}, []int64{})
-	// Private repo, team member
+	// Private repo, every user can see it
 	testSuccess("org17", "big_test_private_4", "user20", []string{"user2"}, []int64{2})
-	// Private repo, not a team member
-	testSuccess("org17", "big_test_private_4", "user20", []string{"user5"}, []int64{})
-	// Private repo, whole team
-	testSuccess("org17", "big_test_private_4", "user15", []string{"org17/owners"}, []int64{18})
+	testSuccess("org17", "big_test_private_4", "user20", []string{"user5"}, []int64{5})
+	// Team mentions resolve nobody, there are no teams
+	testSuccess("org17", "big_test_private_4", "user15", []string{"org17/owners"}, []int64{})
 }
 
 func TestResourceIndex(t *testing.T) {

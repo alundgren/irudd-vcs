@@ -236,3 +236,72 @@ func updateIssueAssignees(ctx *context.APIContext, opts api.IssueAssigneesOption
 	}
 	ctx.JSON(status, convert.ToAPIIssue(ctx, ctx.Doer, issue))
 }
+
+// GetAssignees return all users that have write access and can be assigned to issues
+func GetAssignees(ctx *context.APIContext) {
+	// swagger:operation GET /repos/{owner}/{repo}/assignees repository repoGetAssignees
+	// ---
+	// summary: Return all users that have write access and can be assigned to issues
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: owner
+	//   in: path
+	//   description: owner of the repo
+	//   type: string
+	//   required: true
+	// - name: repo
+	//   in: path
+	//   description: name of the repo
+	//   type: string
+	//   required: true
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/UserList"
+	//   "404":
+	//     "$ref": "#/responses/notFound"
+
+	assignees, err := repo_model.GetRepoAssignees(ctx, ctx.Repo.Repository)
+	if err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, convert.ToUsers(ctx, ctx.Doer, assignees))
+}
+
+// CheckRepoIssueAssignee check if a user can be assigned to issues in a repository
+func CheckRepoIssueAssignee(ctx *context.APIContext) {
+	// swagger:operation GET /repos/{owner}/{repo}/assignees/{assignee} repository repoCheckAssignee
+	// ---
+	// summary: Check if a user can be assigned to issues in a repository
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: owner
+	//   in: path
+	//   description: owner of the repo
+	//   type: string
+	//   required: true
+	// - name: repo
+	//   in: path
+	//   description: name of the repo
+	//   type: string
+	//   required: true
+	// - name: assignee
+	//   in: path
+	//   description: username of the user to check for being an assignee
+	//   type: string
+	//   required: true
+	// responses:
+	//   "204":
+	//     "$ref": "#/responses/empty"
+	//   "400":
+	//     "$ref": "#/responses/error"
+	//   "404":
+	//     "$ref": "#/responses/notFound"
+
+	if checkAssignableUser(ctx, ctx.PathParam("assignee"), ctx.Repo.Repository) {
+		ctx.Status(http.StatusNoContent)
+	}
+}

@@ -15,7 +15,6 @@ import (
 	"unicode/utf8"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
@@ -239,9 +238,8 @@ type Comment struct {
 	RemovedLabels    []*Label `xorm:"-"`
 	AssigneeID       int64
 	RemovedAssignee  bool
-	Assignee         *user_model.User   `xorm:"-"`
-	AssigneeTeamID   int64              `xorm:"NOT NULL DEFAULT 0"`
-	AssigneeTeam     *organization.Team `xorm:"-"`
+	Assignee         *user_model.User `xorm:"-"`
+	AssigneeTeamID   int64            `xorm:"NOT NULL DEFAULT 0"`
 	ResolveDoerID    int64
 	ResolveDoer      *user_model.User `xorm:"-"`
 	OldTitle         string
@@ -505,12 +503,6 @@ func (c *Comment) LoadLabel(ctx context.Context) error {
 func (c *Comment) LoadAssigneeUserAndTeam(ctx context.Context) (err error) {
 	if c.AssigneeID > 0 && c.Assignee == nil {
 		_, c.Assignee, err = user_model.GetPossibleUserByID(ctx, c.AssigneeID)
-		if err != nil {
-			return err
-		}
-	}
-	if c.AssigneeTeamID > 0 && c.AssigneeTeam == nil {
-		_, c.AssigneeTeam, err = organization.GetPossibleTeamByID(ctx, c.AssigneeTeamID)
 		if err != nil {
 			return err
 		}

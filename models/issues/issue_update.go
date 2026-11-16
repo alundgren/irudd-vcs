@@ -10,10 +10,8 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
-	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/references"
@@ -457,85 +455,11 @@ func ResolveIssueMentionsByVisibility(ctx context.Context, issue *Issue, doer *u
 	}
 
 	resolved := make(map[string]bool, 10)
-	var mentionTeams []string
-
-	if err := issue.Repo.LoadOwner(ctx); err != nil {
-		return nil, err
-	}
-
-	repoOwnerIsOrg := issue.Repo.Owner.IsOrganization()
-	if repoOwnerIsOrg {
-		mentionTeams = make([]string, 0, 5)
-	}
-
 	resolved[doer.LowerName] = true
 	for _, name := range mentions {
 		name := strings.ToLower(name)
-		if _, ok := resolved[name]; ok {
-			continue
-		}
-		if repoOwnerIsOrg && strings.Contains(name, "/") {
-			names := strings.Split(name, "/")
-			if len(names) < 2 || names[0] != issue.Repo.Owner.LowerName {
-				continue
-			}
-			mentionTeams = append(mentionTeams, names[1])
-			resolved[name] = true
-		} else {
+		if _, ok := resolved[name]; !ok {
 			resolved[name] = false
-		}
-	}
-
-	if issue.Repo.Owner.IsOrganization() && len(mentionTeams) > 0 {
-		teams := make([]*organization.Team, 0, len(mentionTeams))
-		if err := db.GetEngine(ctx).
-			Join("INNER", "team_repo", "team_repo.team_id = team.id").
-			Where("team_repo.repo_id=?", issue.Repo.ID).
-			In("team.lower_name", mentionTeams).
-			Find(&teams); err != nil {
-			return nil, fmt.Errorf("find mentioned teams: %w", err)
-		}
-		if len(teams) != 0 {
-			checked := make([]int64, 0, len(teams))
-			unittype := unit.TypeIssues
-			if issue.IsPull {
-				unittype = unit.TypePullRequests
-			}
-			for _, team := range teams {
-				if team.HasAdminAccess() {
-					checked = append(checked, team.ID)
-					resolved[issue.Repo.Owner.LowerName+"/"+team.LowerName] = true
-					continue
-				}
-				has, err := db.Exist[organization.TeamUnit](ctx, builder.Eq{"org_id": issue.Repo.Owner.ID, "team_id": team.ID, "`type`": unittype})
-				if err != nil {
-					return nil, fmt.Errorf("get team units (%d): %w", team.ID, err)
-				}
-				if has {
-					checked = append(checked, team.ID)
-					resolved[issue.Repo.Owner.LowerName+"/"+team.LowerName] = true
-				}
-			}
-			if len(checked) != 0 {
-				teamusers := make([]*user_model.User, 0, 20)
-				if err := db.GetEngine(ctx).
-					Join("INNER", "team_user", "team_user.uid = `user`.id").
-					In("`team_user`.team_id", checked).
-					And("`user`.is_active = ?", true).
-					And("`user`.prohibit_login = ?", false).
-					Find(&teamusers); err != nil {
-					return nil, fmt.Errorf("get teams users: %w", err)
-				}
-				if len(teamusers) > 0 {
-					users = make([]*user_model.User, 0, len(teamusers))
-					for _, user := range teamusers {
-						if already, ok := resolved[user.LowerName]; !ok || !already {
-							users = append(users, user)
-							resolved[user.LowerName] = true
-						}
-					}
-				}
-			}
 		}
 	}
 
@@ -563,7 +487,7 @@ func ResolveIssueMentionsByVisibility(ctx context.Context, issue *Issue, doer *u
 		return nil, fmt.Errorf("find mentioned users: %w", err)
 	}
 	for _, user := range unchecked {
-		if already := resolved[user.LowerName]; already || user.IsOrganization() {
+		if resolved[user.LowerName] {
 			continue
 		}
 		// Normal users must have read access to the referencing issue

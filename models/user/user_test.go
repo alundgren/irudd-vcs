@@ -451,9 +451,9 @@ func TestIsUserVisibleToViewer(t *testing.T) {
 
 	user1 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})   // admin, public
 	user4 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})   // normal, public
-	user20 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 20}) // public, same team as user31
+	user20 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 20}) // public
 	user29 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 29}) // public, is restricted
-	user31 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 31}) // private, same team as user20
+	user31 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 31}) // private
 	user33 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 33}) // limited, followed 31 before follows were removed
 
 	test := func(u, viewer *user_model.User, expected bool) {
@@ -493,7 +493,7 @@ func TestIsUserVisibleToViewer(t *testing.T) {
 	// private user
 	test(user31, user31, true)
 	test(user31, user4, false)
-	test(user31, user20, true)
+	test(user31, user20, false) // sharing a team no longer grants visibility, there are no teams
 	test(user31, user29, false)
 	test(user31, user33, false) // following no longer grants visibility
 	test(user31, nil, false)

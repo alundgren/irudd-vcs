@@ -87,50 +87,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 			},
 		},
 		{
-			"/api/v1/admin/users/user2/orgs",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryAdmin,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/admin/users/user2/orgs",
-			"POST",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryAdmin,
-					auth_model.Write,
-				},
-			},
-		},
-		{
-			"/api/v1/admin/orgs",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryAdmin,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/org/org1/repos",
-			"POST",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryOrganization,
-					auth_model.Write,
-				},
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Write,
-				},
-			},
-		},
-		{
 			"/api/v1/repos/user1/repo1",
 			"GET",
 			[]permission{
@@ -197,26 +153,6 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 				{
 					auth_model.AccessTokenScopeCategoryRepository,
 					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/repos/user1/repo1/teams",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/repos/user1/repo1/teams/team1",
-			"PUT",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryRepository,
-					auth_model.Write,
 				},
 			},
 		},

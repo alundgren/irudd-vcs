@@ -8,7 +8,6 @@ import (
 	"errors"
 	"net/http"
 
-	"gitea.dev/models/organization"
 	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
@@ -84,35 +83,6 @@ func ListForks(ctx *context.APIContext) {
 	ctx.JSON(http.StatusOK, apiForks)
 }
 
-func prepareDoerCreateRepoInOrg(ctx *context.APIContext, orgName string) *organization.Organization {
-	org, err := organization.GetOrgByName(ctx, orgName)
-	if errors.Is(err, util.ErrNotExist) {
-		ctx.APIErrorNotFound()
-		return nil
-	} else if err != nil {
-		ctx.APIErrorInternal(err)
-		return nil
-	}
-
-	if !organization.HasOrgOrUserVisible(ctx, org.AsUser(), ctx.Doer) {
-		ctx.APIErrorNotFound()
-		return nil
-	}
-
-	if !ctx.Doer.IsAdmin {
-		canCreate, err := org.CanCreateOrgRepo(ctx, ctx.Doer.ID)
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return nil
-		}
-		if !canCreate {
-			ctx.APIError(http.StatusForbidden, "User is not allowed to create repositories in this organization.")
-			return nil
-		}
-	}
-	return org
-}
-
 // CreateFork create a fork of a repo
 func CreateFork(ctx *context.APIContext) {
 	// swagger:operation POST /repos/{owner}/{repo}/forks repository createFork
@@ -148,14 +118,11 @@ func CreateFork(ctx *context.APIContext) {
 	//     "$ref": "#/responses/validationError"
 
 	form := web.GetForm(ctx).(*api.CreateForkOption)
-	forkOwner := ctx.Doer // user/org that will own the fork
 	if form.Organization != nil {
-		org := prepareDoerCreateRepoInOrg(ctx, *form.Organization)
-		if ctx.Written() {
-			return
-		}
-		forkOwner = org.AsUser()
+		ctx.APIError(http.StatusUnprocessableEntity, "there are no organizations to fork into")
+		return
 	}
+	forkOwner := ctx.Doer
 
 	repo := ctx.Repo.Repository
 	name := optional.FromPtr(form.Name).ValueOrDefault(repo.Name)

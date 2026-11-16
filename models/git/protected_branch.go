@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
@@ -145,16 +144,7 @@ func (protectBranch *ProtectedBranch) CanUserPush(ctx context.Context, user *use
 		return true
 	}
 
-	if len(protectBranch.WhitelistTeamIDs) == 0 {
-		return false
-	}
-
-	in, err := organization.IsUserInTeams(ctx, user.ID, protectBranch.WhitelistTeamIDs)
-	if err != nil {
-		log.Error("IsUserInTeams: %v", err)
-		return false
-	}
-	return in
+	return false // there are no teams
 }
 
 // CanUserForcePush returns if some user could force push to this protected branch
@@ -172,16 +162,7 @@ func (protectBranch *ProtectedBranch) CanUserForcePush(ctx context.Context, user
 		return protectBranch.CanUserPush(ctx, user)
 	}
 
-	if len(protectBranch.ForcePushAllowlistTeamIDs) == 0 {
-		return false
-	}
-
-	in, err := organization.IsUserInTeams(ctx, user.ID, protectBranch.ForcePushAllowlistTeamIDs)
-	if err != nil {
-		log.Error("IsUserInTeams: %v", err)
-		return false
-	}
-	return in && protectBranch.CanUserPush(ctx, user)
+	return false // there are no teams
 }
 
 // IsUserMergeWhitelisted checks if some user is whitelisted to merge to this branch
@@ -195,16 +176,7 @@ func IsUserMergeWhitelisted(ctx context.Context, protectBranch *ProtectedBranch,
 		return true
 	}
 
-	if len(protectBranch.MergeWhitelistTeamIDs) == 0 {
-		return false
-	}
-
-	in, err := organization.IsUserInTeams(ctx, userID, protectBranch.MergeWhitelistTeamIDs)
-	if err != nil {
-		log.Error("IsUserInTeams: %v", err)
-		return false
-	}
-	return in
+	return false // there are no teams
 }
 
 // CanBypassBranchProtection reports whether the user can bypass branch protection checks (status checks, approvals, protected files)
@@ -219,15 +191,7 @@ func CanBypassBranchProtection(ctx context.Context, protectBranch *ProtectedBran
 	if slices.Contains(protectBranch.BypassAllowlistUserIDs, user.ID) {
 		return true
 	}
-	if len(protectBranch.BypassAllowlistTeamIDs) == 0 {
-		return false
-	}
-	in, err := organization.IsUserInTeams(ctx, user.ID, protectBranch.BypassAllowlistTeamIDs)
-	if err != nil {
-		log.Error("IsUserInTeams failed: userID=%d, repoID=%d, allowlistTeamIDs=%v, err=%v", user.ID, protectBranch.RepoID, protectBranch.BypassAllowlistTeamIDs, err)
-		return false
-	}
-	return in
+	return false // there are no teams
 }
 
 // IsUserOfficialReviewer check if user is official reviewer for the branch (counts towards required approvals)
@@ -250,12 +214,7 @@ func IsUserOfficialReviewer(ctx context.Context, protectBranch *ProtectedBranch,
 		return true, nil
 	}
 
-	inTeam, err := organization.IsUserInTeams(ctx, user.ID, protectBranch.ApprovalsWhitelistTeamIDs)
-	if err != nil {
-		return false, err
-	}
-
-	return inTeam, nil
+	return false, nil // there are no teams
 }
 
 // GetProtectedFilePatterns parses a semicolon separated list of protected file patterns and returns a glob.Glob slice
@@ -551,27 +510,9 @@ func updateUserWhitelist(ctx context.Context, repo *repo_model.Repository, curre
 	return whitelist, err
 }
 
-// updateTeamWhitelist checks whether the team whitelist changed and returns a whitelist with
-// the teams from newWhitelist which have write access to the repo.
-func updateTeamWhitelist(ctx context.Context, repo *repo_model.Repository, currentWhitelist, newWhitelist []int64) (whitelist []int64, err error) {
-	hasTeamsChanged := !util.SliceSortedEqual(currentWhitelist, newWhitelist)
-	if !hasTeamsChanged {
-		return currentWhitelist, nil
-	}
-
-	teams, err := organization.GetTeamsWithAccessToAnyRepoUnit(ctx, repo.OwnerID, repo.ID, perm.AccessModeRead, unit.TypeCode, unit.TypePullRequests)
-	if err != nil {
-		return nil, fmt.Errorf("GetTeamsWithAccessToRepo [org_id: %d, repo_id: %d]: %v", repo.OwnerID, repo.ID, err)
-	}
-
-	whitelist = make([]int64, 0, len(teams))
-	for i := range teams {
-		if slices.Contains(newWhitelist, teams[i].ID) {
-			whitelist = append(whitelist, teams[i].ID)
-		}
-	}
-
-	return whitelist, err
+// updateTeamWhitelist returns an empty team whitelist, since there are no teams
+func updateTeamWhitelist(_ context.Context, _ *repo_model.Repository, _, _ []int64) ([]int64, error) {
+	return []int64{}, nil
 }
 
 // DeleteProtectedBranch removes ProtectedBranch relation between the user and repository.

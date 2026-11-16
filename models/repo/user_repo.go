@@ -8,58 +8,19 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
-	"gitea.dev/models/perm"
-	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/container"
 
 	"xorm.io/builder"
 )
 
-// GetRepoAssignees returns all users that have write access and can be assigned to issues or pull-requests of the repository,
-func GetRepoAssignees(ctx context.Context, repo *Repository) (_ []*user_model.User, err error) {
-	if err = repo.LoadOwner(ctx); err != nil {
-		return nil, err
-	}
-
-	e := db.GetEngine(ctx)
-	userIDs := make([]int64, 0, 10)
-	if err = e.Table("access").
-		Where("repo_id = ? AND mode >= ?", repo.ID, perm.AccessModeWrite).
-		Select("user_id").
-		Find(&userIDs); err != nil {
-		return nil, err
-	}
-
-	uniqueUserIDs := make(container.Set[int64])
-	uniqueUserIDs.AddMultiple(userIDs...)
-
-	if repo.Owner.IsOrganization() {
-		// issues and pull requests both need "assignee list"
-		additionalUserIDs, err := organization.GetTeamUserIDsWithAccessToAnyRepoUnit(ctx, repo.OwnerID, repo.ID, perm.AccessModeRead, unit.TypeIssues, unit.TypePullRequests)
-		if err != nil {
-			return nil, err
-		}
-		uniqueUserIDs.AddMultiple(additionalUserIDs...)
-	}
-
-	// Leave a seat for owner itself to append later, but if owner is an organization
-	// and just waste 1 unit is cheaper than re-allocate memory once.
-	users := make([]*user_model.User, 0, len(uniqueUserIDs)+1)
-	if len(uniqueUserIDs) > 0 {
-		if err = e.In("id", uniqueUserIDs.Values()).
-			Where(builder.Eq{"`user`.is_active": true}).
-			OrderBy(user_model.GetOrderByName()).
-			Find(&users); err != nil {
-			return nil, err
-		}
-	}
-	if !repo.Owner.IsOrganization() && !uniqueUserIDs.Contains(repo.OwnerID) {
-		users = append(users, repo.Owner)
-	}
-
-	return users, nil
+// GetRepoAssignees returns all users that can be assigned to issues or pull-requests of the repository:
+// every active individual user, since any signed-in user has full access
+func GetRepoAssignees(ctx context.Context, _ *Repository) (users []*user_model.User, err error) {
+	err = db.GetEngine(ctx).
+		Where(builder.Eq{"`user`.is_active": true, "`user`.type": user_model.UserTypeIndividual}).
+		OrderBy(user_model.GetOrderByName()).
+		Find(&users)
+	return users, err
 }
 
 // GetIssuePostersWithSearch returns users with limit of 30 whose username started with prefix that have authored an issue/pull request for the given repository

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	"gitea.dev/modules/glob"
 	"gitea.dev/modules/timeutil"
 )
@@ -67,15 +66,7 @@ func IsUserAllowedModifyTag(ctx context.Context, pt *ProtectedTag, userID int64)
 		return true, nil
 	}
 
-	if len(pt.AllowlistTeamIDs) == 0 {
-		return false, nil
-	}
-
-	in, err := organization.IsUserInTeams(ctx, userID, pt.AllowlistTeamIDs)
-	if err != nil {
-		return false, err
-	}
-	return in, nil
+	return false, nil // there are no teams
 }
 
 // GetProtectedTags gets all protected tags of the repository

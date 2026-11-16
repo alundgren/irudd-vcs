@@ -12,9 +12,6 @@ import (
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/organization"
-	access_model "gitea.dev/models/perm/access"
-	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/setting"
 
@@ -27,12 +24,9 @@ func deleteUser(ctx context.Context, u *user_model.User, purge bool) (err error)
 
 	if err = db.DeleteBeans(ctx,
 		&auth_model.AccessToken{UID: u.ID},
-		&repo_model.Collaboration{UserID: u.ID},
-		&access_model.Access{UserID: u.ID},
 		&issues_model.IssueUser{UID: u.ID},
 		&user_model.EmailAddress{UID: u.ID},
 		&issues_model.Reaction{UserID: u.ID},
-		&organization.TeamUser{UID: u.ID},
 		&user_model.Setting{UserID: u.ID},
 		&user_model.Redirect{RedirectUserID: u.ID},
 	); err != nil {

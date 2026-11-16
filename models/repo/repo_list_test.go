@@ -9,7 +9,6 @@ import (
 
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
-	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/optional"
@@ -89,35 +88,36 @@ func getTestCases() []struct {
 			opts:  repo_model.SearchRepoOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 20, Private: true, Collaborate: optional.Some(false)},
 			count: 4,
 		},
+		// there are no collaborators, so including collaborative repos changes nothing
 		{
 			name:  "PublicRepositoriesOfUserIncludingCollaborative",
 			opts:  repo_model.SearchRepoOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 15},
-			count: 5,
+			count: 2,
 		},
 		{
 			name:  "PublicRepositoriesOfUser2IncludingCollaborative",
 			opts:  repo_model.SearchRepoOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 18},
-			count: 1,
+			count: 0,
 		},
 		{
 			name:  "PublicRepositoriesOfOrg3IncludingCollaborative",
 			opts:  repo_model.SearchRepoOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 20},
-			count: 3,
+			count: 2,
 		},
 		{
 			name:  "PublicAndPrivateRepositoriesOfUserIncludingCollaborative",
 			opts:  repo_model.SearchRepoOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 15, Private: true},
-			count: 9,
+			count: 4,
 		},
 		{
 			name:  "PublicAndPrivateRepositoriesOfUser2IncludingCollaborative",
 			opts:  repo_model.SearchRepoOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 18, Private: true},
-			count: 4,
+			count: 0,
 		},
 		{
 			name:  "PublicAndPrivateRepositoriesOfOrg3IncludingCollaborative",
 			opts:  repo_model.SearchRepoOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 20, Private: true},
-			count: 7,
+			count: 4,
 		},
 		{
 			name:  "PublicRepositoriesOfOrganization",
@@ -147,17 +147,17 @@ func getTestCases() []struct {
 		{
 			name:  "AllPublic/PublicAndPrivateRepositoriesOfUserIncludingCollaborative",
 			opts:  repo_model.SearchRepoOptions{ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 15, Private: true, AllPublic: true, AllLimited: true, Template: optional.Some(false)},
-			count: 39,
+			count: 37,
 		},
 		{
 			name:  "AllPublic/PublicAndPrivateRepositoriesOfUserIncludingCollaborativeByName",
 			opts:  repo_model.SearchRepoOptions{Keyword: "test", ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 15, Private: true, AllPublic: true},
-			count: 15,
+			count: 13,
 		},
 		{
 			name:  "AllPublic/PublicAndPrivateRepositoriesOfUser2IncludingCollaborativeByName",
 			opts:  repo_model.SearchRepoOptions{Keyword: "test", ListOptions: db.ListOptions{Page: 1, PageSize: 10}, OwnerID: 18, Private: true, AllPublic: true},
-			count: 13,
+			count: 11,
 		},
 		{
 			name:  "AllPublic/PublicRepositoriesOfOrganization",
@@ -255,9 +255,9 @@ func testSearchRepositoryRestricted(t *testing.T) {
 		assert.ElementsMatch(t, normalPublicRepoIDs, repoIDs)
 	})
 	t.Run("RestrictedUser-RequiredSignIn", func(t *testing.T) {
-		// restricted user can see only their own repo
+		// restriction no longer limits repos, every signed-in user owns everything
 		repoIDs := performSearch(t, restrictedUser)
-		assert.Equal(t, []int64{4}, repoIDs)
+		assert.ElementsMatch(t, normalPublicRepoIDs, repoIDs)
 	})
 }
 
@@ -474,37 +474,4 @@ func TestSearchRepositoryByTopicName(t *testing.T) {
 			assert.Equal(t, int64(testCase.count), count)
 		})
 	}
-}
-
-// TestUserOrgUnitRepoCondTeamAuthorize pins the team.authorize behavior of userOrgTeamUnitRepoBuilder
-// (exercised through UserOrgUnitRepoCond): an admin/owner team grants every unit even without an explicit
-// team_unit row, while a non-admin team only grants a unit it has an explicit row for. This guards both
-// directions — hiding repos from admin-team members, and over-broadening a plain team's access.
-func TestUserOrgUnitRepoCondTeamAuthorize(t *testing.T) {
-	require.NoError(t, unittest.PrepareTestDatabase())
-
-	accessibleRepoIDs := func(userID, orgID int64, unitType unit.Type) []int64 {
-		ids, err := repo_model.SearchRepositoryIDsByCondition(t.Context(),
-			repo_model.UserOrgUnitRepoCond("`repository`.id", userID, orgID, unitType))
-		require.NoError(t, err)
-		return ids
-	}
-
-	// the fixtures give team2 and team5 a row for every kept unit, so drop their Releases rows
-	_, err := db.GetEngine(t.Context()).Exec("DELETE FROM team_unit WHERE team_id IN (2, 5) AND type = ?", unit.TypeReleases)
-	require.NoError(t, err)
-
-	// Case A: user18 is only on org17's owner team (team5, authorize=owner), linked to the private repo24
-	// but with no Releases team_unit row. The owner authorize must still grant it, mirroring the runtime
-	// HasAdminAccess() short-circuit in access.GetIndividualUserRepoPermission.
-	assert.Contains(t, accessibleRepoIDs(18, 17, unit.TypeReleases), int64(24),
-		"an owner team grants a unit it has no explicit team_unit row for")
-
-	// Cases B and C share one subject so the team_unit row is the only difference: user4 is only on org3's
-	// write team (team2, authorize=write, non-admin), linked to the private repo3. team2 has an explicit
-	// Code row but none for Releases.
-	assert.Contains(t, accessibleRepoIDs(4, 3, unit.TypeCode), int64(3),
-		"a non-admin team grants a unit it has an explicit team_unit row for")
-	assert.NotContains(t, accessibleRepoIDs(4, 3, unit.TypeReleases), int64(3),
-		"a non-admin team must NOT grant a unit it has no team_unit row for")
 }

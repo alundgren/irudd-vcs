@@ -62,11 +62,6 @@ func Search(ctx *context.APIContext) {
 	//   description: repo owner to prioritize in the results
 	//   type: integer
 	//   format: int64
-	// - name: team_id
-	//   in: query
-	//   description: search only for repos that belong to the given team id
-	//   type: integer
-	//   format: int64
 	// - name: starredBy
 	//   in: query
 	//   description: search only for repos that the user with the given id has starred
@@ -130,7 +125,6 @@ func Search(ctx *context.APIContext) {
 		Keyword:            ctx.FormTrim("q"),
 		OwnerID:            ctx.FormInt64("uid"),
 		PriorityOwnerID:    ctx.FormInt64("priority_owner_id"),
-		TeamID:             ctx.FormInt64("team_id"),
 		TopicOnly:          ctx.FormBool("topic"),
 		Collaborate:        optional.None[bool](),
 		Private:            private,
@@ -295,76 +289,6 @@ func Create(ctx *context.APIContext) {
 		return
 	}
 	CreateUserRepo(ctx, ctx.Doer, *opt)
-}
-
-// CreateOrgRepoDeprecated create one repository of the organization
-func CreateOrgRepoDeprecated(ctx *context.APIContext) {
-	// swagger:operation POST /org/{org}/repos organization createOrgRepoDeprecated
-	// ---
-	// summary: Create a repository in an organization
-	// deprecated: true
-	// consumes:
-	// - application/json
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: org
-	//   in: path
-	//   description: name of organization
-	//   type: string
-	//   required: true
-	// - name: body
-	//   in: body
-	//   schema:
-	//     "$ref": "#/definitions/CreateRepoOption"
-	// responses:
-	//   "201":
-	//     "$ref": "#/responses/Repository"
-	//   "422":
-	//     "$ref": "#/responses/validationError"
-	//   "403":
-	//     "$ref": "#/responses/forbidden"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-
-	CreateOrgRepo(ctx)
-}
-
-// CreateOrgRepo create one repository of the organization
-func CreateOrgRepo(ctx *context.APIContext) {
-	// swagger:operation POST /orgs/{org}/repos organization createOrgRepo
-	// ---
-	// summary: Create a repository in an organization
-	// consumes:
-	// - application/json
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: org
-	//   in: path
-	//   description: name of organization
-	//   type: string
-	//   required: true
-	// - name: body
-	//   in: body
-	//   schema:
-	//     "$ref": "#/definitions/CreateRepoOption"
-	// responses:
-	//   "201":
-	//     "$ref": "#/responses/Repository"
-	//   "400":
-	//     "$ref": "#/responses/error"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-	//   "403":
-	//     "$ref": "#/responses/forbidden"
-	opt := web.GetForm(ctx).(*api.CreateRepoOption)
-	orgName := ctx.PathParam("org")
-	org := prepareDoerCreateRepoInOrg(ctx, orgName)
-	if ctx.Written() {
-		return
-	}
-	CreateUserRepo(ctx, org.AsUser(), *opt)
 }
 
 // Get one repository

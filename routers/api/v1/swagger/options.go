@@ -15,9 +15,6 @@ import (
 // swagger:response parameterBodies
 type swaggerParameterBodies struct {
 	// in:body
-	AddCollaboratorOption api.AddCollaboratorOption
-
-	// in:body
 	CreateEmailOption api.CreateEmailOption
 	// in:body
 	DeleteEmailOption api.DeleteEmailOption
@@ -56,11 +53,6 @@ type swaggerParameterBodies struct {
 	EditLabelOption api.EditLabelOption
 
 	// in:body
-	CreateOrgOption api.CreateOrgOption
-	// in:body
-	EditOrgOption api.EditOrgOption
-
-	// in:body
 	CreatePullRequestOption api.CreatePullRequestOption
 	// in:body
 	EditPullRequestOption api.EditPullRequestOption
@@ -78,11 +70,6 @@ type swaggerParameterBodies struct {
 
 	// in:body
 	CreateStatusOption api.CreateStatusOption
-
-	// in:body
-	CreateTeamOption api.CreateTeamOption
-	// in:body
-	EditTeamOption api.EditTeamOption
 
 	// in:body
 	CreateUserOption api.CreateUserOption
@@ -151,7 +138,4 @@ type swaggerParameterBodies struct {
 
 	// in:body
 	UserSettingsOptions api.UserSettingsOptions
-
-	// in:body
-	RenameOrgOption api.RenameOrgOption
 }

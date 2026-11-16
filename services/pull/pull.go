@@ -17,7 +17,6 @@ import (
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
@@ -41,13 +40,12 @@ func getPullWorkingLockKey(prID int64) string {
 }
 
 type NewPullRequestOptions struct {
-	Repo          *repo_model.Repository
-	Issue         *issues_model.Issue
-	LabelIDs      []int64
-	PullRequest   *issues_model.PullRequest
-	AssigneeIDs   []int64
-	Reviewers     []*user_model.User
-	TeamReviewers []*organization.Team
+	Repo        *repo_model.Repository
+	Issue       *issues_model.Issue
+	LabelIDs    []int64
+	PullRequest *issues_model.PullRequest
+	AssigneeIDs []int64
+	Reviewers   []*user_model.User
 }
 
 // NewPullRequest creates new pull request with labels for repository.
@@ -57,26 +55,17 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 		return err
 	}
 
-	// user should be a collaborator or a member of the organization for base repo
-	canCreate := issue.Poster.IsAdmin || pr.Flow == issues_model.PullRequestFlowAGit
-	if !canCreate {
-		canCreate, err := repo_model.IsOwnerMemberCollaborator(ctx, repo, issue.Poster.ID)
+	// the poster should have write permission in the head repo
+	if !issue.Poster.IsAdmin && pr.Flow != issues_model.PullRequestFlowAGit {
+		if err := pr.LoadHeadRepo(ctx); err != nil {
+			return err
+		}
+		perm, err := access_model.GetDoerRepoPermission(ctx, pr.HeadRepo, issue.Poster)
 		if err != nil {
 			return err
 		}
-
-		if !canCreate {
-			// or user should have write permission in the head repo
-			if err := pr.LoadHeadRepo(ctx); err != nil {
-				return err
-			}
-			perm, err := access_model.GetDoerRepoPermission(ctx, pr.HeadRepo, issue.Poster)
-			if err != nil {
-				return err
-			}
-			if !perm.CanWrite(unit.TypeCode) {
-				return issues_model.ErrMustCollaborator
-			}
+		if !perm.CanWrite(unit.TypeCode) {
+			return issues_model.ErrMustCollaborator
 		}
 	}
 
@@ -155,11 +144,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 	}
 	for _, reviewer := range opts.Reviewers {
 		if _, err = issue_service.ReviewRequest(ctx, pr.Issue, issue.Poster, &permDoer, reviewer, true); err != nil {
-			return err
-		}
-	}
-	for _, teamReviewer := range opts.TeamReviewers {
-		if _, err = issue_service.TeamReviewRequest(ctx, pr.Issue, issue.Poster, teamReviewer, true); err != nil {
 			return err
 		}
 	}

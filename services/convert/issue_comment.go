@@ -120,9 +120,6 @@ func ToTimelineComment(ctx context.Context, repo *repo_model.Repository, c *issu
 	if c.Assignee != nil {
 		comment.Assignee = ToUser(ctx, c.Assignee, nil)
 	}
-	if c.AssigneeTeam != nil {
-		comment.AssigneeTeam, _ = ToTeam(ctx, c.AssigneeTeam)
-	}
 
 	if c.ResolveDoer != nil {
 		comment.ResolveDoer = ToUser(ctx, c.ResolveDoer, nil)

@@ -170,8 +170,7 @@ func BuildCanSeeUserCondition(actor *User) builder.Cond {
 	if actor != nil {
 		// If Admin - they see all users!
 		if !actor.IsAdmin {
-			// Users can see an organization they are a member of
-			cond := builder.In("`user`.id", builder.Select("org_id").From("org_user").Where(builder.Eq{"uid": actor.ID}))
+			cond := builder.NewCond()
 			if !actor.IsRestricted {
 				// Not-Restricted users can see public and limited users/organizations
 				cond = cond.Or(builder.In("`user`.visibility", structs.VisibleTypePublic, structs.VisibleTypeLimited))

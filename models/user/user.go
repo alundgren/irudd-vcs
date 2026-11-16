@@ -1146,7 +1146,7 @@ func GetUserByEmail(ctx context.Context, email string) (*User, error) {
 }
 
 // IsUserVisibleToViewer check if viewer is able to see user profile
-func IsUserVisibleToViewer(ctx context.Context, u, viewer *User) bool {
+func IsUserVisibleToViewer(_ context.Context, u, viewer *User) bool {
 	if viewer != nil && (viewer.IsAdmin || viewer.ID == u.ID) {
 		return true
 	}
@@ -1160,33 +1160,7 @@ func IsUserVisibleToViewer(ctx context.Context, u, viewer *User) bool {
 		}
 		return true
 	case structs.VisibleTypePrivate:
-		if viewer == nil || viewer.IsRestricted {
-			return false
-		}
-
-		// Now we need to check if they in some organization together
-		count, err := db.GetEngine(ctx).Table("team_user").
-			Where(
-				builder.And(
-					builder.Eq{"uid": viewer.ID},
-					builder.Or(
-						builder.Eq{"org_id": u.ID},
-						builder.In("org_id",
-							builder.Select("org_id").
-								From("team_user", "t2").
-								Where(builder.Eq{"uid": u.ID}))))).
-			Count()
-		if err != nil {
-			return false
-		}
-
-		if count == 0 {
-			// No common organization
-			return false
-		}
-
-		// they are in an organization together
-		return true
+		return false // only admins and the user themself, there are no organizations to share
 	}
 	return false
 }

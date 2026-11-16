@@ -10,14 +10,12 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	perm_model "gitea.dev/models/perm"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 )
 
@@ -27,9 +25,6 @@ type Permission struct {
 
 	units     []*repo_model.RepoUnit
 	unitsMode map[unit.Type]perm_model.AccessMode
-
-	everyoneAccessMode  map[unit.Type]perm_model.AccessMode // the unit's minimal access mode for every signed-in user
-	anonymousAccessMode map[unit.Type]perm_model.AccessMode // the unit's minimal access mode for anonymous (non-signed-in) user
 }
 
 // IsOwner returns true if current user is the owner of repository.
@@ -42,9 +37,7 @@ func (p *Permission) IsAdmin() bool {
 	return p.AccessMode >= perm_model.AccessModeAdmin
 }
 
-// HasAnyUnitAccess returns true if the user might have at least one access mode to any unit of this repository.
-// It doesn't count the "public(anonymous/everyone) access mode".
-// TODO: most calls to this function should be replaced with `HasAnyUnitAccessOrPublicAccess`
+// HasAnyUnitAccess returns true if the user has at least read access to any unit of this repository
 func (p *Permission) HasAnyUnitAccess() bool {
 	for _, v := range p.unitsMode {
 		if v >= perm_model.AccessModeRead {
@@ -52,24 +45,6 @@ func (p *Permission) HasAnyUnitAccess() bool {
 		}
 	}
 	return p.AccessMode >= perm_model.AccessModeRead
-}
-
-func (p *Permission) HasAnyUnitPublicAccess() bool {
-	for _, v := range p.anonymousAccessMode {
-		if v >= perm_model.AccessModeRead {
-			return true
-		}
-	}
-	for _, v := range p.everyoneAccessMode {
-		if v >= perm_model.AccessModeRead {
-			return true
-		}
-	}
-	return false
-}
-
-func (p *Permission) HasAnyUnitAccessOrPublicAccess() bool {
-	return p.HasAnyUnitPublicAccess() || p.HasAnyUnitAccess()
 }
 
 // HasUnits returns true if the permission contains attached units
@@ -87,18 +62,14 @@ func (p *Permission) GetFirstUnitRepoID() int64 {
 }
 
 // UnitAccessMode returns current user access mode to the specify unit of the repository
-// It also considers "public (anonymous/everyone) access mode"
 func (p *Permission) UnitAccessMode(unitType unit.Type) perm_model.AccessMode {
 	// if the units map contains the access mode, use it, but admin/owner mode could override it
 	if m, ok := p.unitsMode[unitType]; ok {
 		return util.Iif(p.AccessMode >= perm_model.AccessModeAdmin, p.AccessMode, m)
 	}
 	// if the units map does not contain the access mode, return the default access mode if the unit exists
-	unitDefaultAccessMode := p.AccessMode
-	unitDefaultAccessMode = max(unitDefaultAccessMode, p.anonymousAccessMode[unitType])
-	unitDefaultAccessMode = max(unitDefaultAccessMode, p.everyoneAccessMode[unitType])
 	hasUnit := slices.ContainsFunc(p.units, func(u *repo_model.RepoUnit) bool { return u.Type == unitType })
-	return util.Iif(hasUnit, unitDefaultAccessMode, perm_model.AccessModeNone)
+	return util.Iif(hasUnit, p.AccessMode, perm_model.AccessModeNone)
 }
 
 func (p *Permission) SetUnitsWithDefaultAccessMode(units []*repo_model.RepoUnit, mode perm_model.AccessMode) {
@@ -188,72 +159,8 @@ func (p *Permission) LogString() string {
 		format.WriteString("\n\tunitsMode[%-v]: %-v")
 		args = append(args, key.LogString(), value.LogString())
 	}
-	format.WriteString("\n\tanonymousAccessMode: %-v")
-	args = append(args, p.anonymousAccessMode)
-	format.WriteString("\n\teveryoneAccessMode: %-v")
-	args = append(args, p.everyoneAccessMode)
 	format.WriteString("\n\t]>")
 	return fmt.Sprintf(format.String(), args...)
-}
-
-func applyPublicAccessPermission(unitType unit.Type, accessMode perm_model.AccessMode, modeMap *map[unit.Type]perm_model.AccessMode) {
-	if setting.Repository.ForcePrivate {
-		return
-	}
-	if accessMode >= perm_model.AccessModeRead && accessMode > (*modeMap)[unitType] {
-		if *modeMap == nil {
-			*modeMap = make(map[unit.Type]perm_model.AccessMode)
-		}
-		(*modeMap)[unitType] = accessMode
-	}
-}
-
-func finalProcessRepoUnitPermission(user *user_model.User, perm *Permission) {
-	// apply public (anonymous) access permissions
-	for _, u := range perm.units {
-		applyPublicAccessPermission(u.Type, u.AnonymousAccessMode, &perm.anonymousAccessMode)
-	}
-
-	if user == nil || user.ID <= 0 {
-		// for anonymous access, it could be:
-		// AccessMode is None or Read, units has repo units, unitModes is nil
-		return
-	}
-
-	// apply public (everyone) access permissions
-	for _, u := range perm.units {
-		applyPublicAccessPermission(u.Type, u.EveryoneAccessMode, &perm.everyoneAccessMode)
-	}
-
-	if perm.unitsMode == nil {
-		// if unitsMode is not set, then it means that the default p.AccessMode applies to all units
-		return
-	}
-
-	// remove no permission units
-	origPermUnits := perm.units
-	perm.units = make([]*repo_model.RepoUnit, 0, len(perm.units))
-	for _, u := range origPermUnits {
-		shouldKeep := false
-		for t := range perm.unitsMode {
-			if shouldKeep = u.Type == t; shouldKeep {
-				break
-			}
-		}
-		for t := range perm.anonymousAccessMode {
-			if shouldKeep = shouldKeep || u.Type == t; shouldKeep {
-				break
-			}
-		}
-		for t := range perm.everyoneAccessMode {
-			if shouldKeep = shouldKeep || u.Type == t; shouldKeep {
-				break
-			}
-		}
-		if shouldKeep {
-			perm.units = append(perm.units, u)
-		}
-	}
 }
 
 // GetDoerRepoPermission returns the repository permission for the current actor
@@ -262,139 +169,23 @@ func GetDoerRepoPermission(ctx context.Context, repo *repo_model.Repository, use
 }
 
 // GetIndividualUserRepoPermission returns the permissions for an explicit user identity.
-// In most request paths, callers should use GetDoerRepoPermission instead.
-// Unlike GetDoerRepoPermission, this helper does not resolve Actions task users.
+// The server has a single owner: any signed-in user has full access to every repository,
+// anonymous requests have none. In most request paths, callers should use GetDoerRepoPermission instead.
 func GetIndividualUserRepoPermission(ctx context.Context, repo *repo_model.Repository, user *user_model.User) (perm Permission, err error) {
-	defer func() {
-		if err == nil {
-			finalProcessRepoUnitPermission(user, &perm)
-		}
-		log.Trace("Permission Loaded for user %-v in repo %-v, permissions: %-+v", user, repo, perm)
-	}()
-
 	if err = repo.LoadUnits(ctx); err != nil {
 		return perm, err
 	}
 	perm.units = repo.Units
-
-	// anonymous user visit private repo.
-	if user == nil && repo.IsPrivate {
-		perm.AccessMode = perm_model.AccessModeNone
-		return perm, nil
-	}
-
-	var isCollaborator bool
-	if user != nil {
-		isCollaborator, err = repo_model.IsCollaborator(ctx, repo.ID, user.ID)
-		if err != nil {
-			return perm, err
-		}
-	}
-
-	if err = repo.LoadOwner(ctx); err != nil {
-		return perm, err
-	}
-
-	// Prevent strangers from checking out public repo of private organization/users
-	// Allow user if they are a collaborator of a repo within a private user or a private organization but not a member of the organization itself
-	// TODO: rename it to "IsOwnerVisibleToDoer"
-	if !organization.HasOrgOrUserVisible(ctx, repo.Owner, user) && !isCollaborator {
-		perm.AccessMode = perm_model.AccessModeNone
-		return perm, nil
-	}
-
-	// anonymous visit public repo
-	if user == nil {
-		perm.AccessMode = perm_model.AccessModeRead
-		return perm, nil
-	}
-
-	// Admin or the owner has super access to the repository
-	if user.IsAdmin || user.ID == repo.OwnerID {
+	if user != nil && user.ID > 0 {
 		perm.AccessMode = perm_model.AccessModeOwner
-		return perm, nil
 	}
-
-	// plain user TODO: this check should be replaced, only need to check collaborator access mode
-	perm.AccessMode, err = accessLevel(ctx, user, repo)
-	if err != nil {
-		return perm, err
-	}
-
-	if !repo.Owner.IsOrganization() {
-		return perm, nil
-	}
-
-	// now: the owner is visible to doer, if the repo is public, then the min access mode is read
-	minAccessMode := util.Iif(!repo.IsPrivate && !user.IsRestricted, perm_model.AccessModeRead, perm_model.AccessModeNone)
-	perm.AccessMode = max(perm.AccessMode, minAccessMode)
-
-	// get units mode from teams
-	teams, err := organization.GetUserRepoTeams(ctx, repo.OwnerID, user.ID, repo.ID)
-	if err != nil {
-		return perm, err
-	}
-	if len(teams) == 0 {
-		return perm, nil
-	}
-
-	perm.unitsMode = make(map[unit.Type]perm_model.AccessMode)
-
-	// Collaborators on organization
-	if isCollaborator {
-		for _, u := range repo.Units {
-			perm.unitsMode[u.Type] = perm.AccessMode
-		}
-	}
-
-	// if user in an owner team
-	for _, team := range teams {
-		if team.HasAdminAccess() {
-			perm.AccessMode = perm_model.AccessModeOwner
-			perm.unitsMode = nil
-			return perm, nil
-		}
-	}
-
-	for _, u := range repo.Units {
-		for _, team := range teams {
-			teamMode, _ := team.UnitAccessModeEx(ctx, u.Type)
-			unitAccessMode := max(perm.unitsMode[u.Type], minAccessMode, teamMode)
-			perm.unitsMode[u.Type] = unitAccessMode
-		}
-	}
-
-	return perm, err
+	log.Trace("Permission Loaded for user %-v in repo %-v, permissions: %-+v", user, repo, perm)
+	return perm, nil
 }
 
 // IsUserRepoAdmin return true if user has admin right of a repo
-func IsUserRepoAdmin(ctx context.Context, repo *repo_model.Repository, user *user_model.User) (bool, error) {
-	if user == nil || repo == nil {
-		return false, nil
-	}
-	if user.IsAdmin {
-		return true, nil
-	}
-
-	mode, err := accessLevel(ctx, user, repo)
-	if err != nil {
-		return false, err
-	}
-	if mode >= perm_model.AccessModeAdmin {
-		return true, nil
-	}
-
-	teams, err := organization.GetUserRepoTeams(ctx, repo.OwnerID, user.ID, repo.ID)
-	if err != nil {
-		return false, err
-	}
-
-	for _, team := range teams {
-		if team.HasAdminAccess() {
-			return true, nil
-		}
-	}
-	return false, nil
+func IsUserRepoAdmin(_ context.Context, repo *repo_model.Repository, user *user_model.User) (bool, error) {
+	return user != nil && user.ID > 0 && repo != nil, nil
 }
 
 // AccessLevel returns the Access a user has to a repository. Will return NoneAccess if the
@@ -405,7 +196,6 @@ func AccessLevel(ctx context.Context, user *user_model.User, repo *repo_model.Re
 
 // AccessLevelUnit returns the Access a user has to a repository's. Will return NoneAccess if the
 // user does not have access.
-// This helper only supports explicit user identities and does not resolve Actions task users.
 func AccessLevelUnit(ctx context.Context, user *user_model.User, repo *repo_model.Repository, unitType unit.Type) (perm_model.AccessMode, error) { //nolint:revive // export stutter
 	perm, err := GetIndividualUserRepoPermission(ctx, repo, user)
 	if err != nil {
@@ -435,7 +225,6 @@ func CanBeAssigned(ctx context.Context, user *user_model.User, repo *repo_model.
 }
 
 // HasAnyUnitAccess see the comment of "perm.HasAnyUnitAccess"
-// This helper only supports explicit user identities and does not resolve Actions task users.
 func HasAnyUnitAccess(ctx context.Context, userID int64, repo *repo_model.Repository) (bool, error) {
 	var user *user_model.User
 	var err error
@@ -452,42 +241,27 @@ func HasAnyUnitAccess(ctx context.Context, userID int64, repo *repo_model.Reposi
 	return perm.HasAnyUnitAccess(), nil
 }
 
-func GetUsersWithAnyUnitAccess(ctx context.Context, repo *repo_model.Repository, mode perm_model.AccessMode, unitType unit.Type, moreUnitTypes ...unit.Type) (users []*user_model.User, err error) {
-	userIDs, err := GetUserIDsWithAnyUnitAccess(ctx, repo, mode, unitType, moreUnitTypes...)
+// GetUsersWithAnyUnitAccess returns the users with access to the repository, which is every individual user
+func GetUsersWithAnyUnitAccess(ctx context.Context, repo *repo_model.Repository, _ perm_model.AccessMode, _ unit.Type, _ ...unit.Type) (users []*user_model.User, err error) {
+	if err = repo.LoadUnits(ctx); err != nil {
+		return nil, err
+	}
+	if len(repo.Units) == 0 {
+		return users, nil
+	}
+	err = db.GetEngine(ctx).Where("`type` = ?", user_model.UserTypeIndividual).OrderBy("`name`").Find(&users)
+	return users, err
+}
+
+// GetUserIDsWithAnyUnitAccess returns the IDs of the users with access to the repository, see GetUsersWithAnyUnitAccess
+func GetUserIDsWithAnyUnitAccess(ctx context.Context, repo *repo_model.Repository, mode perm_model.AccessMode, unitType unit.Type, moreUnitTypes ...unit.Type) (container.Set[int64], error) {
+	users, err := GetUsersWithAnyUnitAccess(ctx, repo, mode, unitType, moreUnitTypes...)
 	if err != nil {
 		return nil, err
 	}
-	if len(userIDs) == 0 {
-		return users, nil
-	}
-	if err = db.GetEngine(ctx).In("id", userIDs.Values()).OrderBy("`name`").Find(&users); err != nil {
-		return nil, err
-	}
-	return users, nil
-}
-
-func GetUserIDsWithAnyUnitAccess(ctx context.Context, repo *repo_model.Repository, mode perm_model.AccessMode, unitType unit.Type, moreUnitTypes ...unit.Type) (container.Set[int64], error) {
-	userIDs := container.Set[int64]{}
-	e := db.GetEngine(ctx)
-	accesses := make([]*Access, 0, 10)
-	if err := e.Where("repo_id = ? AND mode >= ?", repo.ID, mode).Find(&accesses); err != nil {
-		return nil, err
-	}
-	for _, a := range accesses {
-		userIDs.Add(a.UserID)
-	}
-
-	if err := repo.LoadOwner(ctx); err != nil {
-		return nil, err
-	}
-	if !repo.Owner.IsOrganization() {
-		userIDs.Add(repo.Owner.ID)
-	} else {
-		teamUserIDs, err := organization.GetTeamUserIDsWithAccessToAnyRepoUnit(ctx, repo.OwnerID, repo.ID, mode, unitType, moreUnitTypes...)
-		if err != nil {
-			return nil, err
-		}
-		userIDs.AddMultiple(teamUserIDs...)
+	userIDs := make(container.Set[int64], len(users))
+	for _, u := range users {
+		userIDs.Add(u.ID)
 	}
 	return userIDs, nil
 }

@@ -137,33 +137,3 @@ func ListMyRepos(ctx *context.APIContext) {
 	ctx.SetTotalCountHeader(count)
 	ctx.JSON(http.StatusOK, &results)
 }
-
-// ListOrgRepos - list the repositories of an organization.
-func ListOrgRepos(ctx *context.APIContext) {
-	// swagger:operation GET /orgs/{org}/repos organization orgListRepos
-	// ---
-	// summary: List an organization's repos
-	// produces:
-	// - application/json
-	// parameters:
-	// - name: org
-	//   in: path
-	//   description: name of the organization
-	//   type: string
-	//   required: true
-	// - name: page
-	//   in: query
-	//   description: page number of results to return (1-based)
-	//   type: integer
-	// - name: limit
-	//   in: query
-	//   description: page size of results
-	//   type: integer
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/RepositoryList"
-	//   "404":
-	//     "$ref": "#/responses/notFound"
-
-	listUserRepos(ctx, ctx.Org.Organization.AsUser(), ctx.IsSigned)
-}

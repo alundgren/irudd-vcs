@@ -64,7 +64,7 @@ func TestAPIT3codeFlow(t *testing.T) {
 		require.NotEmpty(t, search.Data)
 		assert.Equal(t, reviewer, search.Data[0].UserName)
 
-		// create the repository and give the reviewer write access
+		// create the repository; the reviewer needs no grant, every signed-in user owns every repository
 		repo := DecodeJSON(t, call(t, token, "POST", "/api/v1/user/repos", &api.CreateRepoOption{
 			Name:          repoName,
 			AutoInit:      true,
@@ -73,7 +73,6 @@ func TestAPIT3codeFlow(t *testing.T) {
 		}, http.StatusCreated), &api.Repository{})
 		require.Equal(t, baseBranch, repo.DefaultBranch)
 		assert.NotEmpty(t, repo.CloneURL)
-		call(t, token, "PUT", repoAPI+"/collaborators/"+reviewer, &api.AddCollaboratorOption{Permission: new(api.RepoWritePermissionWrite)}, http.StatusNoContent)
 
 		// push a branch over HTTP git, authenticating with the token
 		gitURL := *u
@@ -220,7 +219,7 @@ func TestAPIT3codeFlow(t *testing.T) {
 		for _, candidate := range candidates {
 			candidateNames = append(candidateNames, candidate.UserName)
 		}
-		assert.ElementsMatch(t, []string{owner, reviewer}, candidateNames)
+		assert.Subset(t, candidateNames, []string{owner, reviewer}) // every active user can be assigned
 		edited = DecodeJSON(t, call(t, token, "PATCH", pullAPI, &api.EditPullRequestOption{Assignees: []string{owner, reviewer}}, http.StatusCreated), &api.PullRequest{})
 		assert.Len(t, edited.Assignees, 2)
 

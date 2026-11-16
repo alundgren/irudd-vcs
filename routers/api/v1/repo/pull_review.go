@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/gitrepo"
@@ -837,7 +836,8 @@ func DeleteReviewRequests(ctx *context.APIContext) {
 	apiReviewRequest(ctx, *opts, false)
 }
 
-func parseReviewersByNames(ctx *context.APIContext, reviewerNames, teamReviewerNames []string) (reviewers []*user_model.User, teamReviewers []*organization.Team) {
+// parseReviewersByNames resolves reviewer names or emails; team reviewers are ignored, there are no teams
+func parseReviewersByNames(ctx *context.APIContext, reviewerNames []string) (reviewers []*user_model.User) {
 	var err error
 	for _, r := range reviewerNames {
 		var reviewer *user_model.User
@@ -850,32 +850,16 @@ func parseReviewersByNames(ctx *context.APIContext, reviewerNames, teamReviewerN
 		if err != nil {
 			if user_model.IsErrUserNotExist(err) {
 				ctx.APIErrorNotFound("user doesn't exist: " + r)
-				return nil, nil
+				return nil
 			}
 			ctx.APIErrorInternal(err)
-			return nil, nil
+			return nil
 		}
 
 		reviewers = append(reviewers, reviewer)
 	}
 
-	if ctx.Repo.Repository.Owner.IsOrganization() && len(teamReviewerNames) > 0 {
-		for _, t := range teamReviewerNames {
-			var teamReviewer *organization.Team
-			teamReviewer, err = organization.GetTeam(ctx, ctx.Repo.Owner.ID, t)
-			if err != nil {
-				if organization.IsErrTeamNotExist(err) {
-					ctx.APIErrorNotFound("team doesn't exist: " + t)
-					return nil, nil
-				}
-				ctx.APIErrorInternal(err)
-				return nil, nil
-			}
-
-			teamReviewers = append(teamReviewers, teamReviewer)
-		}
-	}
-	return reviewers, teamReviewers
+	return reviewers
 }
 
 func apiReviewRequest(ctx *context.APIContext, opts api.PullReviewRequestOptions, isAdd bool) {
@@ -896,7 +880,7 @@ func apiReviewRequest(ctx *context.APIContext, opts api.PullReviewRequestOptions
 		return
 	}
 
-	reviewers, teamReviewers := parseReviewersByNames(ctx, opts.Reviewers, opts.TeamReviewers)
+	reviewers := parseReviewersByNames(ctx, opts.Reviewers)
 	if ctx.Written() {
 		return
 	}
@@ -927,32 +911,6 @@ func apiReviewRequest(ctx *context.APIContext, opts api.PullReviewRequestOptions
 				return
 			}
 			reviews = append(reviews, comment.Review)
-		}
-	}
-
-	if ctx.Repo.Repository.Owner.IsOrganization() && len(opts.TeamReviewers) > 0 {
-		for _, teamReviewer := range teamReviewers {
-			comment, err := issue_service.TeamReviewRequest(ctx, pr.Issue, ctx.Doer, teamReviewer, isAdd)
-			if err != nil {
-				if issues_model.IsErrReviewRequestOnClosedPR(err) {
-					ctx.APIError(http.StatusForbidden, err.Error())
-					return
-				}
-				if issues_model.IsErrNotValidReviewRequest(err) {
-					ctx.APIError(http.StatusUnprocessableEntity, err.Error())
-					return
-				}
-				ctx.APIErrorInternal(err)
-				return
-			}
-
-			if comment != nil && isAdd {
-				if err = comment.LoadReview(ctx); err != nil {
-					ctx.APIErrorInternal(err)
-					return
-				}
-				reviews = append(reviews, comment.Review)
-			}
 		}
 	}
 
@@ -1096,4 +1054,42 @@ func dismissReview(ctx *context.APIContext, msg string, isDismiss, dismissPriors
 		return
 	}
 	ctx.JSON(http.StatusOK, apiReview)
+}
+
+// GetReviewers return all users that can be requested to review in this repo
+func GetReviewers(ctx *context.APIContext) {
+	// swagger:operation GET /repos/{owner}/{repo}/reviewers repository repoGetReviewers
+	// ---
+	// summary: Return all users that can be requested to review in this repo
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: owner
+	//   in: path
+	//   description: owner of the repo
+	//   type: string
+	//   required: true
+	// - name: repo
+	//   in: path
+	//   description: name of the repo
+	//   type: string
+	//   required: true
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/UserList"
+	//   "404":
+	//     "$ref": "#/responses/notFound"
+
+	canChooseReviewer := issue_service.CanDoerChangeReviewRequests(ctx, ctx.Doer, ctx.Repo.Repository, 0)
+	if !canChooseReviewer {
+		ctx.APIError(http.StatusForbidden, "doer has no permission to get reviewers")
+		return
+	}
+
+	reviewers, err := pull_service.GetReviewers(ctx, ctx.Repo.Repository, ctx.Doer.ID, 0)
+	if err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
+	ctx.JSON(http.StatusOK, convert.ToUsers(ctx, ctx.Doer, reviewers))
 }

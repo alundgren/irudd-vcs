@@ -18,8 +18,7 @@ import (
 
 const (
 	// these const values are copied from `models` package to prevent from cycle-import
-	modelsUserTypeOrganization = 1
-	modelsCommentTypeComment   = 0
+	modelsCommentTypeComment = 0
 )
 
 var consistencyCheckMap = make(map[string]func(t TestingT, bean any))
@@ -64,12 +63,6 @@ func init() {
 	checkForUserConsistency := func(t TestingT, bean any) {
 		user := reflectionWrap(bean)
 		AssertCountByCond(t, "repository", builder.Eq{"owner_id": user.int("ID")}, user.int("NumRepos"))
-		AssertCountByCond(t, "org_user", builder.Eq{"org_id": user.int("ID")}, user.int("NumMembers"))
-		AssertCountByCond(t, "team", builder.Eq{"org_id": user.int("ID")}, user.int("NumTeams"))
-		if user.int("Type") != modelsUserTypeOrganization {
-			assert.Equal(t, 0, user.int("NumMembers"), "Unexpected number of members for user id: %d", user.int("ID"))
-			assert.Equal(t, 0, user.int("NumTeams"), "Unexpected number of teams for user id: %d", user.int("ID"))
-		}
 	}
 
 	checkForRepoConsistency := func(t TestingT, bean any) {
@@ -136,16 +129,9 @@ func init() {
 		assert.EqualValues(t, expected, label.int("NumClosedIssues"), "Unexpected number of closed issues for label id: %d", label.int("ID"))
 	}
 
-	checkForTeamConsistency := func(t TestingT, bean any) {
-		team := reflectionWrap(bean)
-		AssertCountByCond(t, "team_user", builder.Eq{"team_id": team.int("ID")}, team.int("NumMembers"))
-		AssertCountByCond(t, "team_repo", builder.Eq{"team_id": team.int("ID")}, team.int("NumRepos"))
-	}
-
 	consistencyCheckMap["user"] = checkForUserConsistency
 	consistencyCheckMap["repository"] = checkForRepoConsistency
 	consistencyCheckMap["issue"] = checkForIssueConsistency
 	consistencyCheckMap["pull_request"] = checkForPullRequestConsistency
 	consistencyCheckMap["label"] = checkForLabelConsistency
-	consistencyCheckMap["team"] = checkForTeamConsistency
 }

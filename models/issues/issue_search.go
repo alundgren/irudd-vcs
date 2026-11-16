@@ -10,9 +10,7 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	repo_model "gitea.dev/models/repo"
-	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/optional"
@@ -45,9 +43,8 @@ type IssuesOptions struct { //nolint:revive // export stutter
 	// prioritize issues from this repo
 	PriorityRepoID int64
 	IsArchived     optional.Option[bool]
-	Owner          *user_model.User   // issues permission scope, it could be an organization or a user
-	Team           *organization.Team // issues permission scope
-	Doer           *user_model.User   // issues permission scope
+	Owner          *user_model.User // only issues of this owner's repositories
+	Doer           *user_model.User // the searching user, who can access every repository
 }
 
 // Copy returns a copy of the options.
@@ -229,83 +226,6 @@ func applyConditions(sess db.Session, opts *IssuesOptions) {
 		sess.And(repo_model.UserOwnedRepoCond(opts.Owner.ID))
 	}
 
-	if opts.Doer != nil && !opts.Doer.IsAdmin {
-		sess.And(issuePullAccessibleRepoCond("issue.repo_id", opts.Doer.ID, opts.Owner, opts.Team, opts.IsPull.Value()))
-	}
-}
-
-// teamUnitsRepoCond returns query condition for those repo id in the special org team with special units access
-func teamUnitsRepoCond(id string, userID, orgID, teamID int64, units ...unit.Type) builder.Cond {
-	return builder.In(id,
-		builder.Select("repo_id").From("team_repo").Where(
-			builder.Eq{
-				"team_id": teamID,
-			}.And(
-				builder.Or(
-					// Check if the user is member of the team.
-					builder.In(
-						"team_id", builder.Select("team_id").From("team_user").Where(
-							builder.Eq{
-								"uid": userID,
-							},
-						),
-					),
-					// Check if the user is in the owner team of the organisation.
-					builder.Exists(builder.Select("team_id").From("team_user").
-						Where(builder.Eq{
-							"org_id": orgID,
-							"team_id": builder.Select("id").From("team").Where(
-								builder.Eq{
-									"org_id":     orgID,
-									"lower_name": strings.ToLower(organization.OwnerTeamName),
-								}),
-							"uid": userID,
-						}),
-					),
-				)).And(
-				builder.In(
-					"team_id", builder.Select("team_id").From("team_unit").Where(
-						builder.Eq{
-							"`team_unit`.org_id": orgID,
-						}.And(
-							builder.In("`team_unit`.type", units),
-						),
-					),
-				),
-			),
-		))
-}
-
-// issuePullAccessibleRepoCond userID must not be zero, this condition require join repository table
-func issuePullAccessibleRepoCond(repoIDstr string, userID int64, owner *user_model.User, team *organization.Team, isPull bool) builder.Cond {
-	cond := builder.NewCond()
-	unitType := unit.TypeIssues
-	if isPull {
-		unitType = unit.TypePullRequests
-	}
-	if owner != nil && owner.IsOrganization() {
-		if team != nil {
-			cond = cond.And(teamUnitsRepoCond(repoIDstr, userID, owner.ID, team.ID, unitType)) // special team member repos
-		} else {
-			cond = cond.And(
-				builder.Or(
-					repo_model.UserOrgUnitRepoCond(repoIDstr, userID, owner.ID, unitType), // team member repos
-					repo_model.UserOrgPublicUnitRepoCond(userID, owner.ID),                // user org public non-member repos, TODO: check repo has issues
-				),
-			)
-		}
-	} else {
-		cond = cond.And(
-			builder.Or(
-				repo_model.UserOwnedRepoCond(userID),                          // owned repos
-				repo_model.UserAccessRepoCond(repoIDstr, userID),              // user can access repo in a unit independent way
-				repo_model.UserAssignedRepoCond(repoIDstr, userID),            // user has been assigned accessible public repos
-				repo_model.UserMentionedRepoCond(repoIDstr, userID),           // user has been mentioned accessible public repos
-				repo_model.UserCreateIssueRepoCond(repoIDstr, userID, isPull), // user has created issue/pr accessible public repos
-			),
-		)
-	}
-	return cond
 }
 
 func applyAssigneeCondition(sess db.Session, assigneeID string) {
@@ -337,10 +257,6 @@ func applyMentionedCondition(sess db.Session, mentionedID int64) {
 }
 
 func applyReviewRequestedCondition(sess db.Session, reviewRequestedID int64) {
-	existInTeamQuery := builder.Select("team_user.team_id").
-		From("team_user").
-		Where(builder.Eq{"team_user.uid": reviewRequestedID})
-
 	// if the review is approved or rejected, it should not be shown in the review requested list
 	maxReview := builder.Select("MAX(r.id)").
 		From("review as r").
@@ -351,10 +267,7 @@ func applyReviewRequestedCondition(sess db.Session, reviewRequestedID int64) {
 		From("review").
 		Where(builder.And(
 			builder.Eq{"review.type": ReviewTypeRequest},
-			builder.Or(
-				builder.Eq{"review.reviewer_id": reviewRequestedID},
-				builder.In("review.reviewer_team_id", existInTeamQuery),
-			),
+			builder.Eq{"review.reviewer_id": reviewRequestedID},
 			builder.In("review.id", maxReview),
 		))
 	sess.Where("issue.poster_id <> ?", reviewRequestedID).
@@ -370,14 +283,7 @@ func applyReviewedCondition(sess db.Session, reviewedID int64) {
 		From("review").
 		Where(builder.And(
 			builder.Neq{"type": ReviewTypeRequest},
-			builder.Or(
-				builder.Eq{"reviewer_id": reviewedID},
-				builder.In("reviewer_team_id", builder.
-					Select("team_id").
-					From("team_user").
-					Where(builder.Eq{"uid": reviewedID}),
-				),
-			),
+			builder.Eq{"reviewer_id": reviewedID},
 		)),
 	)
 	commented := builder.In("issue.id", builder.

@@ -42,7 +42,6 @@ type APIContext struct {
 	ContextUser *user_model.User // the user which is being visited, in most cases it differs from Doer
 
 	Repo       *Repository
-	Org        *APIOrganization
 	PublicOnly bool // Whether the request is for a public endpoint
 }
 
@@ -244,7 +243,6 @@ func APIContexter() func(http.Handler) http.Handler {
 				Base:  base,
 				Cache: cache.GetCache(),
 				Repo:  &Repository{},
-				Org:   &APIOrganization{},
 			}
 
 			ctx.SetContextValue(apiContextKey, ctx)

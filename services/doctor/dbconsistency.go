@@ -143,18 +143,6 @@ func prepareDBConsistencyChecks() []consistencyCheck {
 		// find LFS locks without existing repository
 		genericOrphanCheck("LFS locks without existing repository",
 			"lfs_lock", "repository", "lfs_lock.repo_id=repository.id"),
-		// find collaborations without users
-		genericOrphanCheck("Collaborations without existing user",
-			"collaboration", "user", "collaboration.user_id=`user`.id"),
-		// find collaborations without repository
-		genericOrphanCheck("Collaborations without existing repository",
-			"collaboration", "repository", "collaboration.repo_id=repository.id"),
-		// find access without users
-		genericOrphanCheck("Access entries without existing user",
-			"access", "user", "access.user_id=`user`.id"),
-		// find access without repository
-		genericOrphanCheck("Access entries without existing repository",
-			"access", "repository", "access.repo_id=repository.id"),
 		// find redirects without existing user.
 		genericOrphanCheck("Orphaned Redirects without existing redirect user",
 			"user_redirect", "user", "user_redirect.redirect_user_id=`user`.id"),

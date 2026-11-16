@@ -302,13 +302,6 @@ type swaggerCombinedStatus struct {
 	Body api.CombinedStatus `json:"body"`
 }
 
-// RepoCollaboratorPermission
-// swagger:response RepoCollaboratorPermission
-type swaggerRepoCollaboratorPermission struct {
-	// in:body
-	Body api.RepoCollaboratorPermission `json:"body"`
-}
-
 // swagger:response Compare
 type swaggerCompare struct {
 	// in:body

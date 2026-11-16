@@ -5,11 +5,9 @@ package issue
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	issues_model "gitea.dev/models/issues"
-	org_model "gitea.dev/models/organization"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
@@ -18,10 +16,9 @@ import (
 )
 
 type ReviewRequestNotifier struct {
-	Comment    *issues_model.Comment
-	IsAdd      bool
-	Reviewer   *user_model.User
-	ReviewTeam *org_model.Team
+	Comment  *issues_model.Comment
+	IsAdd    bool
+	Reviewer *user_model.User
 }
 
 var codeOwnerFiles = []string{"CODEOWNERS", "docs/CODEOWNERS", ".gitea/CODEOWNERS"}
@@ -92,7 +89,6 @@ func PullRequestCodeOwnersReview(ctx context.Context, pr *issues_model.PullReque
 	}
 
 	uniqUsers := make(map[int64]*user_model.User)
-	uniqTeams := make(map[string]*org_model.Team)
 	// Bound the total time spent matching rules×files. The per-rule MatchTimeout
 	// only caps a single match; without an aggregate budget a crafted CODEOWNERS
 	// plus a PR touching many files could still exhaust CPU inside this loop.
@@ -110,14 +106,11 @@ ruleLoop:
 				for _, u := range rule.Users {
 					uniqUsers[u.ID] = u
 				}
-				for _, t := range rule.Teams {
-					uniqTeams[fmt.Sprintf("%d/%d", t.OrgID, t.ID)] = t
-				}
 			}
 		}
 	}
 
-	notifiers := make([]*ReviewRequestNotifier, 0, len(uniqUsers)+len(uniqTeams))
+	notifiers := make([]*ReviewRequestNotifier, 0, len(uniqUsers))
 
 	if err := issue.LoadPoster(ctx); err != nil {
 		return nil, err
@@ -154,22 +147,6 @@ ruleLoop:
 				Reviewer: u,
 			})
 		}
-	}
-
-	for _, t := range uniqTeams {
-		comment, err := issues_model.AddTeamReviewRequest(ctx, issue, t, issue.Poster, true)
-		if err != nil {
-			log.Warn("Failed add reviewer team: %s to PR review: %s#%d, error: %s", t.Name, pr.BaseRepo.Name, pr.ID, err)
-			return nil, err
-		}
-		if comment == nil { // comment maybe nil if review type is ReviewTypeRequest
-			continue
-		}
-		notifiers = append(notifiers, &ReviewRequestNotifier{
-			Comment:    comment,
-			IsAdd:      true,
-			ReviewTeam: t,
-		})
 	}
 
 	return notifiers, nil

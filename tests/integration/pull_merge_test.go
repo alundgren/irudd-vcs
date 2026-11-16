@@ -18,7 +18,6 @@ import (
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	"gitea.dev/models/perm"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
@@ -734,10 +733,8 @@ func TestPullNonMergeForAdminWithBranchProtection(t *testing.T) {
 func TestPullForceMergeForBypassAllowlistUser(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, u *url.URL) {
 		ownerSession := loginUser(t, "user2")
-		ownerCtx := NewAPITestContext(t, "user2", "repo1", auth_model.AccessTokenScopeWriteRepository)
 
 		bypassUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user4"})
-		doAPIAddCollaborator(ownerCtx, bypassUser.Name, perm.AccessModeWrite)(t)
 
 		bypassSession := loginUser(t, bypassUser.Name)
 		forkedName := "repo1-bypass-allowlist"

@@ -11,14 +11,11 @@ import (
 	"time"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
 	repo_model "gitea.dev/models/repo"
 	system_model "gitea.dev/models/system"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/log"
-	"gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
-	org_service "gitea.dev/services/org"
 	repo_service "gitea.dev/services/repository"
 )
 
@@ -141,47 +138,10 @@ func DeleteUser(ctx context.Context, u *user_model.User, purge bool) error {
 		if err != nil {
 			return err
 		}
-
-		// Remove from Organizations and delete last owner organizations
-		// Now this is not within a transaction because there are internal transactions within the DeleteOrganization
-		// BUT: the db will still be consistent even if a number of organizations memberships and organizations have already been deleted
-		// And in fact we want to capture any organization additions that are being created in other transactions in the meantime
-		//
-		// An alternative option here would be write a function which would delete all organizations but it seems
-		// but such a function would likely get out of date
-		for {
-			orgs, err := db.Find[organization.Organization](ctx, organization.FindOrgOptions{
-				ListOptions: db.ListOptions{
-					PageSize: repo_model.RepositoryListDefaultPageSize,
-					Page:     1,
-				},
-				UserID:            u.ID,
-				IncludeVisibility: structs.VisibleTypePrivate,
-			})
-			if err != nil {
-				return fmt.Errorf("unable to find org list for %s[%d]. Error: %w", u.Name, u.ID, err)
-			}
-			if len(orgs) == 0 {
-				break
-			}
-			for _, org := range orgs {
-				if err := org_service.RemoveOrgUser(ctx, org, u); err != nil {
-					if organization.IsErrLastOrgOwner(err) {
-						err = org_service.DeleteOrganization(ctx, org, true)
-						if err != nil {
-							return fmt.Errorf("unable to delete organization %d: %w", org.ID, err)
-						}
-					}
-					if err != nil {
-						return fmt.Errorf("unable to remove user %s[%d] from org %s[%d]. Error: %w", u.Name, u.ID, org.Name, org.ID, err)
-					}
-				}
-			}
-		}
 	}
 
 	if err := db.WithTx(ctx, func(ctx context.Context) error {
-		// Note: A user owns any repository or belongs to any organization
+		// Note: A user owns any repository
 		//	cannot perform delete operation. This causes a race with the purge above
 		//  however consistency requires that we ensure that this is the case
 
@@ -191,14 +151,6 @@ func DeleteUser(ctx context.Context, u *user_model.User, purge bool) error {
 			return fmt.Errorf("GetRepositoryCount: %w", err)
 		} else if count > 0 {
 			return repo_model.ErrUserOwnRepos{UID: u.ID}
-		}
-
-		// Check membership of organization.
-		count, err = organization.GetOrganizationCount(ctx, u)
-		if err != nil {
-			return fmt.Errorf("GetOrganizationCount: %w", err)
-		} else if count > 0 {
-			return organization.ErrUserHasOrgs{UID: u.ID}
 		}
 
 		if err := deleteUser(ctx, u, purge); err != nil {
@@ -230,8 +182,8 @@ func DeleteInactiveUsers(ctx context.Context, olderThan time.Duration) error {
 	for _, u := range inactiveUsers {
 		if err = DeleteUser(ctx, u, false); err != nil {
 			// Ignore inactive users that were ever active but then were set inactive by admin
-			if repo_model.IsErrUserOwnRepos(err) || organization.IsErrUserHasOrgs(err) {
-				log.Warn("Inactive user %q has repositories, organizations or packages, skipping deletion: %v", u.Name, err)
+			if repo_model.IsErrUserOwnRepos(err) {
+				log.Warn("Inactive user %q has repositories, skipping deletion: %v", u.Name, err)
 				continue
 			}
 			select {

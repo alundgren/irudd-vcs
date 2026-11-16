@@ -44,13 +44,11 @@
 package v1
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	auth_model "gitea.dev/models/auth"
-	"gitea.dev/models/organization"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
@@ -62,7 +60,6 @@ import (
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/api/v1/admin"
 	"gitea.dev/routers/api/v1/misc"
-	"gitea.dev/routers/api/v1/org"
 	"gitea.dev/routers/api/v1/repo"
 	"gitea.dev/routers/api/v1/settings"
 	"gitea.dev/routers/api/v1/token"
@@ -139,7 +136,7 @@ func repoAssignment() func(ctx *context.APIContext) {
 			return
 		}
 
-		if !ctx.Repo.Permission.HasAnyUnitAccessOrPublicAccess() {
+		if !ctx.Repo.Permission.HasAnyUnitAccess() {
 			ctx.APIErrorNotFound()
 			return
 		}
@@ -172,13 +169,6 @@ func checkTokenPublicOnly() func(ctx *context.APIContext) {
 			case auth_model.AccessTokenScopeCategoryIssue:
 				if !ctx.TokenCanAccessRepo(ctx.Repo.Repository) {
 					ctx.APIError(http.StatusForbidden, "token scope is limited to public issues")
-					return
-				}
-			case auth_model.AccessTokenScopeCategoryOrganization:
-				orgPrivate := ctx.Org.Organization != nil && !ctx.Org.Organization.Visibility.IsPublic()
-				userOrgPrivate := ctx.ContextUser != nil && ctx.ContextUser.IsOrganization() && !ctx.ContextUser.Visibility.IsPublic()
-				if orgPrivate || userOrgPrivate {
-					ctx.APIError(http.StatusForbidden, "token scope is limited to public orgs")
 					return
 				}
 			case auth_model.AccessTokenScopeCategoryUser:
@@ -336,162 +326,6 @@ func reqAnyRepoReader() func(ctx *context.APIContext) {
 	}
 }
 
-// reqOrgOwnership user should be an organization owner, or a site admin
-func reqOrgOwnership() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if ctx.IsUserSiteAdmin() {
-			return
-		}
-
-		var orgID int64
-		if ctx.Org.Organization != nil {
-			orgID = ctx.Org.Organization.ID
-		} else if ctx.Org.Team != nil {
-			orgID = ctx.Org.Team.OrgID
-		} else {
-			setting.PanicInDevOrTesting("reqOrgOwnership: unprepared context")
-			ctx.APIErrorInternal(errors.New("reqOrgOwnership: unprepared context"))
-			return
-		}
-
-		isOwner, err := organization.IsOrganizationOwner(ctx, orgID, ctx.Doer.ID)
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		} else if !isOwner {
-			if ctx.Org.Organization != nil {
-				ctx.APIError(http.StatusForbidden, "Must be an organization owner")
-			} else {
-				ctx.APIErrorNotFound()
-			}
-			return
-		}
-	}
-}
-
-// reqOrgVisible requires the organization to be visible to the doer, or a site admin
-func reqOrgVisible() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if ctx.Org.Organization == nil {
-			setting.PanicInDevOrTesting("reqOrgVisible: unprepared context")
-			ctx.APIErrorInternal(errors.New("reqOrgVisible: unprepared context"))
-			return
-		}
-		if !organization.HasOrgOrUserVisible(ctx, ctx.Org.Organization.AsUser(), ctx.Doer) {
-			ctx.APIErrorNotFound()
-			return
-		}
-	}
-}
-
-func teamAccessPrivileged(ctx *context.APIContext) (orgID int64, privileged, ok bool) {
-	if ctx.IsUserSiteAdmin() {
-		return 0, true, true
-	}
-	if ctx.Org.Team == nil {
-		setting.PanicInDevOrTesting("teamAccess: unprepared context")
-		ctx.APIErrorInternal(errors.New("teamAccess: unprepared context"))
-		return 0, false, false
-	}
-
-	orgID = ctx.Org.Team.OrgID
-	isOwner, err := organization.IsOrganizationOwner(ctx, orgID, ctx.Doer.ID)
-	if err != nil {
-		ctx.APIErrorInternal(err)
-		return 0, false, false
-	} else if isOwner {
-		return orgID, true, true
-	}
-
-	isTeamMember, err := organization.IsTeamMember(ctx, orgID, ctx.Org.Team.ID, ctx.Doer.ID)
-	if err != nil {
-		ctx.APIErrorInternal(err)
-		return 0, false, false
-	}
-	return orgID, isTeamMember, true
-}
-
-func denyNonTeamMember(ctx *context.APIContext, orgID int64) {
-	isOrgMember, err := organization.IsOrganizationMember(ctx, orgID, ctx.Doer.ID)
-	if err != nil {
-		ctx.APIErrorInternal(err)
-	} else if isOrgMember {
-		ctx.APIError(http.StatusForbidden, "Must be a team member")
-	} else {
-		ctx.APIErrorNotFound()
-	}
-}
-
-// reqTeamReadAccess allows callers who can list the team to read its metadata.
-// Non-members are admitted by the team's visibility tier and parent org visibility.
-// Not sufficient for mutations — use reqOrgOwnership() or reqTeamMembership() for those.
-func reqTeamReadAccess() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		orgID, privileged, ok := teamAccessPrivileged(ctx)
-		if !ok || privileged {
-			return
-		}
-		if ctx.Org.Organization == nil {
-			setting.PanicInDevOrTesting("reqTeamReadAccess: organization not loaded")
-			ctx.APIErrorInternal(errors.New("reqTeamReadAccess: organization not loaded"))
-			return
-		}
-
-		visible, err := ctx.Org.Team.CanNonMemberReadMeta(ctx, ctx.Org.Organization.AsUser(), ctx.Doer)
-		if err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		}
-		if !visible {
-			// Not admitted by visibility: 403 for org members, 404 otherwise.
-			denyNonTeamMember(ctx, orgID)
-		}
-	}
-}
-
-// reqTeamMembership user should be a team member, or a site admin
-func reqTeamMembership() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		orgID, privileged, ok := teamAccessPrivileged(ctx)
-		if !ok || privileged {
-			return
-		}
-		denyNonTeamMember(ctx, orgID)
-	}
-}
-
-// reqOrgMembership user should be an organization member, or a site admin
-func reqOrgMembership() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if ctx.IsUserSiteAdmin() {
-			return
-		}
-
-		var orgID int64
-		if ctx.Org.Organization != nil {
-			orgID = ctx.Org.Organization.ID
-		} else if ctx.Org.Team != nil {
-			orgID = ctx.Org.Team.OrgID
-		} else {
-			setting.PanicInDevOrTesting("reqOrgMembership: unprepared context")
-			ctx.APIErrorInternal(errors.New("reqOrgMembership: unprepared context"))
-			return
-		}
-
-		if isMember, err := organization.IsOrganizationMember(ctx, orgID, ctx.Doer.ID); err != nil {
-			ctx.APIErrorInternal(err)
-			return
-		} else if !isMember {
-			if ctx.Org.Organization != nil {
-				ctx.APIError(http.StatusForbidden, "Must be an organization member")
-			} else {
-				ctx.APIErrorNotFound()
-			}
-			return
-		}
-	}
-}
-
 func reqGitHook() func(ctx *context.APIContext) {
 	return func(ctx *context.APIContext) {
 		if !ctx.Doer.CanEditGitHook() {
@@ -507,66 +341,6 @@ func reqWebhooksEnabled() func(ctx *context.APIContext) {
 		if setting.DisableWebhooks {
 			ctx.APIError(http.StatusForbidden, "webhooks disabled by administrator")
 			return
-		}
-	}
-}
-
-func orgAssignment(args ...bool) func(ctx *context.APIContext) {
-	var (
-		assignOrg  bool
-		assignTeam bool
-	)
-	if len(args) > 0 {
-		assignOrg = args[0]
-	}
-	if len(args) > 1 {
-		assignTeam = args[1]
-	}
-	return func(ctx *context.APIContext) {
-		ctx.Org = new(context.APIOrganization)
-
-		var err error
-		if assignOrg {
-			ctx.Org.Organization, err = organization.GetOrgByName(ctx, ctx.PathParam("org"))
-			if err != nil {
-				if organization.IsErrOrgNotExist(err) {
-					redirectUserID, err := user_model.LookupUserRedirect(ctx, ctx.PathParam("org"))
-					if err == nil {
-						context.RedirectToUser(ctx.Base, ctx.Doer, ctx.PathParam("org"), redirectUserID)
-					} else if user_model.IsErrUserRedirectNotExist(err) {
-						ctx.APIErrorNotFound()
-					} else {
-						ctx.APIErrorInternal(err)
-					}
-				} else {
-					ctx.APIErrorInternal(err)
-				}
-				return
-			}
-			ctx.ContextUser = ctx.Org.Organization.AsUser()
-		}
-
-		if assignTeam {
-			ctx.Org.Team, err = organization.GetTeamByID(ctx, ctx.PathParamInt64("teamid"))
-			if err != nil {
-				if organization.IsErrTeamNotExist(err) {
-					ctx.APIErrorNotFound()
-				} else {
-					ctx.APIErrorInternal(err)
-				}
-				return
-			}
-			if ctx.Org.Organization == nil {
-				ctx.Org.Organization, err = organization.GetOrgByID(ctx, ctx.Org.Team.OrgID)
-				if err != nil {
-					if organization.IsErrOrgNotExist(err) {
-						ctx.APIErrorNotFound()
-					} else {
-						ctx.APIErrorInternal(err)
-					}
-					return
-				}
-			}
 		}
 	}
 }
@@ -756,7 +530,6 @@ func Routes() *web.Router {
 			m.Combo("/repos", tokenRequiresScopes(auth_model.AccessTokenScopeCategoryRepository)).Get(user.ListMyRepos).
 				Post(rejectPublicOnly(), bind(api.CreateRepoOption{}), repo.Create)
 
-			m.Get("/teams", rejectPublicOnly(), org.ListUserTeams)
 			m.Group("/hooks", func() {
 				m.Combo("").Get(user.ListHooks).
 					Post(bind(api.CreateHookOption{}), user.CreateHook)
@@ -765,14 +538,6 @@ func Routes() *web.Router {
 					Delete(user.DeleteHook)
 			}, reqWebhooksEnabled(), rejectPublicOnly())
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser), reqToken(), contextAuthenticatedUser(), checkTokenPublicOnly())
-
-		// Repositories (requires repo scope, org scope)
-		m.Post("/org/{org}/repos",
-			// FIXME: we need org in context
-			tokenRequiresScopes(auth_model.AccessTokenScopeCategoryOrganization, auth_model.AccessTokenScopeCategoryRepository),
-			reqToken(),
-			bind(api.CreateRepoOption{}),
-			repo.CreateOrgRepoDeprecated)
 
 		// requires repo scope
 		// FIXME: Don't expose repository id outside of the system
@@ -807,24 +572,9 @@ func Routes() *web.Router {
 						m.Post("/tests", context.ReferencesGitRepo(), context.RepoRefForAPI, repo.TestHook)
 					})
 				}, reqToken(), reqAdmin(), reqWebhooksEnabled())
-				m.Group("/collaborators", func() {
-					m.Get("", reqAnyRepoReader(), repo.ListCollaborators)
-					m.Group("/{collaborator}", func() {
-						m.Combo("").Get(reqAnyRepoReader(), repo.IsCollaborator).
-							Put(reqAdmin(), bind(api.AddCollaboratorOption{}), repo.AddOrUpdateCollaborator).
-							Delete(reqAdmin(), repo.DeleteCollaborator)
-						m.Get("/permission", repo.GetRepoPermissions)
-					})
-				}, reqToken())
 				m.Get("/assignees", reqToken(), reqAnyRepoReader(), repo.GetAssignees)
 				m.Get("/assignees/{assignee}", reqToken(), reqAnyRepoReader(), repo.CheckRepoIssueAssignee)
 				m.Get("/reviewers", reqToken(), reqAnyRepoReader(), repo.GetReviewers)
-				m.Group("/teams", func() {
-					m.Get("", reqAnyRepoReader(), repo.ListTeams)
-					m.Combo("/{team}").Get(reqAnyRepoReader(), repo.IsTeam).
-						Put(reqAdmin(), repo.AddTeam).
-						Delete(reqAdmin(), repo.DeleteTeam)
-				}, reqToken())
 				m.Get("/raw/*", context.ReferencesGitRepo(), context.RepoRefForAPI, reqRepoReader(unit.TypeCode), repo.GetRawFile)
 				m.Get("/media/*", context.ReferencesGitRepo(), context.RepoRefForAPI, reqRepoReader(unit.TypeCode), repo.GetRawFileOrLFS)
 				m.Combo("/forks").Get(repo.ListForks).
@@ -1002,89 +752,13 @@ func Routes() *web.Router {
 			}, repoAssignment(), checkTokenPublicOnly())
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryIssue))
 
-		// Organizations
-		m.Get("/user/orgs", reqToken(), tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser, auth_model.AccessTokenScopeCategoryOrganization), checkTokenPublicOnly(), org.ListMyOrgs)
-		m.Group("/users/{username}/orgs", func() {
-			m.Get("", reqToken(), org.ListUserOrgs)
-			m.Get("/{org}/permissions", reqToken(), org.GetUserOrgsPermissions)
-		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser, auth_model.AccessTokenScopeCategoryOrganization), context.UserAssignmentAPI(), checkTokenPublicOnly(), individualPermsChecker)
-		m.Post("/orgs", tokenRequiresScopes(auth_model.AccessTokenScopeCategoryOrganization), reqToken(), bind(api.CreateOrgOption{}), org.Create)
-		m.Get("/orgs", tokenRequiresScopes(auth_model.AccessTokenScopeCategoryOrganization), org.GetAll)
-		m.Group("/orgs/{org}", func() {
-			m.Combo("").Get(org.Get).
-				Patch(reqToken(), reqOrgOwnership(), bind(api.EditOrgOption{}), org.Edit).
-				Delete(reqToken(), reqOrgOwnership(), org.Delete)
-			m.Post("/rename", reqToken(), reqOrgOwnership(), bind(api.RenameOrgOption{}), org.Rename)
-			m.Combo("/repos").Get(user.ListOrgRepos).
-				Post(reqToken(), tokenRequiresScopes(auth_model.AccessTokenScopeCategoryRepository), bind(api.CreateRepoOption{}), repo.CreateOrgRepo).
-				Delete(reqToken(), reqOrgOwnership(), tokenRequiresScopes(auth_model.AccessTokenScopeCategoryRepository), org.DeleteOrgRepos)
-			m.Group("/members", func() {
-				m.Get("", reqToken(), org.ListMembers)
-				m.Combo("/{username}").Get(reqToken(), org.IsMember).
-					Delete(reqToken(), reqOrgOwnership(), org.DeleteMember)
-			}, reqOrgVisible())
-			m.Group("/public_members", func() {
-				m.Get("", org.ListPublicMembers)
-				m.Combo("/{username}").Get(org.IsPublicMember).
-					Put(reqToken(), reqOrgMembership(), org.PublicizeMember).
-					Delete(reqToken(), reqOrgMembership(), org.ConcealMember)
-			}, reqOrgVisible())
-			m.Group("/teams", func() {
-				m.Get("", org.ListTeams)
-				m.Post("", reqOrgOwnership(), bind(api.CreateTeamOption{}), org.CreateTeam)
-				m.Get("/search", org.SearchTeam)
-			}, reqToken(), reqOrgMembership())
-			m.Group("/labels", func() {
-				m.Get("", org.ListLabels)
-				m.Post("", reqToken(), reqOrgOwnership(), bind(api.CreateLabelOption{}), org.CreateLabel)
-				m.Combo("/{id}").Get(reqToken(), org.GetLabel).
-					Patch(reqToken(), reqOrgOwnership(), bind(api.EditLabelOption{}), org.EditLabel).
-					Delete(reqToken(), reqOrgOwnership(), org.DeleteLabel)
-			}, reqOrgVisible())
-			m.Group("/hooks", func() {
-				m.Combo("").Get(org.ListHooks).
-					Post(bind(api.CreateHookOption{}), org.CreateHook)
-				m.Combo("/{id}").Get(org.GetHook).
-					Patch(bind(api.EditHookOption{}), org.EditHook).
-					Delete(org.DeleteHook)
-			}, reqToken(), reqOrgOwnership(), reqWebhooksEnabled())
-		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryOrganization), orgAssignment(true), checkTokenPublicOnly())
-		m.Group("/teams/{teamid}", func() {
-			m.Combo("").Patch(reqToken(), reqOrgOwnership(), bind(api.EditTeamOption{}), org.EditTeam).
-				Delete(reqToken(), reqOrgOwnership(), org.DeleteTeam)
-			m.Group("", func() {
-				m.Get("", org.GetTeam)
-				m.Group("/members", func() {
-					m.Get("", reqOrgMembership(), org.GetTeamMembers)
-					m.Combo("/{username}").Get(reqOrgMembership(), org.GetTeamMember)
-				})
-				m.Group("/repos", func() {
-					m.Get("", org.GetTeamRepos)
-					m.Combo("/{org}/{reponame}").Get(org.GetTeamRepo)
-				})
-			}, reqTeamReadAccess())
-			m.Group("/members", func() {
-				m.Combo("/{username}").
-					Put(reqToken(), reqOrgOwnership(), org.AddTeamMember).
-					Delete(reqToken(), reqOrgOwnership(), org.RemoveTeamMember)
-			})
-			m.Group("/repos", func() {
-				m.Combo("/{org}/{reponame}").
-					Put(reqToken(), reqTeamMembership(), org.AddTeamRepository).
-					Delete(reqToken(), reqTeamMembership(), org.RemoveTeamRepository)
-			})
-		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryOrganization), orgAssignment(false, true), reqToken(), checkTokenPublicOnly())
-
 		m.Group("/admin", func() {
-			m.Get("/orgs", admin.GetAllOrgs)
 			m.Group("/users", func() {
 				m.Get("", admin.SearchUsers)
 				m.Post("", bind(api.CreateUserOption{}), admin.CreateUser)
 				m.Group("/{username}", func() {
 					m.Combo("").Patch(bind(api.EditUserOption{}), admin.EditUser).
 						Delete(admin.DeleteUser)
-					m.Get("/orgs", org.ListUserOrgs)
-					m.Post("/orgs", bind(api.CreateOrgOption{}), admin.CreateOrg)
 					m.Post("/repos", bind(api.CreateRepoOption{}), admin.CreateRepo)
 					m.Post("/rename", bind(api.RenameUserOption{}), admin.RenameUser)
 				}, context.UserAssignmentAPI())

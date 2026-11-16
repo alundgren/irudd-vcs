@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"gitea.dev/models/db"
-	"gitea.dev/models/organization"
-	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/gitrepo"
@@ -53,16 +51,8 @@ func DeleteRepository(ctx context.Context, doer *user_model.User, repo *repo_mod
 
 // PushCreateRepo creates a repository when a new repository is pushed to an appropriate namespace
 func PushCreateRepo(ctx context.Context, authUser, owner *user_model.User, repoName string) (*repo_model.Repository, error) {
-	if !authUser.IsAdmin {
-		if owner.IsOrganization() {
-			if ok, err := organization.CanCreateOrgRepo(ctx, owner.ID, authUser.ID); err != nil {
-				return nil, err
-			} else if !ok {
-				return nil, errors.New("cannot push-create repository for org")
-			}
-		} else if authUser.ID != owner.ID {
-			return nil, errors.New("cannot push-create repository for another user")
-		}
+	if !authUser.IsAdmin && authUser.ID != owner.ID {
+		return nil, errors.New("cannot push-create repository for another user")
 	}
 
 	repo, err := CreateRepository(ctx, authUser, owner, CreateRepoOptions{
@@ -102,16 +92,6 @@ func MakeRepoPrivate(ctx context.Context, repo *repo_model.Repository, private b
 		repo.IsPrivate = private
 		if err := repo_model.UpdateRepositoryColsNoAutoTime(ctx, repo, "is_private"); err != nil {
 			return err
-		}
-
-		if err = repo.LoadOwner(ctx); err != nil {
-			return fmt.Errorf("LoadOwner: %w", err)
-		}
-		if repo.Owner.IsOrganization() {
-			// Organization repository need to recalculate access table when visibility is changed.
-			if err = access_model.RecalculateTeamAccesses(ctx, repo, 0); err != nil {
-				return fmt.Errorf("recalculateTeamAccesses: %w", err)
-			}
 		}
 
 		// Create/Remove git-daemon-export-ok for git-daemon...
@@ -184,16 +164,6 @@ func updateRepository(ctx context.Context, repo *repo_model.Repository, visibili
 	}
 
 	if visibilityChanged {
-		if err = repo.LoadOwner(ctx); err != nil {
-			return fmt.Errorf("LoadOwner: %w", err)
-		}
-		if repo.Owner.IsOrganization() {
-			// Organization repository need to recalculate access table when visibility is changed.
-			if err = access_model.RecalculateTeamAccesses(ctx, repo, 0); err != nil {
-				return fmt.Errorf("recalculateTeamAccesses: %w", err)
-			}
-		}
-
 		// Create/Remove git-daemon-export-ok for git-daemon...
 		if err := CheckDaemonExportOK(ctx, repo); err != nil {
 			return err

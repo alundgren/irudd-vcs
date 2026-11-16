@@ -130,7 +130,6 @@ func TestAPIRepoEdit(t *testing.T) {
 
 		user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})         // owner of the repo1 & repo16
 		org3 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 3})          // owner of the repo3, is an org
-		user4 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})         // owner of neither repos
 		repo1 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})   // public repo
 		repo3 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 3})   // public repo
 		repo15 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 15}) // empty repo
@@ -139,9 +138,6 @@ func TestAPIRepoEdit(t *testing.T) {
 		// Get user2's token
 		session := loginUser(t, user2.Name)
 		token2 := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)
-		// Get user4's token
-		session = loginUser(t, user4.Name)
-		token4 := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteRepository)
 
 		// Test editing a repo1 which user2 owns, changing name and many properties
 		origRepoEditOption := getRepoEditOptionFromRepo(repo1)
@@ -211,18 +207,11 @@ func TestAPIRepoEdit(t *testing.T) {
 			AddTokenAuth(token2)
 		_ = MakeRequest(t, req, http.StatusNotFound)
 
-		// Test editing repo16 by user4 who does not have write access
-		origRepoEditOption = getRepoEditOptionFromRepo(repo16)
-		repoEditOption = getNewRepoEditOption(origRepoEditOption)
-		req = NewRequestWithJSON(t, "PATCH", fmt.Sprintf("/api/v1/repos/%s/%s", user2.Name, repo16.Name), &repoEditOption).
-			AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusNotFound)
-
 		// Tests a repo with no token given so will fail
 		origRepoEditOption = getRepoEditOptionFromRepo(repo16)
 		repoEditOption = getNewRepoEditOption(origRepoEditOption)
 		req = NewRequestWithJSON(t, "PATCH", fmt.Sprintf("/api/v1/repos/%s/%s", user2.Name, repo16.Name), &repoEditOption)
-		_ = MakeRequest(t, req, http.StatusNotFound)
+		_ = MakeRequest(t, req, http.StatusUnauthorized)
 
 		// Test using access token for a private repo that the user of the token owns
 		origRepoEditOption = getRepoEditOptionFromRepo(repo16)
@@ -282,14 +271,7 @@ func TestAPIRepoEdit(t *testing.T) {
 		origRepoEditOption = getRepoEditOptionFromRepo(repo3)
 		repoEditOption = getNewRepoEditOption(origRepoEditOption)
 		req = NewRequestWithJSON(t, "PATCH", fmt.Sprintf("/api/v1/repos/%s/%s", org3.Name, repo3.Name), &repoEditOption)
-		MakeRequest(t, req, http.StatusNotFound)
-
-		// Test using repo "user2/repo1" where user4 is a NOT collaborator
-		origRepoEditOption = getRepoEditOptionFromRepo(repo1)
-		repoEditOption = getNewRepoEditOption(origRepoEditOption)
-		req = NewRequestWithJSON(t, "PATCH", fmt.Sprintf("/api/v1/repos/%s/%s", user2.Name, repo1.Name), &repoEditOption).
-			AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusForbidden)
+		MakeRequest(t, req, http.StatusUnauthorized)
 
 		// Test updating pull request settings without setting has_pull_requests
 		repo1 = unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})

@@ -74,7 +74,6 @@ func ToDBOptions(ctx context.Context, options *internal.SearchOptions) (*issue_m
 		PriorityRepoID:     0,
 		IsArchived:         options.IsArchived,
 		Owner:              nil,
-		Team:               nil,
 		Doer:               nil,
 	}
 

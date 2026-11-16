@@ -66,15 +66,15 @@ func TestAPILFSLocksLogged(t *testing.T) {
 		httpResult int
 		addTime    []int
 	}{
-		{user: user2, repo: repo1, path: "foo/bar.zip", httpResult: http.StatusCreated, addTime: []int{0}},
-		{user: user2, repo: repo1, path: "path/test", httpResult: http.StatusCreated, addTime: []int{0}},
+		{user: user2, repo: repo1, path: "foo/bar.zip", httpResult: http.StatusCreated, addTime: []int{0, 3}},
+		{user: user2, repo: repo1, path: "path/test", httpResult: http.StatusCreated, addTime: []int{0, 3}},
 		{user: user2, repo: repo1, path: "path/test", httpResult: http.StatusConflict},
 		{user: user2, repo: repo1, path: "Foo/BaR.zip", httpResult: http.StatusConflict},
 		{user: user2, repo: repo1, path: "Foo/Test/../subFOlder/../Relative/../BaR.zip", httpResult: http.StatusConflict},
-		{user: user4, repo: repo1, path: "FoO/BaR.zip", httpResult: http.StatusUnauthorized},
-		{user: user4, repo: repo1, path: "path/test-user4", httpResult: http.StatusUnauthorized},
-		{user: user2, repo: repo1, path: "patH/Test-user4", httpResult: http.StatusCreated, addTime: []int{0}},
-		{user: user2, repo: repo1, path: "some/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/path", httpResult: http.StatusCreated, addTime: []int{0}},
+		{user: user4, repo: repo1, path: "FoO/BaR.zip", httpResult: http.StatusConflict}, // every user can write every repo
+		{user: user4, repo: repo1, path: "path/test-user4", httpResult: http.StatusCreated, addTime: []int{0, 3}},
+		{user: user2, repo: repo1, path: "patH/Test-user4", httpResult: http.StatusConflict},
+		{user: user2, repo: repo1, path: "some/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/long/path", httpResult: http.StatusCreated, addTime: []int{0, 3}},
 
 		{user: user2, repo: repo3, path: "test/foo/bar.zip", httpResult: http.StatusCreated, addTime: []int{1, 2}},
 		{user: user4, repo: repo3, path: "test/foo/bar.zip", httpResult: http.StatusConflict},
@@ -90,9 +90,10 @@ func TestAPILFSLocksLogged(t *testing.T) {
 		locksOwners []*user_model.User
 		locksTimes  []time.Time
 	}{
-		{user: user2, repo: repo1, totalCount: 4, oursCount: 4, theirsCount: 0, locksOwners: []*user_model.User{user2, user2, user2, user2}, locksTimes: []time.Time{}},
+		{user: user2, repo: repo1, totalCount: 4, oursCount: 3, theirsCount: 1, locksOwners: []*user_model.User{user2, user2, user4, user2}, locksTimes: []time.Time{}},
 		{user: user2, repo: repo3, totalCount: 2, oursCount: 1, theirsCount: 1, locksOwners: []*user_model.User{user2, user4}, locksTimes: []time.Time{}},
 		{user: user4, repo: repo3, totalCount: 2, oursCount: 1, theirsCount: 1, locksOwners: []*user_model.User{user2, user4}, locksTimes: []time.Time{}},
+		{user: user4, repo: repo1, totalCount: 4, oursCount: 1, theirsCount: 3, locksOwners: []*user_model.User{user2, user2, user4, user2}, locksTimes: []time.Time{}},
 	}
 
 	deleteTests := []struct {

@@ -33,7 +33,6 @@ type Context struct {
 	ContextUser *user_model.User // the user which is being visited, in most cases it differs from Doer
 
 	Repo *Repository
-	Org  *Organization
 }
 
 func init() {
@@ -55,7 +54,6 @@ func NewWebContext(base *Base) *Context {
 		Cache: cache.GetCache(),
 		Link:  setting.AppSubURL + strings.TrimSuffix(base.Req.URL.EscapedPath(), "/"),
 		Repo:  &Repository{},
-		Org:   &Organization{},
 	}
 	ctx.SetContextValue(WebContextKey, ctx)
 	return ctx
