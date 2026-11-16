@@ -13,6 +13,7 @@ import (
 	"gitea.dev/modules/cache"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
+	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
@@ -64,6 +65,12 @@ func syncAppConfForGit(ctx context.Context) error {
 	if runtimeState.LastCustomConf != setting.CustomConf {
 		log.Info("CustomConf changed from '%s' to '%s'", runtimeState.LastCustomConf, setting.CustomConf)
 		runtimeState.LastCustomConf = setting.CustomConf
+		updated = true
+	}
+
+	if hooksHash := gitrepo.HookTemplatesHash(); runtimeState.LastHooksHash != hooksHash {
+		log.Info("repository hook templates changed")
+		runtimeState.LastHooksHash = hooksHash
 		updated = true
 	}
 

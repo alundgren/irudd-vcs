@@ -7,6 +7,7 @@ package system
 type RuntimeState struct {
 	LastAppPath    string `json:"last_app_path"`
 	LastCustomConf string `json:"last_custom_conf"`
+	LastHooksHash  string `json:"last_hooks_hash"` // so new hook templates reach existing repositories
 }
 
 // Name returns the item name
