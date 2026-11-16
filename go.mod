@@ -7,7 +7,6 @@ require (
 	gitea.com/go-chi/cache v0.2.1
 	gitea.com/lunny/levelqueue v0.4.2-0.20230414023320-3c0159fe0fe4
 	github.com/chi-middleware/proxy v1.1.1
-	github.com/dlclark/regexp2/v2 v2.2.2
 	github.com/dustin/go-humanize v1.0.1
 	github.com/editorconfig/editorconfig-core-go/v2 v2.6.4
 	github.com/emirpasic/gods v1.18.1

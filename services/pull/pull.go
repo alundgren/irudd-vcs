@@ -75,7 +75,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 
 	assigneeCommentMap := make(map[int64]*issues_model.Comment)
 	assignees := make(map[int64]*user_model.User)
-	var reviewNotifiers []*issue_service.ReviewRequestNotifier
 	if err := db.WithTx(ctx, func(ctx context.Context) error {
 		if err := issues_model.NewPullRequest(ctx, repo, issue, labelIDs, pr); err != nil {
 			return err
@@ -119,12 +118,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 			return err
 		}
 
-		if !pr.IsWorkInProgress(ctx) {
-			reviewNotifiers, err = issue_service.PullRequestCodeOwnersReview(ctx, pr)
-			if err != nil {
-				return err
-			}
-		}
 		return nil
 	}); err != nil {
 		// cleanup: this will only remove the reference, the real commit will be clean up when next GC
@@ -133,8 +126,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 		}
 		return err
 	}
-
-	issue_service.ReviewRequestNotify(ctx, issue, issue.Poster, reviewNotifiers)
 
 	// Request reviews, these should be requested before other notifications because they will add request reviews record
 	// on database
@@ -440,16 +431,6 @@ func AddTestPullRequestTask(opts TestPullRequestOptions) {
 						}
 						if err = syncCommitDivergence(ctx, pr); err != nil {
 							log.Error("syncCommitDivergence: %v", err)
-						}
-					}
-
-					if !pr.IsWorkInProgress(ctx) {
-						reviewNotifiers, err := issue_service.PullRequestCodeOwnersReview(ctx, pr)
-						if err != nil {
-							log.Error("PullRequestCodeOwnersReview: %v", err)
-						}
-						if len(reviewNotifiers) > 0 {
-							issue_service.ReviewRequestNotify(ctx, pr.Issue, opts.Doer, reviewNotifiers)
 						}
 					}
 
