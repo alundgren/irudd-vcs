@@ -187,7 +187,6 @@ func getTestCases() []struct {
 func TestSearchRepository(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 	t.Run("SearchRepositoryPublic", testSearchRepositoryPublic)
-	t.Run("SearchRepositoryPublicRestricted", testSearchRepositoryRestricted)
 	t.Run("SearchRepositoryPrivate", testSearchRepositoryPrivate)
 	t.Run("SearchRepositoryNonExistingOwner", testSearchRepositoryNonExistingOwner)
 	t.Run("SearchRepositoryWithInDescription", testSearchRepositoryWithInDescription)
@@ -224,41 +223,6 @@ func testSearchRepositoryPublic(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), count)
 	assert.Len(t, repos, 2)
-}
-
-func testSearchRepositoryRestricted(t *testing.T) {
-	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-	restrictedUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 29, IsRestricted: true})
-
-	performSearch := func(t *testing.T, user *user_model.User) (publicRepoIDs []int64) {
-		repos, count, err := repo_model.SearchRepositoryByName(t.Context(), repo_model.SearchRepoOptions{
-			ListOptions: db.ListOptions{Page: 1, PageSize: 10000},
-			Actor:       user,
-		})
-		require.NoError(t, err)
-		assert.Len(t, repos, int(count))
-		for _, repo := range repos {
-			require.NoError(t, repo.LoadOwner(t.Context()))
-			if repo.Owner.Visibility == structs.VisibleTypePublic && !repo.IsPrivate {
-				publicRepoIDs = append(publicRepoIDs, repo.ID)
-			}
-		}
-		return publicRepoIDs
-	}
-
-	normalPublicRepoIDs := performSearch(t, user2)
-	require.Greater(t, len(normalPublicRepoIDs), 10) // quite a lot
-
-	t.Run("NormalUser-RequiredSignIn", func(t *testing.T) {
-		// normal user can still see all public repos, not affected by "required sign-in"
-		repoIDs := performSearch(t, user2)
-		assert.ElementsMatch(t, normalPublicRepoIDs, repoIDs)
-	})
-	t.Run("RestrictedUser-RequiredSignIn", func(t *testing.T) {
-		// restriction no longer limits repos, every signed-in user owns everything
-		repoIDs := performSearch(t, restrictedUser)
-		assert.ElementsMatch(t, normalPublicRepoIDs, repoIDs)
-	})
 }
 
 func TestSearchRepositoryExcludesHiddenIndividualOwners(t *testing.T) {

@@ -10,8 +10,6 @@ import (
 	"unicode"
 
 	"gitea.dev/models/db"
-	"gitea.dev/modules/auth/password/hash"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 
 	"xorm.io/xorm"
@@ -153,9 +151,6 @@ func InitFixtures(opts FixturesOptions) (err error) {
 	fixturesLoader, err = NewFixturesLoader(xormEngine, opts)
 	// fixturesLoader = NewFixturesLoaderVendor(xormEngine, opts)
 
-	// register the dummy hash algorithm function used in the test fixtures
-	_ = hash.Register("dummy", hash.NewDummyHasher)
-	setting.PasswordHashAlgo, _ = hash.SetDefaultPasswordHashAlgorithm("dummy")
 	xormEngine.AddHook(&fixturesHookStruct{})
 	return err
 }

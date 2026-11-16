@@ -97,13 +97,9 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 
 		if opts.RefFullName.IsTag() {
 			if pusher == nil || pusher.ID != opts.PusherID {
-				if opts.PusherID == user_model.ActionsUserID {
-					pusher = user_model.NewActionsUser()
-				} else {
-					var err error
-					if pusher, err = user_model.GetUserByID(ctx, opts.PusherID); err != nil {
-						return err
-					}
+				var err error
+				if pusher, err = user_model.GetUserByID(ctx, opts.PusherID); err != nil {
+					return err
 				}
 			}
 			tagName := opts.RefFullName.TagName()
@@ -144,13 +140,9 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 			}
 		} else if opts.RefFullName.IsBranch() {
 			if pusher == nil || pusher.ID != opts.PusherID {
-				if opts.PusherID == user_model.ActionsUserID {
-					pusher = user_model.NewActionsUser()
-				} else {
-					var err error
-					if pusher, err = user_model.GetUserByID(ctx, opts.PusherID); err != nil {
-						return err
-					}
+				var err error
+				if pusher, err = user_model.GetUserByID(ctx, opts.PusherID); err != nil {
+					return err
 				}
 			}
 

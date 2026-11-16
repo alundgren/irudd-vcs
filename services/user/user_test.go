@@ -4,21 +4,17 @@
 package user
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -94,113 +90,14 @@ func TestPurgeUser(t *testing.T) {
 
 func TestCreateUser(t *testing.T) {
 	user := &user_model.User{
-		Name:               "GiteaBot",
-		Email:              "GiteaBot@gitea.io",
-		Passwd:             ";p['////..-++']",
-		IsAdmin:            false,
-		MustChangePassword: false,
+		Name:    "GiteaBot",
+		Email:   "GiteaBot@gitea.io",
+		IsAdmin: false,
 	}
 
 	assert.NoError(t, user_model.CreateUser(t.Context(), user, &user_model.Meta{}))
 
 	assert.NoError(t, DeleteUser(t.Context(), user, false))
-}
-
-func TestRenameUser(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 21})
-
-	t.Run("External user", func(t *testing.T) {
-		adminUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1, IsAdmin: true})
-		externalUser := &user_model.User{
-			Name:      "external_user",
-			Email:     "external_user@gitea.io",
-			LoginType: auth.LDAP,
-		}
-		require.NoError(t, user_model.CreateUser(t.Context(), externalUser, &user_model.Meta{}))
-
-		err := RenameUser(t.Context(), externalUser, externalUser.Name+"_changed", externalUser)
-		assert.True(t, user_model.IsErrUserIsNotLocal(err), "external user is not allowed to rename themselves")
-
-		err = RenameUser(t.Context(), externalUser, externalUser.Name+"_changed", adminUser)
-		assert.NoError(t, err, "admin can rename external user")
-	})
-
-	t.Run("Same username", func(t *testing.T) {
-		assert.NoError(t, RenameUser(t.Context(), user, user.Name, user))
-	})
-
-	t.Run("Non usable username", func(t *testing.T) {
-		usernames := []string{"--diff", ".well-known", "gitea-actions", "aaa.atom", "aa.png"}
-		for _, username := range usernames {
-			assert.Error(t, user_model.IsUsableUsername(username), "non-usable username: %s", username)
-			assert.Error(t, RenameUser(t.Context(), user, username, user), "non-usable username: %s", username)
-		}
-	})
-
-	t.Run("Only capitalization", func(t *testing.T) {
-		caps := strings.ToUpper(user.Name)
-		unittest.AssertNotExistsBean(t, &user_model.User{ID: user.ID, Name: caps})
-		unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerID: user.ID, OwnerName: user.Name})
-
-		assert.NoError(t, RenameUser(t.Context(), user, caps, user))
-
-		unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: user.ID, Name: caps})
-		unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerID: user.ID, OwnerName: caps})
-	})
-
-	t.Run("Already exists", func(t *testing.T) {
-		existUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})
-
-		assert.ErrorIs(t, RenameUser(t.Context(), user, existUser.Name, user), user_model.ErrUserAlreadyExist{Name: existUser.Name})
-		assert.ErrorIs(t, RenameUser(t.Context(), user, existUser.LowerName, user), user_model.ErrUserAlreadyExist{Name: existUser.LowerName})
-		newUsername := fmt.Sprintf("uSEr%d", existUser.ID)
-		assert.ErrorIs(t, RenameUser(t.Context(), user, newUsername, user), user_model.ErrUserAlreadyExist{Name: newUsername})
-	})
-
-	t.Run("Normal", func(t *testing.T) {
-		oldUsername := user.Name
-		newUsername := "User_Rename"
-
-		assert.NoError(t, RenameUser(t.Context(), user, newUsername, user))
-		unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: user.ID, Name: newUsername, LowerName: strings.ToLower(newUsername)})
-
-		redirectUID, err := user_model.LookupUserRedirect(t.Context(), oldUsername)
-		assert.NoError(t, err)
-		assert.Equal(t, user.ID, redirectUID)
-
-		unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerID: user.ID, OwnerName: user.Name})
-	})
-}
-
-func TestCreateUser_Issue5882(t *testing.T) {
-	// Init settings
-	_ = setting.Admin
-
-	passwd := ".//.;1;;//.,-=_"
-
-	tt := []struct {
-		user               *user_model.User
-		disableOrgCreation bool
-	}{
-		{&user_model.User{Name: "GiteaBot", Email: "GiteaBot@gitea.io", Passwd: passwd, MustChangePassword: false}, false},
-		{&user_model.User{Name: "GiteaBot2", Email: "GiteaBot2@gitea.io", Passwd: passwd, MustChangePassword: false}, true},
-	}
-
-	setting.Service.DefaultAllowCreateOrganization = true
-
-	for _, v := range tt {
-		setting.Admin.DisableRegularOrgCreation = v.disableOrgCreation
-
-		assert.NoError(t, user_model.CreateUser(t.Context(), v.user, &user_model.Meta{}))
-
-		u, err := user_model.GetUserByEmail(t.Context(), v.user.Email)
-		assert.NoError(t, err)
-
-		assert.Equal(t, !u.AllowCreateOrganization, v.disableOrgCreation)
-
-		assert.NoError(t, DeleteUser(t.Context(), v.user, false))
-	}
 }
 
 func TestDeleteInactiveUsers(t *testing.T) {

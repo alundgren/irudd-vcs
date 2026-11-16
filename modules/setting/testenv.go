@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"strings"
 
-	"gitea.dev/modules/auth/password/hash"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/util"
 
@@ -106,10 +105,6 @@ func SetupGiteaTestEnv() {
 		if err := PrepareAppDataPath(); err != nil {
 			log.Fatal("Can not prepare APP_DATA_PATH: %v", err)
 		}
-
-		// register the dummy hash algorithm function used in the test fixtures
-		_ = hash.Register("dummy", hash.NewDummyHasher)
-		PasswordHashAlgo, _ = hash.SetDefaultPasswordHashAlgorithm("dummy")
 	}
 
 	initGiteaPaths()

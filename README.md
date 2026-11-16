@@ -25,7 +25,7 @@ See [app.example.ini](custom/conf/app.example.ini) for the options that are stil
 
 ```bash
 ./gitea web
-./gitea admin user create --admin --username <name> --email <email> --random-password
+./gitea admin user create --username <name> --email <email>
 ```
 
 Run `./gitea help` to see all available commands.

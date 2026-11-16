@@ -387,7 +387,7 @@ func TestAPICreatePullWithFieldsFailure(t *testing.T) {
 
 	opts.Assignees = []string{"qweruqweroiuyqweoiruywqer"}
 	MakeRequest(t, req, http.StatusUnprocessableEntity)
-	opts.Assignees = []string{owner10.LoginName}
+	opts.Assignees = []string{owner10.Name}
 
 	opts.Labels = []int64{55555}
 	MakeRequest(t, req, http.StatusUnprocessableEntity)

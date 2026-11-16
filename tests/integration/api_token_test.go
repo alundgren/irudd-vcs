@@ -47,7 +47,7 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 	// Test cases are in alphabetical order by URL.
 	testCases := []requiredScopeTestCase{
 		{
-			"/api/v1/admin/emails",
+			"/api/v1/admin/hooks",
 			"GET",
 			[]permission{
 				{
@@ -57,28 +57,8 @@ func TestAPIDeniesPermissionBasedOnTokenScope(t *testing.T) {
 			},
 		},
 		{
-			"/api/v1/admin/users",
-			"GET",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryAdmin,
-					auth_model.Read,
-				},
-			},
-		},
-		{
-			"/api/v1/admin/users",
+			"/api/v1/admin/hooks",
 			"POST",
-			[]permission{
-				{
-					auth_model.AccessTokenScopeCategoryAdmin,
-					auth_model.Write,
-				},
-			},
-		},
-		{
-			"/api/v1/admin/users/user2",
-			"PATCH",
 			[]permission{
 				{
 					auth_model.AccessTokenScopeCategoryAdmin,

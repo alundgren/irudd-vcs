@@ -270,10 +270,6 @@ func SearchRepositoryCondition(opts SearchRepoOptions) builder.Cond {
 		cond = cond.And(builder.Eq{"is_mirror": opts.Mirror.Value()})
 	}
 
-	if opts.Actor != nil && opts.Actor.IsRestricted {
-		cond = cond.And(AccessibleRepositoryCondition(opts.Actor, unit.TypeInvalid))
-	}
-
 	if opts.Archived.Has() {
 		cond = cond.And(builder.Eq{"is_archived": opts.Archived.Value()})
 	}

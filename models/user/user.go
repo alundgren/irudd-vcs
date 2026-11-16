@@ -21,9 +21,7 @@ import (
 	"time"
 	"unicode"
 
-	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
-	"gitea.dev/modules/auth/password/hash"
 	"gitea.dev/modules/container"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/htmlutil"
@@ -88,23 +86,12 @@ type User struct {
 	Email                        string `xorm:"NOT NULL"`
 	KeepEmailPrivate             bool
 	EmailNotificationsPreference string `xorm:"VARCHAR(20) NOT NULL DEFAULT 'enabled'"`
-	Passwd                       string `xorm:"NOT NULL"`
-	PasswdHashAlgo               string `xorm:"NOT NULL DEFAULT 'argon2'"`
-
-	// MustChangePassword is an attribute that determines if a user
-	// is to change their password after registration.
-	MustChangePassword bool `xorm:"NOT NULL DEFAULT false"`
-
-	LoginType   auth.Type
-	LoginSource int64 `xorm:"NOT NULL DEFAULT 0"`
-	LoginName   string
-	Type        UserType
-	Location    string
-	Website     string
-	Rands       string `xorm:"VARCHAR(32)"`
-	Salt        string `xorm:"VARCHAR(32)"`
-	Language    string `xorm:"VARCHAR(5)"`
-	Description string
+	Type                         UserType
+	Location                     string
+	Website                      string
+	Rands                        string `xorm:"VARCHAR(32)"`
+	Language                     string `xorm:"VARCHAR(5)"`
+	Description                  string
 
 	CreatedUnix   timeutil.TimeStamp `xorm:"INDEX created"`
 	UpdatedUnix   timeutil.TimeStamp `xorm:"INDEX updated"`
@@ -119,14 +106,9 @@ type User struct {
 	// false: an inactive user can only log in Web UI for account operations (ex: activate the account by email), no other access.
 	IsActive bool `xorm:"INDEX"`
 	// the user is a Gitea admin, who can access all repositories and the admin pages.
-	IsAdmin bool
-	// true: the user is only allowed to see organizations/repositories that they has explicit rights to.
-	// (ex: in private Gitea instances user won't be allowed to see even organizations/repositories that are set as public)
-	IsRestricted bool `xorm:"NOT NULL DEFAULT false"`
-
-	AllowGitHook            bool
-	AllowImportLocal        bool // Allow migrate repository by local path
-	AllowCreateOrganization bool `xorm:"DEFAULT true"`
+	IsAdmin          bool
+	AllowGitHook     bool
+	AllowImportLocal bool // Allow migrate repository by local path
 
 	// true: the user is not allowed to log in Web UI. Git/SSH access could still be allowed (please refer to Git/SSH access related code/documents)
 	ProhibitLogin bool `xorm:"NOT NULL DEFAULT false"`
@@ -142,11 +124,7 @@ type User struct {
 	NumStars     int
 	NumRepos     int
 
-	// For organization
-	NumTeams                  int
-	NumMembers                int
-	Visibility                structs.VisibleType `xorm:"NOT NULL DEFAULT 0"`
-	RepoAdminChangeTeamAccess bool                `xorm:"NOT NULL DEFAULT false"`
+	Visibility structs.VisibleType `xorm:"NOT NULL DEFAULT 0"`
 
 	// Preferences
 	DiffViewStyle       string `xorm:"NOT NULL DEFAULT ''"`
@@ -225,16 +203,6 @@ func GetAllUsers(ctx context.Context) ([]*User, error) {
 	return users, db.GetEngine(ctx).OrderBy("id").Where("type = ?", UserTypeIndividual).Find(&users)
 }
 
-// IsLocal returns true if user login type is LoginPlain.
-func (u *User) IsLocal() bool {
-	return u.LoginType <= auth.Plain
-}
-
-// IsOAuth2 returns true if user login type is LoginOAuth2.
-func (u *User) IsOAuth2() bool {
-	return u.LoginType == auth.OAuth2
-}
-
 // MaxCreationLimit returns the number of repositories a user or an organization is allowed to create
 func (u *User) MaxCreationLimit() int {
 	if u.MaxRepoCreation > -1 {
@@ -252,7 +220,7 @@ func (u *User) MaxCreationLimit() int {
 // TODO: the callers can only return ErrReachLimitOfRepo, need to fine tune to support other error types in the future.
 func (u *User) CanCreateRepoIn(owner *User) bool {
 	if u.ID <= 0 || owner.ID <= 0 {
-		return false // fake user like Ghost or Actions user
+		return false // fake user like Ghost
 	}
 	if u.IsAdmin {
 		return true
@@ -263,11 +231,6 @@ func (u *User) CanCreateRepoIn(owner *User) bool {
 		return true
 	}
 	return owner.NumRepos < limit
-}
-
-// CanCreateOrganization returns true if user can create organisation.
-func (u *User) CanCreateOrganization() bool {
-	return u.IsAdmin || (u.AllowCreateOrganization && !setting.Admin.DisableRegularOrgCreation)
 }
 
 // CanEditGitHook returns true if user can edit Git hooks.
@@ -320,31 +283,6 @@ func (u *User) NewGitSig() *git.Signature {
 		Email: u.GetEmail(),
 		When:  time.Now(),
 	}
-}
-
-// SetPassword hashes a password using the algorithm defined in the config value of PASSWORD_HASH_ALGO
-// change passwd, salt and passwd_hash_algo fields
-func (u *User) SetPassword(passwd string) (err error) {
-	if u.Salt, err = GetUserSalt(); err != nil {
-		return err
-	}
-	if u.Passwd, err = hash.Parse(setting.PasswordHashAlgo).Hash(passwd, u.Salt); err != nil {
-		return err
-	}
-	u.PasswdHashAlgo = setting.PasswordHashAlgo
-
-	return nil
-}
-
-// ValidatePassword checks if the given password matches the one belonging to the user.
-func (u *User) ValidatePassword(passwd string) bool {
-	return hash.Parse(u.PasswdHashAlgo).VerifyPassword(passwd, u.Passwd, u.Salt)
-}
-
-// IsPasswordSet checks if the password is set or left empty
-// TODO: It's better to clarify the "password" behavior for different types (individual, bot)
-func (u *User) IsPasswordSet() bool {
-	return u.Passwd != ""
 }
 
 // IsOrganization returns true if user is actually an organization.
@@ -447,9 +385,9 @@ func (u *User) GitName() string {
 }
 
 // IsMailable checks if a user is eligible to receive emails.
-// System users like Ghost and Gitea Actions are excluded.
+// System users like Ghost are excluded.
 func (u *User) IsMailable() bool {
-	return u.IsActive && !u.IsGiteaActions() && !u.IsGhost()
+	return u.IsActive && !u.IsGhost()
 }
 
 // IsUserExist checks if given username exist,
@@ -509,8 +447,7 @@ var globalVars = sync.OnceValue(func() *globalVarsStruct {
 		emailRegexp: regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]*@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"),
 
 		systemUserNewFuncs: map[int64]func() *User{
-			GhostUserID:   NewGhostUser,
-			ActionsUserID: NewActionsUser,
+			GhostUserID: NewGhostUser,
 		},
 	}
 })
@@ -564,8 +501,7 @@ var (
 		"swagger.v1.json",
 		"openapi3.v1.json",
 
-		"ghost",         // reserved name for deleted users (id: -1)
-		"gitea-actions", // gitea builtin user (id: -2)
+		"ghost", // reserved name for deleted users (id: -1)
 	}
 
 	// These names are reserved for user accounts: user's keys, user's rss feed, user's avatar, etc.
@@ -587,26 +523,19 @@ func IsUsableUsername(name string) error {
 type CreateUserOverwriteOptions struct {
 	KeepEmailPrivate             optional.Option[bool]
 	Visibility                   *structs.VisibleType
-	AllowCreateOrganization      optional.Option[bool]
 	EmailNotificationsPreference *string
 	MaxRepoCreation              *int
 	Theme                        *string
-	IsRestricted                 optional.Option[bool]
 	IsActive                     optional.Option[bool]
 }
 
 // CreateUser creates record of a new user.
 func CreateUser(ctx context.Context, u *User, meta *Meta, overwriteDefault ...*CreateUserOverwriteOptions) (err error) {
-	return createUser(ctx, u, meta, false, overwriteDefault...)
-}
-
-// AdminCreateUser is used by admins to manually create users
-func AdminCreateUser(ctx context.Context, u *User, meta *Meta, overwriteDefault ...*CreateUserOverwriteOptions) (err error) {
-	return createUser(ctx, u, meta, true, overwriteDefault...)
+	return createUser(ctx, u, meta, overwriteDefault...)
 }
 
 // createUser creates record of a new user.
-func createUser(ctx context.Context, u *User, meta *Meta, createdByAdmin bool, overwriteDefault ...*CreateUserOverwriteOptions) (err error) {
+func createUser(ctx context.Context, u *User, meta *Meta, overwriteDefault ...*CreateUserOverwriteOptions) (err error) {
 	if err = IsUsableUsername(u.Name); err != nil {
 		return err
 	}
@@ -614,10 +543,8 @@ func createUser(ctx context.Context, u *User, meta *Meta, createdByAdmin bool, o
 	// set system defaults
 	u.KeepEmailPrivate = setting.Service.DefaultKeepEmailPrivate
 	u.Visibility = setting.Service.DefaultUserVisibilityMode
-	u.AllowCreateOrganization = setting.Service.DefaultAllowCreateOrganization && !setting.Admin.DisableRegularOrgCreation
 	u.EmailNotificationsPreference = EmailNotificationsEnabled
 	u.MaxRepoCreation = -1
-	u.IsRestricted = setting.Service.DefaultUserIsRestricted
 	u.IsActive = true // no mail service, so there is no email confirmation
 
 	// Ensure consistency of the dates.
@@ -634,9 +561,6 @@ func createUser(ctx context.Context, u *User, meta *Meta, createdByAdmin bool, o
 		if overwrite.Visibility != nil {
 			u.Visibility = *overwrite.Visibility
 		}
-		if overwrite.AllowCreateOrganization.Has() {
-			u.AllowCreateOrganization = overwrite.AllowCreateOrganization.Value()
-		}
 		if overwrite.EmailNotificationsPreference != nil {
 			u.EmailNotificationsPreference = *overwrite.EmailNotificationsPreference
 		}
@@ -645,9 +569,6 @@ func createUser(ctx context.Context, u *User, meta *Meta, createdByAdmin bool, o
 		}
 		if overwrite.Theme != nil {
 			u.Theme = *overwrite.Theme
-		}
-		if overwrite.IsRestricted.Has() {
-			u.IsRestricted = overwrite.IsRestricted.Value()
 		}
 		if overwrite.IsActive.Has() {
 			u.IsActive = overwrite.IsActive.Value()
@@ -659,14 +580,8 @@ func createUser(ctx context.Context, u *User, meta *Meta, createdByAdmin bool, o
 		return err
 	}
 
-	if createdByAdmin {
-		if err := ValidateEmailForAdmin(u.Email); err != nil {
-			return err
-		}
-	} else {
-		if err := ValidateEmail(u.Email); err != nil {
-			return err
-		}
+	if err := ValidateEmail(u.Email); err != nil {
+		return err
 	}
 
 	return db.WithTx(ctx, func(ctx context.Context) error {
@@ -692,14 +607,6 @@ func createUser(ctx context.Context, u *User, meta *Meta, createdByAdmin bool, o
 		u.AvatarEmail = u.Email
 		if u.Rands, err = GetUserSalt(); err != nil {
 			return err
-		}
-		if u.Passwd != "" {
-			if err = u.SetPassword(u.Passwd); err != nil {
-				return err
-			}
-		} else {
-			u.Salt = ""
-			u.PasswdHashAlgo = ""
 		}
 
 		// save changes to database
@@ -1155,10 +1062,7 @@ func IsUserVisibleToViewer(_ context.Context, u, viewer *User) bool {
 	case structs.VisibleTypePublic:
 		return true
 	case structs.VisibleTypeLimited:
-		if viewer == nil || viewer.IsRestricted {
-			return false
-		}
-		return true
+		return viewer != nil
 	case structs.VisibleTypePrivate:
 		return false // only admins and the user themself, there are no organizations to share
 	}
@@ -1170,22 +1074,4 @@ func GetOrderByName() string {
 		return "full_name, name"
 	}
 	return "name"
-}
-
-// IsFeatureDisabledWithLoginType checks if a user features are disabled, taking into account the login type of the
-// user if applicable
-func IsFeatureDisabledWithLoginType(user *User, features ...string) bool {
-	if user != nil && user.LoginType > auth.Plain {
-		return setting.Admin.ExternalUserDisableFeatures.Contains(features...)
-	}
-	return setting.Admin.UserDisabledFeatures.Contains(features...)
-}
-
-// DisabledFeaturesWithLoginType returns the set of user features disabled, taking into account the login type
-// of the user if applicable
-func DisabledFeaturesWithLoginType(user *User) *container.Set[string] {
-	if user != nil && user.LoginType > auth.Plain {
-		return &setting.Admin.ExternalUserDisableFeatures
-	}
-	return &setting.Admin.UserDisabledFeatures
 }

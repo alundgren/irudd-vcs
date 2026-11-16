@@ -71,7 +71,6 @@ func TestAPIUserSearchSystemUsers(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 	for _, systemUser := range []*user_model.User{
 		user_model.NewGhostUser(),
-		user_model.NewActionsUser(),
 	} {
 		t.Run(systemUser.Name, func(t *testing.T) {
 			req := NewRequestf(t, "GET", "/api/v1/users/search?uid=%d", systemUser.ID)

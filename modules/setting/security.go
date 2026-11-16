@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"gitea.dev/modules/auth/password/hash"
 	"gitea.dev/modules/generate"
 	"gitea.dev/modules/log"
 )
@@ -31,13 +30,9 @@ var (
 	InternalToken                      string // internal access token
 	ReverseProxyLimit                  int
 	ReverseProxyTrustedProxies         []string
-	MinPasswordLength                  int
 	DisableGitHooks                    = true
 	DisableWebhooks                    bool
 	OnlyAllowPushIfGiteaEnvironmentSet bool
-	PasswordComplexity                 []string
-	PasswordHashAlgo                   string
-	PasswordCheckPwn                   bool
 	SuccessfulTokensCacheSize          int
 	DisableQueryAuthToken              bool
 	RecordUserSignupMetadata           = false
@@ -119,19 +114,10 @@ func loadSecurityFrom(rootCfg ConfigProvider) {
 		ReverseProxyTrustedProxies = []string{"127.0.0.0/8", "::1/128"}
 	}
 
-	MinPasswordLength = sec.Key("MIN_PASSWORD_LENGTH").MustInt(8)
 	DisableGitHooks = sec.Key("DISABLE_GIT_HOOKS").MustBool(true)
 	DisableWebhooks = sec.Key("DISABLE_WEBHOOKS").MustBool(false)
 	OnlyAllowPushIfGiteaEnvironmentSet = sec.Key("ONLY_ALLOW_PUSH_IF_GITEA_ENVIRONMENT_SET").MustBool(true)
 
-	// Ensure that the provided default hash algorithm is a valid hash algorithm
-	var algorithm *hash.PasswordHashAlgorithm
-	PasswordHashAlgo, algorithm = hash.SetDefaultPasswordHashAlgorithm(sec.Key("PASSWORD_HASH_ALGO").MustString(""))
-	if algorithm == nil {
-		log.Fatal("The provided password hash algorithm was invalid: %s", sec.Key("PASSWORD_HASH_ALGO").MustString(""))
-	}
-
-	PasswordCheckPwn = sec.Key("PASSWORD_CHECK_PWN").MustBool(false)
 	SuccessfulTokensCacheSize = sec.Key("SUCCESSFUL_TOKENS_CACHE_SIZE").MustInt(20)
 
 	deprecatedSetting(rootCfg, "cors", "X_FRAME_OPTIONS", "security", "X_FRAME_OPTIONS", "v1.26.0")
@@ -147,18 +133,6 @@ func loadSecurityFrom(rootCfg ConfigProvider) {
 		// if Gitea has been installed but the InternalToken hasn't been generated (upgrade from an old release), we should generate
 		// some users do cluster deployment, they still depend on this auto-generating behavior.
 		generateSaveInternalToken(rootCfg)
-	}
-
-	cfgdata := sec.Key("PASSWORD_COMPLEXITY").Strings(",")
-	if len(cfgdata) == 0 {
-		cfgdata = []string{"off"}
-	}
-	PasswordComplexity = make([]string, 0, len(cfgdata))
-	for _, name := range cfgdata {
-		name := strings.ToLower(strings.Trim(name, `"`))
-		if name != "" {
-			PasswordComplexity = append(PasswordComplexity, name)
-		}
 	}
 
 	sectionHasDisableQueryAuthToken := sec.HasKey("DISABLE_QUERY_AUTH_TOKEN")

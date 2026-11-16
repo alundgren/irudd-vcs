@@ -404,15 +404,15 @@ func TestAPIPullReviewStayDismissed(t *testing.T) {
 	assert.NoError(t, pullIssue.LoadAttributes(t.Context()))
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: pullIssue.RepoID})
 	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-	session2 := loginUser(t, user2.LoginName)
+	session2 := loginUser(t, user2.Name)
 	token2 := getTokenForLoggedInUser(t, session2, auth_model.AccessTokenScopeWriteRepository)
 	user8 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 8})
-	session8 := loginUser(t, user8.LoginName)
+	session8 := loginUser(t, user8.Name)
 	token8 := getTokenForLoggedInUser(t, session8, auth_model.AccessTokenScopeWriteRepository)
 
 	// user2 request user8
 	req := NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo.OwnerName, repo.Name, pullIssue.Index), &api.PullReviewRequestOptions{
-		Reviewers: []string{user8.LoginName},
+		Reviewers: []string{user8.Name},
 	}).AddTokenAuth(token2)
 	MakeRequest(t, req, http.StatusCreated)
 
@@ -422,7 +422,7 @@ func TestAPIPullReviewStayDismissed(t *testing.T) {
 
 	// user2 request user8 again, it is expected to be ignored
 	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo.OwnerName, repo.Name, pullIssue.Index), &api.PullReviewRequestOptions{
-		Reviewers: []string{user8.LoginName},
+		Reviewers: []string{user8.Name},
 	}).AddTokenAuth(token2)
 	MakeRequest(t, req, http.StatusCreated)
 
@@ -448,7 +448,7 @@ func TestAPIPullReviewStayDismissed(t *testing.T) {
 
 	// user2 request user8 again
 	req = NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/requested_reviewers", repo.OwnerName, repo.Name, pullIssue.Index), &api.PullReviewRequestOptions{
-		Reviewers: []string{user8.LoginName},
+		Reviewers: []string{user8.Name},
 	}).AddTokenAuth(token2)
 	MakeRequest(t, req, http.StatusCreated)
 

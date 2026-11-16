@@ -20,14 +20,9 @@ func WithDisabledFeatures(t *testing.T, features ...string) {
 	t.Helper()
 
 	global := setting.Admin.UserDisabledFeatures
-	user := setting.Admin.ExternalUserDisableFeatures
-
 	setting.Admin.UserDisabledFeatures = container.SetOf(features...)
-	setting.Admin.ExternalUserDisableFeatures = setting.Admin.UserDisabledFeatures
-
 	t.Cleanup(func() {
 		setting.Admin.UserDisabledFeatures = global
-		setting.Admin.ExternalUserDisableFeatures = user
 	})
 }
 

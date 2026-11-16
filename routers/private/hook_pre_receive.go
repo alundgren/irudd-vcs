@@ -250,19 +250,10 @@ func preReceiveBranch(ctx *preReceiveContext, oldCommitID, newCommitID string, r
 
 	// 5. Check if the doer is allowed to push (and force-push if the incoming push is a force-push)
 	var canPush bool
-	if ctx.opts.DeployKeyID != 0 {
-		// This flag is only ever true if protectBranch.CanForcePush is true
-		if isForcePush {
-			canPush = !changedProtectedfiles && protectBranch.CanPush && (!protectBranch.EnableForcePushAllowlist || protectBranch.ForcePushAllowlistDeployKeys)
-		} else {
-			canPush = !changedProtectedfiles && protectBranch.CanPush && (!protectBranch.EnableWhitelist || protectBranch.WhitelistDeployKeys)
-		}
+	if isForcePush {
+		canPush = !changedProtectedfiles && protectBranch.CanUserForcePush(ctx, ctx.user)
 	} else {
-		if isForcePush {
-			canPush = !changedProtectedfiles && protectBranch.CanUserForcePush(ctx, ctx.user)
-		} else {
-			canPush = !changedProtectedfiles && protectBranch.CanUserPush(ctx, ctx.user)
-		}
+		canPush = !changedProtectedfiles && protectBranch.CanUserPush(ctx, ctx.user)
 	}
 
 	// 6. If we're not allowed to push directly
@@ -429,32 +420,24 @@ func generateGitEnv(opts *private.HookOptions) (env []string) {
 
 // loadPusherAndPermission returns false if an error occurs, and it writes the error response
 func (ctx *preReceiveContext) loadPusherAndPermission() bool {
-	if ctx.opts.UserID == user_model.ActionsUserID {
-		log.Error("HookPreReceive: pushes by the Actions user are not supported")
-		ctx.JSON(http.StatusForbidden, private.Response{
-			UserMsg: "Pushes by the Actions user are not supported",
+	user, err := user_model.GetUserByID(ctx, ctx.opts.UserID)
+	if err != nil {
+		log.Error("Unable to get User id %d Error: %v", ctx.opts.UserID, err)
+		ctx.JSON(http.StatusInternalServerError, private.Response{
+			Err: fmt.Sprintf("Unable to get User id %d Error: %v", ctx.opts.UserID, err),
 		})
 		return false
-	} else {
-		user, err := user_model.GetUserByID(ctx, ctx.opts.UserID)
-		if err != nil {
-			log.Error("Unable to get User id %d Error: %v", ctx.opts.UserID, err)
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: fmt.Sprintf("Unable to get User id %d Error: %v", ctx.opts.UserID, err),
-			})
-			return false
-		}
-		ctx.user = user
-		userPerm, err := access_model.GetDoerRepoPermission(ctx, ctx.Repo.Repository, user)
-		if err != nil {
-			log.Error("Unable to get Repo permission of repo %s/%s of User %s: %v", ctx.Repo.Repository.OwnerName, ctx.Repo.Repository.Name, user.Name, err)
-			ctx.JSON(http.StatusInternalServerError, private.Response{
-				Err: fmt.Sprintf("Unable to get Repo permission of repo %s/%s of User %s: %v", ctx.Repo.Repository.OwnerName, ctx.Repo.Repository.Name, user.Name, err),
-			})
-			return false
-		}
-		ctx.userPerm = userPerm
 	}
+	ctx.user = user
+	userPerm, err := access_model.GetDoerRepoPermission(ctx, ctx.Repo.Repository, user)
+	if err != nil {
+		log.Error("Unable to get Repo permission of repo %s/%s of User %s: %v", ctx.Repo.Repository.OwnerName, ctx.Repo.Repository.Name, user.Name, err)
+		ctx.JSON(http.StatusInternalServerError, private.Response{
+			Err: fmt.Sprintf("Unable to get Repo permission of repo %s/%s of User %s: %v", ctx.Repo.Repository.OwnerName, ctx.Repo.Repository.Name, user.Name, err),
+		})
+		return false
+	}
+	ctx.userPerm = userPerm
 
 	return true
 }

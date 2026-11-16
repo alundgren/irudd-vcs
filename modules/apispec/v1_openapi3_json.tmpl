@@ -2183,7 +2183,7 @@
             "x-go-name": "Name"
           },
           "organization": {
-            "description": "organization name, if forking into an organization",
+            "description": "organization name; there are no organizations, so setting it fails with 422",
             "type": "string",
             "x-go-name": "Organization"
           }
@@ -2629,77 +2629,6 @@
         },
         "required": [
           "tag_name"
-        ],
-        "type": "object",
-        "x-go-package": "gitea.dev/modules/structs"
-      },
-      "CreateUserOption": {
-        "description": "CreateUserOption create user options",
-        "properties": {
-          "created_at": {
-            "description": "For explicitly setting the user creation timestamp. Useful when users are\nmigrated from other systems. When omitted, the user's creation timestamp\nwill be set to \"now\".",
-            "format": "date-time",
-            "type": "string",
-            "x-go-name": "Created"
-          },
-          "email": {
-            "format": "email",
-            "type": "string",
-            "x-go-name": "Email"
-          },
-          "full_name": {
-            "description": "The full display name of the user",
-            "type": "string",
-            "x-go-name": "FullName"
-          },
-          "login_name": {
-            "description": "identifier of the user, provided by the external authenticator (if configured)",
-            "type": "string",
-            "x-go-name": "LoginName"
-          },
-          "must_change_password": {
-            "description": "Whether the user must change password on first login",
-            "type": "boolean",
-            "x-go-name": "MustChangePassword"
-          },
-          "password": {
-            "description": "The plain text password for the user",
-            "type": "string",
-            "x-go-name": "Password"
-          },
-          "restricted": {
-            "description": "Whether the user has restricted access privileges",
-            "type": "boolean",
-            "x-go-name": "Restricted"
-          },
-          "send_notify": {
-            "description": "Whether to send welcome notification email to the user",
-            "type": "boolean",
-            "x-go-name": "SendNotify"
-          },
-          "source_id": {
-            "description": "The authentication source ID to associate with the user",
-            "format": "int64",
-            "type": "integer",
-            "x-go-name": "SourceID"
-          },
-          "username": {
-            "description": "username of the user",
-            "type": "string",
-            "x-go-name": "Username"
-          },
-          "visibility": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/UserVisibility"
-              }
-            ],
-            "description": "User visibility level: public, limited, or private\npublic UserVisibilityPublic\nlimited UserVisibilityLimited\nprivate UserVisibilityPrivate"
-          }
-        },
-        "required": [
-          "username",
-          "email"
         ],
         "type": "object",
         "x-go-package": "gitea.dev/modules/structs"
@@ -3398,110 +3327,6 @@
             "x-go-name": "Website"
           }
         },
-        "type": "object",
-        "x-go-package": "gitea.dev/modules/structs"
-      },
-      "EditUserOption": {
-        "description": "EditUserOption edit user options",
-        "properties": {
-          "active": {
-            "description": "Whether the user account is active",
-            "type": "boolean",
-            "x-go-name": "Active"
-          },
-          "admin": {
-            "description": "Whether the user has administrator privileges",
-            "type": "boolean",
-            "x-go-name": "Admin"
-          },
-          "allow_create_organization": {
-            "description": "Whether the user can create organizations",
-            "type": "boolean",
-            "x-go-name": "AllowCreateOrganization"
-          },
-          "allow_git_hook": {
-            "description": "Whether the user can use Git hooks",
-            "type": "boolean",
-            "x-go-name": "AllowGitHook"
-          },
-          "allow_import_local": {
-            "description": "Whether the user can import local repositories",
-            "type": "boolean",
-            "x-go-name": "AllowImportLocal"
-          },
-          "description": {
-            "description": "The user's personal description or bio",
-            "type": "string",
-            "x-go-name": "Description"
-          },
-          "email": {
-            "format": "email",
-            "type": "string",
-            "x-go-name": "Email"
-          },
-          "full_name": {
-            "description": "The full display name of the user",
-            "type": "string",
-            "x-go-name": "FullName"
-          },
-          "location": {
-            "description": "The user's location or address",
-            "type": "string",
-            "x-go-name": "Location"
-          },
-          "login_name": {
-            "description": "identifier of the user, provided by the external authenticator (if configured)",
-            "type": "string",
-            "x-go-name": "LoginName"
-          },
-          "max_repo_creation": {
-            "description": "Maximum number of repositories the user can create",
-            "format": "int64",
-            "type": "integer",
-            "x-go-name": "MaxRepoCreation"
-          },
-          "must_change_password": {
-            "description": "Whether the user must change password on next login",
-            "type": "boolean",
-            "x-go-name": "MustChangePassword"
-          },
-          "password": {
-            "description": "The plain text password for the user",
-            "type": "string",
-            "x-go-name": "Password"
-          },
-          "prohibit_login": {
-            "description": "Whether the user is prohibited from logging in",
-            "type": "boolean",
-            "x-go-name": "ProhibitLogin"
-          },
-          "restricted": {
-            "description": "Whether the user has restricted access privileges",
-            "type": "boolean",
-            "x-go-name": "Restricted"
-          },
-          "source_id": {
-            "format": "int64",
-            "type": "integer",
-            "x-go-name": "SourceID"
-          },
-          "visibility": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/UserVisibility"
-              }
-            ],
-            "description": "User visibility level: public, limited, or private\npublic UserVisibilityPublic\nlimited UserVisibilityLimited\nprivate UserVisibilityPrivate"
-          },
-          "website": {
-            "description": "The user's personal website URL",
-            "type": "string",
-            "x-go-name": "Website"
-          }
-        },
-        "required": [
-          "source_id"
-        ],
         "type": "object",
         "x-go-package": "gitea.dev/modules/structs"
       },
@@ -4294,74 +4119,6 @@
         ],
         "type": "string"
       },
-      "Organization": {
-        "description": "Organization represents an organization",
-        "properties": {
-          "avatar_url": {
-            "description": "The URL of the organization's avatar",
-            "format": "uri",
-            "type": "string",
-            "x-go-name": "AvatarURL"
-          },
-          "description": {
-            "description": "The description of the organization",
-            "type": "string",
-            "x-go-name": "Description"
-          },
-          "email": {
-            "description": "The email address of the organization",
-            "type": "string",
-            "x-go-name": "Email"
-          },
-          "full_name": {
-            "description": "The full display name of the organization",
-            "type": "string",
-            "x-go-name": "FullName"
-          },
-          "id": {
-            "description": "The unique identifier of the organization",
-            "format": "int64",
-            "type": "integer",
-            "x-go-name": "ID"
-          },
-          "location": {
-            "description": "The location of the organization",
-            "type": "string",
-            "x-go-name": "Location"
-          },
-          "name": {
-            "description": "The name of the organization",
-            "type": "string",
-            "x-go-name": "Name"
-          },
-          "repo_admin_change_team_access": {
-            "description": "Whether repository administrators can change team access",
-            "type": "boolean",
-            "x-go-name": "RepoAdminChangeTeamAccess"
-          },
-          "username": {
-            "deprecated": true,
-            "description": "username of the organization\ndeprecated",
-            "type": "string",
-            "x-go-name": "UserName"
-          },
-          "visibility": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/UserVisibility"
-              }
-            ],
-            "description": "The visibility level of the organization (public, limited, private)\npublic UserVisibilityPublic\nlimited UserVisibilityLimited\nprivate UserVisibilityPrivate"
-          },
-          "website": {
-            "description": "The website URL of the organization",
-            "type": "string",
-            "x-go-name": "Website"
-          }
-        },
-        "type": "object",
-        "x-go-package": "gitea.dev/modules/structs"
-      },
       "PRBranchInfo": {
         "description": "PRBranchInfo information about a branch",
         "properties": {
@@ -4973,22 +4730,6 @@
         "type": "object",
         "x-go-package": "gitea.dev/modules/structs"
       },
-      "RenameUserOption": {
-        "description": "RenameUserOption options when renaming a user",
-        "properties": {
-          "new_username": {
-            "description": "New username for this user. This name cannot be in use yet by any other user.",
-            "type": "string",
-            "uniqueItems": true,
-            "x-go-name": "NewName"
-          }
-        },
-        "required": [
-          "new_username"
-        ],
-        "type": "object",
-        "x-go-package": "gitea.dev/modules/structs"
-      },
       "RepoCommit": {
         "properties": {
           "author": {
@@ -5395,13 +5136,8 @@
         "x-go-package": "gitea.dev/modules/structs"
       },
       "Team": {
-        "description": "Team represents a team in an organization",
+        "description": "Team represents a team in an organization. There are no teams, it keeps the type of\nrequested_reviewers_teams, which is always empty",
         "properties": {
-          "can_create_org_repo": {
-            "description": "Whether the team can create repositories in the organization",
-            "type": "boolean",
-            "x-go-name": "CanCreateOrgRepo"
-          },
           "description": {
             "description": "The description of the team",
             "type": "string",
@@ -5413,67 +5149,10 @@
             "type": "integer",
             "x-go-name": "ID"
           },
-          "includes_all_repositories": {
-            "description": "Whether the team has access to all repositories in the organization",
-            "type": "boolean",
-            "x-go-name": "IncludesAllRepositories"
-          },
           "name": {
             "description": "The name of the team",
             "type": "string",
             "x-go-name": "Name"
-          },
-          "organization": {
-            "$ref": "#/components/schemas/Organization"
-          },
-          "permission": {
-            "enum": [
-              "none",
-              "read",
-              "write",
-              "admin",
-              "owner"
-            ],
-            "type": "string",
-            "x-go-enum-desc": "none AccessLevelNameNone\nread AccessLevelNameRead\nwrite AccessLevelNameWrite\nadmin AccessLevelNameAdmin\nowner AccessLevelNameOwner",
-            "x-go-name": "Permission"
-          },
-          "units": {
-            "example": [
-              "repo.code",
-              "repo.issues",
-              "repo.pulls",
-              "repo.releases"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "x-go-name": "Units"
-          },
-          "units_map": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "example": {
-              "repo.code": "read",
-              "repo.issues": "write",
-              "repo.pulls": "owner",
-              "repo.releases": "none"
-            },
-            "type": "object",
-            "x-go-name": "UnitsMap"
-          },
-          "visibility": {
-            "description": "Team visibility within the organization. \"private\" teams are only\nlistable by members and org owners; \"limited\" teams are listable by\nany organization member; \"public\" teams are listable by any signed-in\nuser.\npublic TeamVisibilityPublic\nlimited TeamVisibilityLimited\nprivate TeamVisibilityPrivate",
-            "enum": [
-              "public",
-              "limited",
-              "private"
-            ],
-            "type": "string",
-            "x-go-enum-desc": "public TeamVisibilityPublic\nlimited TeamVisibilityLimited\nprivate TeamVisibilityPrivate",
-            "x-go-name": "Visibility"
           }
         },
         "type": "object",
@@ -5767,26 +5446,10 @@
             "type": "string",
             "x-go-name": "UserName"
           },
-          "login_name": {
-            "description": "identifier of the user, provided by the external authenticator (if configured)",
-            "type": "string",
-            "x-go-name": "LoginName"
-          },
           "prohibit_login": {
             "description": "Is user login prohibited",
             "type": "boolean",
             "x-go-name": "ProhibitLogin"
-          },
-          "restricted": {
-            "description": "Is user restricted",
-            "type": "boolean",
-            "x-go-name": "Restricted"
-          },
-          "source_id": {
-            "description": "The ID of the user's Authentication Source",
-            "format": "int64",
-            "type": "integer",
-            "x-go-name": "SourceID"
           },
           "starred_repos_count": {
             "format": "int64",
@@ -5794,12 +5457,15 @@
             "x-go-name": "StarredRepos"
           },
           "visibility": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/UserVisibility"
-              }
+            "description": "User visibility level option: public, limited, private\npublic UserVisibilityPublic\nlimited UserVisibilityLimited\nprivate UserVisibilityPrivate",
+            "enum": [
+              "public",
+              "limited",
+              "private"
             ],
-            "description": "User visibility level option: public, limited, private\npublic UserVisibilityPublic\nlimited UserVisibilityLimited\nprivate UserVisibilityPrivate"
+            "type": "string",
+            "x-go-enum-desc": "public UserVisibilityPublic\nlimited UserVisibilityLimited\nprivate UserVisibilityPrivate",
+            "x-go-name": "Visibility"
           },
           "website": {
             "description": "the user's website",
@@ -5915,14 +5581,6 @@
         },
         "type": "object",
         "x-go-package": "gitea.dev/modules/structs"
-      },
-      "UserVisibility": {
-        "enum": [
-          "public",
-          "limited",
-          "private"
-        ],
-        "type": "string"
       }
     },
     "securitySchemes": {
@@ -5961,84 +5619,6 @@
   },
   "openapi": "3.0.3",
   "paths": {
-    "/admin/emails": {
-      "get": {
-        "operationId": "adminGetAllEmails",
-        "parameters": [
-          {
-            "description": "page number of results to return (1-based)",
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "page size of results",
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "$ref": "#/components/responses/EmailList"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          }
-        },
-        "summary": "List all emails",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/admin/emails/search": {
-      "get": {
-        "operationId": "adminSearchEmails",
-        "parameters": [
-          {
-            "description": "keyword",
-            "in": "query",
-            "name": "q",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "page number of results to return (1-based)",
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "page size of results",
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "$ref": "#/components/responses/EmailList"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          }
-        },
-        "summary": "Search all emails",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
     "/admin/hooks": {
       "get": {
         "operationId": "adminListHooks",
@@ -6305,341 +5885,6 @@
           }
         },
         "summary": "Adopt unadopted files as a repository",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/admin/users": {
-      "get": {
-        "operationId": "adminSearchUsers",
-        "parameters": [
-          {
-            "description": "ID of the user's login source to search for",
-            "in": "query",
-            "name": "source_id",
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "identifier of the user, provided by the external authenticator",
-            "in": "query",
-            "name": "login_name",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "page number of results to return (1-based)",
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "page size of results",
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "sort users by attribute. Supported values are \"name\", \"created\", \"updated\" and \"id\". Default is \"name\"",
-            "in": "query",
-            "name": "sort",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "sort order, either \"asc\" (ascending) or \"desc\" (descending). Default is \"asc\", ignored if \"sort\" is not specified.",
-            "in": "query",
-            "name": "order",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "search term (username, full name, email)",
-            "in": "query",
-            "name": "q",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "visibility filter. Supported values are \"public\", \"limited\" and \"private\".",
-            "in": "query",
-            "name": "visibility",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "filter active users",
-            "in": "query",
-            "name": "is_active",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "filter admin users",
-            "in": "query",
-            "name": "is_admin",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "filter restricted users",
-            "in": "query",
-            "name": "is_restricted",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "filter 2FA enabled users",
-            "in": "query",
-            "name": "is_2fa_enabled",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "filter login prohibited users",
-            "in": "query",
-            "name": "is_prohibit_login",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "$ref": "#/components/responses/UserList"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          },
-          "422": {
-            "$ref": "#/components/responses/validationError"
-          }
-        },
-        "summary": "Search users according filter conditions",
-        "tags": [
-          "admin"
-        ]
-      },
-      "post": {
-        "operationId": "adminCreateUser",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateUserOption"
-              }
-            }
-          },
-          "x-originalParamName": "body"
-        },
-        "responses": {
-          "201": {
-            "$ref": "#/components/responses/User"
-          },
-          "400": {
-            "$ref": "#/components/responses/error"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          },
-          "422": {
-            "$ref": "#/components/responses/validationError"
-          }
-        },
-        "summary": "Create a user",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/admin/users/{username}": {
-      "delete": {
-        "operationId": "adminDeleteUser",
-        "parameters": [
-          {
-            "description": "username of the user to delete",
-            "in": "path",
-            "name": "username",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "purge the user from the system completely",
-            "in": "query",
-            "name": "purge",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "$ref": "#/components/responses/empty"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/notFound"
-          },
-          "422": {
-            "$ref": "#/components/responses/validationError"
-          }
-        },
-        "summary": "Delete a user",
-        "tags": [
-          "admin"
-        ]
-      },
-      "patch": {
-        "operationId": "adminEditUser",
-        "parameters": [
-          {
-            "description": "username of the user whose data is to be edited",
-            "in": "path",
-            "name": "username",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditUserOption"
-              }
-            }
-          },
-          "x-originalParamName": "body"
-        },
-        "responses": {
-          "200": {
-            "$ref": "#/components/responses/User"
-          },
-          "400": {
-            "$ref": "#/components/responses/error"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          },
-          "422": {
-            "$ref": "#/components/responses/validationError"
-          }
-        },
-        "summary": "Edit an existing user",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/admin/users/{username}/rename": {
-      "post": {
-        "operationId": "adminRenameUser",
-        "parameters": [
-          {
-            "description": "current username of the user",
-            "in": "path",
-            "name": "username",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RenameUserOption"
-              }
-            }
-          },
-          "required": true,
-          "x-originalParamName": "body"
-        },
-        "responses": {
-          "204": {
-            "$ref": "#/components/responses/empty"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          },
-          "422": {
-            "$ref": "#/components/responses/validationError"
-          }
-        },
-        "summary": "Rename a user",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/admin/users/{username}/repos": {
-      "post": {
-        "operationId": "adminCreateRepo",
-        "parameters": [
-          {
-            "description": "username of the user who will own the created repository",
-            "in": "path",
-            "name": "username",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRepoOption"
-              }
-            }
-          },
-          "required": true,
-          "x-originalParamName": "repository"
-        },
-        "responses": {
-          "201": {
-            "$ref": "#/components/responses/Repository"
-          },
-          "400": {
-            "$ref": "#/components/responses/error"
-          },
-          "403": {
-            "$ref": "#/components/responses/forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/notFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/error"
-          },
-          "422": {
-            "$ref": "#/components/responses/validationError"
-          }
-        },
-        "summary": "Create a repository on behalf of a user",
         "tags": [
           "admin"
         ]

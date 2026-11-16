@@ -141,7 +141,6 @@ func TestAPIGetSystemUserComment(t *testing.T) {
 
 	for _, systemUser := range []*user_model.User{
 		user_model.NewGhostUser(),
-		user_model.NewActionsUser(),
 	} {
 		body := "Hello " + systemUser.Name
 		comment, err := issues_model.CreateComment(t.Context(), &issues_model.CreateCommentOptions{

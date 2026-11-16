@@ -753,20 +753,6 @@ func Routes() *web.Router {
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryIssue))
 
 		m.Group("/admin", func() {
-			m.Group("/users", func() {
-				m.Get("", admin.SearchUsers)
-				m.Post("", bind(api.CreateUserOption{}), admin.CreateUser)
-				m.Group("/{username}", func() {
-					m.Combo("").Patch(bind(api.EditUserOption{}), admin.EditUser).
-						Delete(admin.DeleteUser)
-					m.Post("/repos", bind(api.CreateRepoOption{}), admin.CreateRepo)
-					m.Post("/rename", bind(api.RenameUserOption{}), admin.RenameUser)
-				}, context.UserAssignmentAPI())
-			})
-			m.Group("/emails", func() {
-				m.Get("", admin.GetAllEmails)
-				m.Get("/search", admin.SearchEmail)
-			})
 			m.Group("/unadopted", func() {
 				m.Get("", admin.ListUnadoptedRepositories)
 				m.Post("/{username}/{reponame}", admin.AdoptRepository)

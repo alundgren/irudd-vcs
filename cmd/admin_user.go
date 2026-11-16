@@ -14,10 +14,8 @@ func newUserCommand() *cli.Command {
 		Commands: []*cli.Command{
 			microcmdUserCreate(),
 			newUserListCommand(),
-			microcmdUserChangePassword(),
 			microcmdUserDelete(),
 			newUserGenerateAccessTokenCommand(),
-			microcmdUserMustChangePassword(),
 		},
 	}
 }

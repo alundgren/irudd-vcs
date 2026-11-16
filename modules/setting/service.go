@@ -21,8 +21,6 @@ var Service = struct {
 	EmailDomainAllowList            []glob.Glob
 	EmailDomainBlockList            []glob.Glob
 	DefaultKeepEmailPrivate         bool
-	DefaultAllowCreateOrganization  bool
-	DefaultUserIsRestricted         bool
 	NoReplyAddress                  string
 	DefaultOrgMemberVisible         bool
 	UserDeleteWithCommentsMaxTime   time.Duration
@@ -65,8 +63,6 @@ func loadServiceFrom(rootCfg ConfigProvider) {
 	Service.EmailDomainBlockList = CompileEmailGlobList(sec, "EMAIL_DOMAIN_BLOCKLIST")
 
 	Service.DefaultKeepEmailPrivate = sec.Key("DEFAULT_KEEP_EMAIL_PRIVATE").MustBool()
-	Service.DefaultAllowCreateOrganization = sec.Key("DEFAULT_ALLOW_CREATE_ORGANIZATION").MustBool(true)
-	Service.DefaultUserIsRestricted = sec.Key("DEFAULT_USER_IS_RESTRICTED").MustBool(false)
 	Service.NoReplyAddress = sec.Key("NO_REPLY_ADDRESS").MustString("noreply." + Domain)
 	modes := sec.Key("ALLOWED_USER_VISIBILITY_MODES").Strings(",")
 	if len(modes) != 0 {

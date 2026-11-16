@@ -28,12 +28,6 @@ type swaggerResponseEmailList struct {
 	Body []api.Email `json:"body"`
 }
 
-// swagger:model EditUserOption
-type swaggerModelEditUserOption struct {
-	// in:body
-	Options api.EditUserOption
-}
-
 // UserSettings
 // swagger:response UserSettings
 type swaggerResponseUserSettings struct {

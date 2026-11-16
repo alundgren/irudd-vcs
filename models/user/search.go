@@ -40,8 +40,6 @@ type SearchUserOptions struct {
 	Keyword       string
 	Types         []UserType
 	UID           int64
-	LoginName     string // this option should be used only for admin user
-	SourceID      int64  // this option should be used only for admin user
 	OrderBy       db.SearchOrderBy
 	Visible       []structs.VisibleType
 	Actor         *User // The user doing the search
@@ -49,7 +47,6 @@ type SearchUserOptions struct {
 
 	IsActive        optional.Option[bool]
 	IsAdmin         optional.Option[bool]
-	IsRestricted    optional.Option[bool]
 	IsProhibitLogin optional.Option[bool]
 	IncludeReserved bool
 }
@@ -112,23 +109,12 @@ func (opts *SearchUserOptions) toSearchQueryBase(ctx context.Context) db.Session
 		cond = cond.And(builder.Eq{"id": opts.UID})
 	}
 
-	if opts.SourceID > 0 {
-		cond = cond.And(builder.Eq{"login_source": opts.SourceID})
-	}
-	if opts.LoginName != "" {
-		cond = cond.And(builder.Eq{"login_name": opts.LoginName})
-	}
-
 	if opts.IsActive.Has() {
 		cond = cond.And(builder.Eq{"is_active": opts.IsActive.Value()})
 	}
 
 	if opts.IsAdmin.Has() {
 		cond = cond.And(builder.Eq{"is_admin": opts.IsAdmin.Value()})
-	}
-
-	if opts.IsRestricted.Has() {
-		cond = cond.And(builder.Eq{"is_restricted": opts.IsRestricted.Value()})
 	}
 
 	if opts.IsProhibitLogin.Has() {
@@ -170,13 +156,8 @@ func BuildCanSeeUserCondition(actor *User) builder.Cond {
 	if actor != nil {
 		// If Admin - they see all users!
 		if !actor.IsAdmin {
-			cond := builder.NewCond()
-			if !actor.IsRestricted {
-				// Not-Restricted users can see public and limited users/organizations
-				cond = cond.Or(builder.In("`user`.visibility", structs.VisibleTypePublic, structs.VisibleTypeLimited))
-			}
-			// Don't forget about self
-			return cond.Or(builder.Eq{"`user`.id": actor.ID})
+			// signed-in users can see public and limited users, and themself
+			return builder.Or(builder.In("`user`.visibility", structs.VisibleTypePublic, structs.VisibleTypeLimited), builder.Eq{"`user`.id": actor.ID})
 		}
 
 		return nil
