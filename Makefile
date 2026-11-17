@@ -345,7 +345,7 @@ generate-go: $(TAGS_PREREQ)
 
 .PHONY: security-check
 security-check:
-	GOEXPERIMENT= go run $(GOVULNCHECK_PACKAGE) -show color ./... || true
+	GOEXPERIMENT= go run $(GOVULNCHECK_PACKAGE) -show color ./...
 
 $(EXECUTABLE): $(GO_SOURCES) $(TAGS_PREREQ)
 	CGO_ENABLED="$(CGO_ENABLED)" $(GO) build $(GOFLAGS) $(EXTRA_GOFLAGS) -tags '$(TAGS)' -ldflags '-s -w $(LDFLAGS)' -o $@
