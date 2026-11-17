@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCompressOldFile(t *testing.T) {
@@ -37,7 +38,8 @@ func TestCompressOldFile(t *testing.T) {
 	assert.NoError(t, err)
 
 	f, err = os.Open(fname + ".gz")
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	defer f.Close()
 	zr, err := gzip.NewReader(f)
 	assert.NoError(t, err)
 	data, err := io.ReadAll(zr)

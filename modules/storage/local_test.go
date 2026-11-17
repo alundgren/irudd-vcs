@@ -5,6 +5,7 @@ package storage
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -47,11 +48,12 @@ func TestBuildLocalPath(t *testing.T) {
 		},
 	}
 
+	root := t.TempDir() // the cases are rooted here, since "/a" is not absolute on Windows
 	for _, k := range kases {
 		t.Run(k.path, func(t *testing.T) {
-			l := LocalStorage{dir: k.localDir}
+			l := LocalStorage{dir: filepath.Join(root, k.localDir)}
 
-			assert.Equal(t, k.expected, l.buildLocalPath(k.path))
+			assert.Equal(t, filepath.Join(root, k.expected), l.buildLocalPath(k.path))
 		})
 	}
 }
