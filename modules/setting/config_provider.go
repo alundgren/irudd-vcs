@@ -4,6 +4,7 @@
 package setting
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -275,20 +276,8 @@ func (p *iniConfigProvider) Save() error {
 			return fmt.Errorf("failed to create %q: %v", filename, err)
 		}
 	}
-	if err := p.ini.SaveTo(filename); err != nil {
+	if err := saveConfigFile(p.ini, filename); err != nil {
 		return fmt.Errorf("failed to save %q: %v", filename, err)
-	}
-
-	// Change permissions to be more restrictive
-	fi, err := os.Stat(filename)
-	if err != nil {
-		return fmt.Errorf("failed to determine current conf file permissions: %v", err)
-	}
-
-	if fi.Mode().Perm() > 0o600 {
-		if err = os.Chmod(filename, 0o600); err != nil {
-			log.Warn("Failed changing conf file permissions to -rw-------. Consider changing them manually.")
-		}
 	}
 	return nil
 }
@@ -297,7 +286,34 @@ func (p *iniConfigProvider) SaveTo(filename string) error {
 	if p.disableSaving {
 		return errDisableSaving
 	}
-	return p.ini.SaveTo(filename)
+	return saveConfigFile(p.ini, filename)
+}
+
+// saveConfigFile writes the config readable by the owner only, as it holds secrets. A new file is created
+// private, so it is never readable by others between the write and a chmod.
+func saveConfigFile(cfg *ini.File, filename string) error {
+	var buf bytes.Buffer
+	if _, err := cfg.WriteTo(&buf); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(buf.Bytes())
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	// an existing file keeps its mode on write, so restrict it too; leave devices such as /dev/stdout alone
+	if fi, err := os.Stat(filename); err == nil && fi.Mode().IsRegular() && fi.Mode().Perm()&0o077 != 0 {
+		if err = os.Chmod(filename, 0o600); err != nil {
+			log.Warn("Failed changing conf file permissions to -rw-------. Consider changing them manually.")
+		}
+	}
+	return nil
 }
 
 // DisableSaving disables the saving function, use PrepareSaving to get clear config options.

@@ -5,6 +5,8 @@ package setting
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -135,4 +137,29 @@ func TestDisableSaving(t *testing.T) {
 	bs, err := os.ReadFile(testFile)
 	assert.NoError(t, err)
 	assert.Equal(t, "k1 = a\nk2 = y\nk3 = z\n", string(bs))
+}
+
+func TestSaveConfigFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no group or other permission bits")
+	}
+	dir := t.TempDir()
+	cfg, err := NewConfigProviderFromData("k1=a")
+	assert.NoError(t, err)
+
+	newFile := filepath.Join(dir, "new.ini")
+	assert.NoError(t, cfg.SaveTo(newFile))
+	fi, err := os.Stat(newFile)
+	assert.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
+
+	existing := filepath.Join(dir, "existing.ini")
+	assert.NoError(t, os.WriteFile(existing, nil, 0o644))
+	assert.NoError(t, cfg.SaveTo(existing))
+	fi, err = os.Stat(existing)
+	assert.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
+	bs, err := os.ReadFile(existing)
+	assert.NoError(t, err)
+	assert.Equal(t, "k1 = a\n", string(bs))
 }
