@@ -264,56 +264,6 @@ func reqSiteAdmin() func(ctx *context.APIContext) {
 	}
 }
 
-// reqOwner user should be the owner of the repo or site admin.
-func reqOwner() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if !ctx.Repo.Permission.IsOwner() && !ctx.IsUserSiteAdmin() {
-			ctx.APIError(http.StatusForbidden, "user should be the owner of the repo")
-			return
-		}
-	}
-}
-
-// reqAdmin user should be an owner or a collaborator with admin write of a repository, or site admin
-func reqAdmin() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if !ctx.IsUserRepoAdmin() && !ctx.IsUserSiteAdmin() {
-			ctx.APIError(http.StatusForbidden, "user should be an owner or a collaborator with admin write of a repository")
-			return
-		}
-	}
-}
-
-// reqRepoWriter user should have a permission to write to a repo, or be a site admin
-func reqRepoWriter(unitTypes ...unit.Type) func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if !ctx.IsUserRepoWriter(unitTypes) && !ctx.IsUserRepoAdmin() && !ctx.IsUserSiteAdmin() {
-			ctx.APIError(http.StatusForbidden, "user should have a permission to write to a repo")
-			return
-		}
-	}
-}
-
-// reqRepoReader user should have specific read permission or be a repo admin or a site admin
-func reqRepoReader(unitType unit.Type) func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if !ctx.Repo.Permission.CanRead(unitType) && !ctx.IsUserRepoAdmin() && !ctx.IsUserSiteAdmin() {
-			ctx.APIError(http.StatusForbidden, "user should have specific read permission or be a repo admin or a site admin")
-			return
-		}
-	}
-}
-
-// reqAnyRepoReader user should have any permission to read repository or permissions of site admin
-func reqAnyRepoReader() func(ctx *context.APIContext) {
-	return func(ctx *context.APIContext) {
-		if !ctx.Repo.Permission.HasAnyUnitAccess() && !ctx.IsUserSiteAdmin() {
-			ctx.APIError(http.StatusForbidden, "user should have any permission to read repository or permissions of site admin")
-			return
-		}
-	}
-}
-
 func reqGitHook() func(ctx *context.APIContext) {
 	return func(ctx *context.APIContext) {
 		if !ctx.Doer.CanEditGitHook() {
@@ -440,13 +390,6 @@ func checkSignedInUser(ctx *context.APIContext) {
 	}
 }
 
-func individualPermsChecker(ctx *context.APIContext) {
-	// org permissions have been checked in context.OrgAssignment(), but individual permissions haven't been checked.
-	if ctx.ContextUser.IsIndividual() && !user_model.IsUserVisibleToViewer(ctx, ctx.ContextUser, ctx.Doer) {
-		ctx.APIErrorNotFound()
-	}
-}
-
 // checkQueryAuthToken tells a client that sends its token in the query string why it is not signed in
 func checkQueryAuthToken(ctx *context.APIContext) {
 	if util.HasCredentialQuery(ctx.Req.URL.RawQuery) {
@@ -498,7 +441,7 @@ func Routes() *web.Router {
 			m.Group("/{username}", func() {
 				m.Get("", user.GetInfo)
 				m.Get("/repos", tokenRequiresScopes(auth_model.AccessTokenScopeCategoryRepository), user.ListUserRepos)
-			}, context.UserAssignmentAPI(), checkTokenPublicOnly(), individualPermsChecker)
+			}, context.UserAssignmentAPI(), checkTokenPublicOnly())
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryUser))
 
 		// Users (requires user scope)
@@ -536,11 +479,11 @@ func Routes() *web.Router {
 			m.Get("/search", repo.Search)
 
 			m.Group("/{username}/{reponame}", func() {
-				m.Get("/compare/*", reqRepoReader(unit.TypeCode), repo.CompareDiff)
+				m.Get("/compare/*", repo.CompareDiff)
 
-				m.Combo("").Get(reqAnyRepoReader(), repo.Get).
-					Delete(reqToken(), reqOwner(), repo.Delete).
-					Patch(reqToken(), reqAdmin(), bind(api.EditRepoOption{}), repo.Edit)
+				m.Combo("").Get(repo.Get).
+					Delete(reqToken(), repo.Delete).
+					Patch(reqToken(), bind(api.EditRepoOption{}), repo.Edit)
 
 				m.Group("/hooks/git", func() {
 					m.Combo("").Get(repo.ListGitHooks)
@@ -549,7 +492,7 @@ func Routes() *web.Router {
 							Patch(bind(api.EditGitHookOption{}), repo.EditGitHook).
 							Delete(repo.DeleteGitHook)
 					})
-				}, reqToken(), reqAdmin(), reqGitHook(), context.ReferencesGitRepo(true))
+				}, reqToken(), reqGitHook(), context.ReferencesGitRepo(true))
 				m.Group("/hooks", func() {
 					m.Combo("").Get(repo.ListHooks).
 						Post(bind(api.CreateHookOption{}), repo.CreateHook)
@@ -559,23 +502,23 @@ func Routes() *web.Router {
 							Delete(repo.DeleteHook)
 						m.Post("/tests", context.ReferencesGitRepo(), context.RepoRefForAPI, repo.TestHook)
 					})
-				}, reqToken(), reqAdmin(), reqWebhooksEnabled())
-				m.Get("/assignees", reqToken(), reqAnyRepoReader(), repo.GetAssignees)
-				m.Get("/assignees/{assignee}", reqToken(), reqAnyRepoReader(), repo.CheckRepoIssueAssignee)
-				m.Get("/reviewers", reqToken(), reqAnyRepoReader(), repo.GetReviewers)
-				m.Get("/raw/*", context.ReferencesGitRepo(), context.RepoRefForAPI, reqRepoReader(unit.TypeCode), repo.GetRawFile)
-				m.Get("/media/*", context.ReferencesGitRepo(), context.RepoRefForAPI, reqRepoReader(unit.TypeCode), repo.GetRawFileOrLFS)
+				}, reqToken(), reqWebhooksEnabled())
+				m.Get("/assignees", reqToken(), repo.GetAssignees)
+				m.Get("/assignees/{assignee}", reqToken(), repo.CheckRepoIssueAssignee)
+				m.Get("/reviewers", reqToken(), repo.GetReviewers)
+				m.Get("/raw/*", context.ReferencesGitRepo(), context.RepoRefForAPI, repo.GetRawFile)
+				m.Get("/media/*", context.ReferencesGitRepo(), context.RepoRefForAPI, repo.GetRawFileOrLFS)
 				m.Combo("/forks").Get(repo.ListForks).
-					Post(reqToken(), reqRepoReader(unit.TypeCode), bind(api.CreateForkOption{}), repo.CreateFork)
-				m.Post("/merge-upstream", reqToken(), mustNotBeArchived, reqRepoWriter(unit.TypeCode), bind(api.MergeUpstreamRequest{}), repo.MergeUpstream)
+					Post(reqToken(), bind(api.CreateForkOption{}), repo.CreateFork)
+				m.Post("/merge-upstream", reqToken(), mustNotBeArchived, bind(api.MergeUpstreamRequest{}), repo.MergeUpstream)
 				m.Group("/branches", func() {
 					m.Get("", repo.ListBranches)
 					m.Get("/*", repo.GetBranch)
-					m.Delete("/*", reqToken(), reqRepoWriter(unit.TypeCode), mustNotBeArchived, repo.DeleteBranch)
-					m.Post("", reqToken(), reqRepoWriter(unit.TypeCode), mustNotBeArchived, bind(api.CreateBranchRepoOption{}), repo.CreateBranch)
-					m.Put("/*", reqToken(), reqRepoWriter(unit.TypeCode), mustNotBeArchived, bind(api.UpdateBranchRepoOption{}), repo.UpdateBranch)
-					m.Patch("/*", reqToken(), reqRepoWriter(unit.TypeCode), mustNotBeArchived, bind(api.RenameBranchRepoOption{}), repo.RenameBranch)
-				}, context.ReferencesGitRepo(), reqRepoReader(unit.TypeCode))
+					m.Delete("/*", reqToken(), mustNotBeArchived, repo.DeleteBranch)
+					m.Post("", reqToken(), mustNotBeArchived, bind(api.CreateBranchRepoOption{}), repo.CreateBranch)
+					m.Put("/*", reqToken(), mustNotBeArchived, bind(api.UpdateBranchRepoOption{}), repo.UpdateBranch)
+					m.Patch("/*", reqToken(), mustNotBeArchived, bind(api.RenameBranchRepoOption{}), repo.RenameBranch)
+				}, context.ReferencesGitRepo())
 				m.Group("/branch_protections", func() {
 					m.Get("", repo.ListBranchProtections)
 					m.Post("", bind(api.CreateBranchProtectionOption{}), mustNotBeArchived, repo.CreateBranchProtection)
@@ -585,15 +528,15 @@ func Routes() *web.Router {
 						m.Delete("", mustNotBeArchived, repo.DeleteBranchProtection)
 					})
 					m.Post("/priority", bind(api.UpdateBranchProtectionPriories{}), mustNotBeArchived, repo.UpdateBranchProtectionPriories)
-				}, reqToken(), reqAdmin())
+				}, reqToken())
 				m.Group("/tags", func() {
 					m.Get("", repo.ListTags)
 					m.Get("/*", repo.GetTag)
-					m.Post("", reqToken(), reqRepoWriter(unit.TypeCode), mustNotBeArchived, bind(api.CreateTagOption{}), repo.CreateTag)
-					m.Delete("/*", reqToken(), reqRepoWriter(unit.TypeCode), mustNotBeArchived, repo.DeleteTag)
-				}, reqRepoReader(unit.TypeCode), context.ReferencesGitRepo(true))
+					m.Post("", reqToken(), mustNotBeArchived, bind(api.CreateTagOption{}), repo.CreateTag)
+					m.Delete("/*", reqToken(), mustNotBeArchived, repo.DeleteTag)
+				}, context.ReferencesGitRepo(true))
 
-				m.Get("/editorconfig/{filename}", context.ReferencesGitRepo(), context.RepoRefForAPI, reqRepoReader(unit.TypeCode), repo.GetEditorconfig)
+				m.Get("/editorconfig/{filename}", context.ReferencesGitRepo(), context.RepoRefForAPI, repo.GetEditorconfig)
 				m.Group("/pulls", func() {
 					m.Combo("").Get(repo.ListPullRequests).
 						Post(reqToken(), mustNotBeArchived, bind(api.CreatePullRequestOption{}), repo.CreatePullRequest)
@@ -629,11 +572,11 @@ func Routes() *web.Router {
 						m.Post("/comments/{id}/replies", reqToken(), mustNotBeArchived, bind(api.CreatePullReviewCommentReplyOptions{}), repo.CreatePullReviewCommentReply)
 					})
 					m.Get("/{base}/*", repo.GetPullRequestByBaseHead)
-				}, mustAllowPulls, reqRepoReader(unit.TypeCode), context.ReferencesGitRepo())
+				}, mustAllowPulls, context.ReferencesGitRepo())
 				m.Group("/statuses", func() { // "/statuses/{sha}" only accepts commit ID
 					m.Combo("/{sha}").Get(repo.GetCommitStatuses).
-						Post(reqToken(), reqRepoWriter(unit.TypeCode), bind(api.CreateStatusOption{}), repo.NewCommitStatus)
-				}, reqRepoReader(unit.TypeCode))
+						Post(reqToken(), bind(api.CreateStatusOption{}), repo.NewCommitStatus)
+				})
 				m.Group("/commits", func() {
 					m.Get("", context.ReferencesGitRepo(), repo.GetAllCommits)
 					m.PathGroup("/*", func(g *web.RouterPathGroup) {
@@ -643,7 +586,7 @@ func Routes() *web.Router {
 						g.MatchPath("GET", "/<ref:*>/statuses", repo.GetCommitStatusesByRef)
 						g.MatchPath("GET", "/<sha>/pull", repo.GetCommitPullRequest)
 					})
-				}, reqRepoReader(unit.TypeCode))
+				})
 				m.Group("/git", func() {
 					m.Group("/commits", func() {
 						m.Get("/{sha}", repo.GetSingleCommit)
@@ -655,7 +598,7 @@ func Routes() *web.Router {
 					m.Get("/blobs/{sha}", repo.GetBlob)
 					m.Get("/tags/{sha}", repo.GetAnnotatedTag)
 					m.Get("/notes/{sha}", repo.GetNote)
-				}, context.ReferencesGitRepo(true), reqRepoReader(unit.TypeCode))
+				}, context.ReferencesGitRepo(true))
 				m.Post("/diffpatch", mustEnableEditor, reqToken(), bind(api.ApplyDiffPatchFileOptions{}), repo.ReqChangeRepoFileOptionsAndCheck, repo.ApplyDiffPatch)
 				m.Group("/contents", func() {
 					m.Get("", repo.GetContentsList)
@@ -669,12 +612,12 @@ func Routes() *web.Router {
 							m.Delete("", bind(api.DeleteFileOptions{}), repo.ReqChangeRepoFileOptionsAndCheck, repo.DeleteFile)
 						})
 					}, mustEnableEditor, reqToken())
-				}, reqRepoReader(unit.TypeCode), context.ReferencesGitRepo())
+				}, context.ReferencesGitRepo())
 				m.Group("/contents-ext", func() {
 					m.Get("", repo.GetContentsExt)
 					m.Get("/*", repo.GetContentsExt)
-				}, reqRepoReader(unit.TypeCode), context.ReferencesGitRepo())
-				m.Combo("/file-contents", reqRepoReader(unit.TypeCode), context.ReferencesGitRepo()).
+				}, context.ReferencesGitRepo())
+				m.Combo("/file-contents", context.ReferencesGitRepo()).
 					Get(repo.GetFileContentsGet).
 					Post(bind(api.GetFilesOptions{}), repo.GetFileContentsPost) // the POST method requires "write" permission, so we also support "GET" method above
 			}, repoAssignment(), checkTokenPublicOnly())
@@ -687,7 +630,7 @@ func Routes() *web.Router {
 			m.Group("/{username}/{reponame}", func() {
 				m.Group("/issues", func() {
 					m.Combo("").Get(repo.ListIssues).
-						Post(reqToken(), mustNotBeArchived, bind(api.CreateIssueOption{}), reqRepoReader(unit.TypeIssues), repo.CreateIssue)
+						Post(reqToken(), mustNotBeArchived, bind(api.CreateIssueOption{}), repo.CreateIssue)
 					m.Group("/comments", func() {
 						m.Get("", repo.ListRepoIssueComments)
 						m.Group("/{id}", func() {
@@ -704,7 +647,7 @@ func Routes() *web.Router {
 					m.Group("/{index}", func() {
 						m.Combo("").Get(repo.GetIssue).
 							Patch(reqToken(), bind(api.EditIssueOption{}), repo.EditIssue).
-							Delete(reqToken(), reqAdmin(), context.ReferencesGitRepo(), repo.DeleteIssue)
+							Delete(reqToken(), context.ReferencesGitRepo(), repo.DeleteIssue)
 						m.Combo("/assignees").
 							Post(reqToken(), mustNotBeArchived, bind(api.IssueAssigneesOption{}), repo.AddIssueAssignees).
 							Delete(reqToken(), mustNotBeArchived, bind(api.IssueAssigneesOption{}), repo.DeleteIssueAssignees)
@@ -732,10 +675,10 @@ func Routes() *web.Router {
 				}, mustEnableIssuesOrPulls)
 				m.Group("/labels", func() {
 					m.Combo("").Get(repo.ListLabels).
-						Post(reqToken(), reqRepoWriter(unit.TypeIssues, unit.TypePullRequests), bind(api.CreateLabelOption{}), repo.CreateLabel)
+						Post(reqToken(), bind(api.CreateLabelOption{}), repo.CreateLabel)
 					m.Combo("/{id}").Get(repo.GetLabel).
-						Patch(reqToken(), reqRepoWriter(unit.TypeIssues, unit.TypePullRequests), bind(api.EditLabelOption{}), repo.EditLabel).
-						Delete(reqToken(), reqRepoWriter(unit.TypeIssues, unit.TypePullRequests), repo.DeleteLabel)
+						Patch(reqToken(), bind(api.EditLabelOption{}), repo.EditLabel).
+						Delete(reqToken(), repo.DeleteLabel)
 				})
 			}, repoAssignment(), checkTokenPublicOnly())
 		}, tokenRequiresScopes(auth_model.AccessTokenScopeCategoryIssue))

@@ -9,12 +9,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 
 	repo_model "gitea.dev/models/repo"
-	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/cache"
 	"gitea.dev/modules/git"
@@ -324,14 +322,4 @@ func RepoRefForAPI(next http.Handler) http.Handler {
 // IsUserSiteAdmin returns true if current user is a site admin
 func (ctx *APIContext) IsUserSiteAdmin() bool {
 	return ctx.IsSigned && ctx.Doer.IsAdmin
-}
-
-// IsUserRepoAdmin returns true if current user is admin in current repo
-func (ctx *APIContext) IsUserRepoAdmin() bool {
-	return ctx.Repo.Permission.IsAdmin()
-}
-
-// IsUserRepoWriter returns true if current user has "write" privilege in current repo
-func (ctx *APIContext) IsUserRepoWriter(unitTypes []unit.Type) bool {
-	return slices.ContainsFunc(unitTypes, ctx.Repo.Permission.CanWrite)
 }
