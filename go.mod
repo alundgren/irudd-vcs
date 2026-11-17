@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	gitea.com/go-chi/binding v0.0.0-20260414111559-654cea7ac60a
 	gitea.com/go-chi/cache v0.2.1
-	gitea.com/lunny/levelqueue v0.4.2-0.20230414023320-3c0159fe0fe4
+	gitea.com/lunny/levelqueue v0.5.1
 	github.com/chi-middleware/proxy v1.1.1
 	github.com/dustin/go-humanize v1.1.0
 	github.com/editorconfig/editorconfig-core-go/v2 v2.6.5
@@ -35,7 +35,7 @@ require (
 	gopkg.in/ini.v1 v1.68.0
 	modernc.org/sqlite v1.62.0
 	xorm.io/builder v0.3.13
-	xorm.io/xorm v1.3.11
+	xorm.io/xorm v1.4.3
 )
 
 require (
