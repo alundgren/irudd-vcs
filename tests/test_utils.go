@@ -43,6 +43,33 @@ func RunAsGitea() bool {
 	return true
 }
 
+// initGitHome starts each test process with the git home that git.InitFull makes, so global config that a test
+// sets, such as git lfs install, does not reach the next test. It restores a saved copy: writing the config
+// anew takes a git process per setting.
+func initGitHome() error {
+	home := setting.Git.HomePath
+	saved := home + "-gitconfig"
+	if err := os.RemoveAll(home); err != nil {
+		return err
+	}
+	if data, err := os.ReadFile(saved); err == nil {
+		if err = os.MkdirAll(home, os.ModePerm); err != nil {
+			return err
+		}
+		if err = os.WriteFile(filepath.Join(home, ".gitconfig"), data, 0o644); err != nil {
+			return err
+		}
+	}
+	if err := git.InitFull(); err != nil {
+		return err
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".gitconfig"))
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(saved, data, 0o644)
+}
+
 func InitIntegrationTest() error {
 	testlogger.Init()
 
@@ -63,7 +90,7 @@ func InitIntegrationTest() error {
 		return err
 	}
 
-	if err := git.InitFull(); err != nil {
+	if err := initGitHome(); err != nil {
 		return err
 	}
 
