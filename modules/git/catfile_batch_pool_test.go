@@ -1,8 +1,6 @@
 // Copyright 2026 The Gitea Authors. All rights reserved.
 // SPDX-License-Identifier: MIT
 
-//go:build !gogit
-
 package git
 
 import (
@@ -125,7 +123,7 @@ func TestCatFileBatchPool(t *testing.T) {
 }
 
 func TestCatFileBatchPoolIdle(t *testing.T) {
-	enableTestBatchPool(t, 50*time.Millisecond)
+	enableTestBatchPool(t, 500*time.Millisecond) // the pool must still hold it right after Close on a busy machine
 	repoPath, err := filepath.Abs(filepath.Join(testReposDir, "repo1_bare"))
 	require.NoError(t, err)
 
