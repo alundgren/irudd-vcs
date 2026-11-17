@@ -6,6 +6,7 @@ package integration
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"testing"
 
 	auth_model "gitea.dev/models/auth"
@@ -16,6 +17,7 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
+	"gitea.dev/modules/gitrepo"
 	repo_service "gitea.dev/services/repository"
 
 	"github.com/stretchr/testify/assert"
@@ -244,6 +246,11 @@ func TestPushPullRefs(t *testing.T) {
 		u.Path = baseAPITestContext.GitPath()
 		u.User = gitUserInfo(t, "user2")
 
+		// the current hooks, which leave refs/pull to receive.hideRefs, not the fixture's update hook
+		repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerName: "user2", Name: "repo1"})
+		require.NoError(t, gitrepo.CreateDelegateHooks(t.Context(), repo))
+		require.NoFileExists(t, filepath.Join(repo.RepoPath(), "hooks", "update"))
+
 		dstPath := t.TempDir()
 		doGitClone(dstPath, u)(t)
 
@@ -252,5 +259,14 @@ func TestPushPullRefs(t *testing.T) {
 		assert.Error(t, err)
 		assert.Empty(t, stdout)
 		assert.NotContains(t, stderr, "[deleted]", "stderr: %s", stderr)
+
+		// a pull ref is refused on its own, and the rest of the push goes through
+		_, stderr, err = gitcmd.NewCommand("push", "origin", "HEAD:refs/pull/99/head", "HEAD:refs/heads/beside-pull-ref").
+			WithDir(dstPath).RunStdString(t.Context())
+		assert.Error(t, err)
+		assert.Contains(t, stderr, "refs/pull/99/head", "stderr: %s", stderr)
+		assert.Contains(t, stderr, "[new branch]", "stderr: %s", stderr)
+		assert.True(t, gitrepo.IsReferenceExist(t.Context(), repo, "refs/heads/beside-pull-ref"))
+		assert.False(t, gitrepo.IsReferenceExist(t.Context(), repo, "refs/pull/99/head"))
 	})
 }
