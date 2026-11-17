@@ -47,6 +47,17 @@ Hello from 2
 	mergeBase, err := MergeBase(t.Context(), &mockRepository{path: repoDir}, "branch1", "branch2")
 	assert.Empty(t, mergeBase)
 	assert.ErrorIs(t, err, util.ErrNotExist)
+
+	// by commit ID, the missing merge base is cached
+	ids, _, err := RunCmdString(t.Context(), &mockRepository{path: repoDir}, gitcmd.NewCommand("rev-parse", "branch1", "branch2"))
+	require.NoError(t, err)
+	id1, id2, _ := strings.Cut(strings.TrimSpace(ids), "\n")
+	for range 2 {
+		mergeBase, err = MergeBase(t.Context(), &mockRepository{path: repoDir}, id1, id2)
+		assert.Empty(t, mergeBase)
+		assert.ErrorIs(t, err, util.ErrNotExist)
+		assert.True(t, mergeBases.Contains(id1+" "+id2))
+	}
 }
 
 func TestRepoGetDivergingCommits(t *testing.T) {

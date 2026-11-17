@@ -17,17 +17,35 @@ import (
 
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/proxy"
+
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 const prettyLogFormat = `--pretty=format:%H`
 
+// commitRangeLogs maps "<id>..<id>" to its log, which the two IDs fix since replace objects are disabled;
+// the PR commits API asks for it on every request
+var commitRangeLogs, _ = lru.New[string, []byte](1024)
+
+const commitRangeLogsMaxSize = 16 << 10 // about 400 commits
+
 func (repo *Repository) ShowPrettyFormatLogToList(ctx context.Context, revisionRange string) ([]*Commit, error) {
+	from, to, isRange := strings.Cut(revisionRange, "..")
+	cacheable := isRange && IsFullCommitID(from) && IsFullCommitID(to)
+	if cacheable {
+		if logs, ok := commitRangeLogs.Get(revisionRange); ok {
+			return repo.parsePrettyFormatLogToList(logs)
+		}
+	}
 	// avoid: ambiguous argument 'refs/a...refs/b': unknown revision or path not in the working tree. Use '--': 'git <command> [<revision>...] -- [<file>...]'
 	logs, _, err := gitcmd.NewCommand("log").AddArguments(prettyLogFormat).
 		AddDynamicArguments(revisionRange).AddArguments("--").WithDir(repo.Path).
 		RunStdBytes(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if cacheable && len(logs) <= commitRangeLogsMaxSize {
+		commitRangeLogs.Add(revisionRange, logs)
 	}
 	return repo.parsePrettyFormatLogToList(logs)
 }

@@ -224,6 +224,11 @@ func IsStringLikelyCommitID(objFmt ObjectFormat, s string, minLength ...int) boo
 	return isStringLowerHex(s)
 }
 
+// IsFullCommitID reports whether s is a full sha1 or sha256 object ID, as opposed to a ref or a short ID
+func IsFullCommitID(s string) bool {
+	return (len(s) == 40 || len(s) == 64) && isStringLowerHex(s)
+}
+
 func isStringLowerHex(s string) bool {
 	for _, c := range s {
 		isHex := (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')
