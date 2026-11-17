@@ -63,7 +63,8 @@ func TestAPIGetCurrentToken(t *testing.T) {
 		user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
 		accessToken := createAPIAccessTokenWithoutCleanUp(t, "test-get-current-token-query", user, []auth_model.AccessTokenScope{auth_model.AccessTokenScopeAll})
 
-		MakeRequest(t, NewRequest(t, "GET", "/api/v1/token?token="+accessToken.Token), http.StatusUnauthorized)
+		resp := MakeRequest(t, NewRequest(t, "GET", "/api/v1/token?token="+accessToken.Token), http.StatusUnauthorized)
+		assert.Contains(t, resp.Header().Get("X-Gitea-Warning"), "Authorization header")
 		MakeRequest(t, NewRequest(t, "GET", "/api/v1/token?access_token="+accessToken.Token), http.StatusUnauthorized)
 	})
 }

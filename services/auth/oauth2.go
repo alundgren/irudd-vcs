@@ -9,8 +9,6 @@ import (
 
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/httpauth"
-	"gitea.dev/modules/log"
-	"gitea.dev/modules/util"
 )
 
 var _ Method = &OAuth2{}
@@ -27,10 +25,8 @@ func (o *OAuth2) Name() string {
 // parseToken returns the token from request, and a boolean value
 // representing whether the token exists or not
 func parseToken(req *http.Request) (string, bool) {
-	// a token in the query string would end up in logs and proxies, so only the header is accepted
-	if util.HasCredentialQuery(req.URL.RawQuery) {
-		log.Warn("API token sent in the query string is ignored, send it in the Authorization header")
-	}
+	// a token in the query string would end up in logs and proxies, so only the header is accepted; the API
+	// tells such clients in the X-Gitea-Warning header
 	if auHead := req.Header.Get("Authorization"); auHead != "" {
 		parsed, ok := httpauth.ParseAuthorizationHeader(auHead)
 		if ok && parsed.BearerToken != nil {

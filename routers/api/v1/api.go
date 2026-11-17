@@ -447,10 +447,10 @@ func individualPermsChecker(ctx *context.APIContext) {
 	}
 }
 
-// check for and warn against deprecated authentication options
-func checkDeprecatedAuthMethods(ctx *context.APIContext) {
-	if ctx.FormString("token") != "" || ctx.FormString("access_token") != "" {
-		ctx.Resp.Header().Set("X-Gitea-Warning", "token and access_token API authentication is deprecated and will be removed in gitea 1.23. Please use AuthorizationHeaderToken instead. Existing queries will continue to work but without authorization.")
+// checkQueryAuthToken tells a client that sends its token in the query string why it is not signed in
+func checkQueryAuthToken(ctx *context.APIContext) {
+	if util.HasCredentialQuery(ctx.Req.URL.RawQuery) {
+		ctx.Resp.Header().Set("X-Gitea-Warning", "token and access_token query parameters are not accepted, send the token in the Authorization header")
 	}
 }
 
@@ -472,7 +472,7 @@ func Routes() *web.Router {
 	}
 
 	m.AfterRouting(context.APIContexter())
-	m.AfterRouting(checkDeprecatedAuthMethods)
+	m.AfterRouting(checkQueryAuthToken)
 
 	m.AfterRouting(apiAuth(buildAuthGroup()))
 	m.AfterRouting(checkSignedInUser)
