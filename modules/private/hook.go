@@ -37,12 +37,6 @@ type HookOptions struct {
 	PushTrigger                     repository.PushTrigger
 }
 
-// SSHLogOption ssh log options
-type SSHLogOption struct {
-	IsError bool
-	Message string
-}
-
 // HookPostReceiveResult represents an individual result from PostReceive
 type HookPostReceiveResult struct {
 	Results []HookPostReceiveBranchResult
@@ -77,12 +71,4 @@ func HookPreReceive(ctx context.Context, ownerName, repoName string, opts HookOp
 func HookPostReceive(ctx context.Context, ownerName, repoName string, opts HookOptions) (*HookPostReceiveResult, ResponseExtra) {
 	req := newInternalRequestAPIForHooks(ctx, "post-receive", ownerName, repoName, opts)
 	return requestJSONResp(req, &HookPostReceiveResult{})
-}
-
-// SSHLog sends ssh error log response
-func SSHLog(ctx context.Context, isErr bool, msg string) error {
-	reqURL := setting.LocalURL + "api/internal/ssh/log"
-	req := newInternalRequestAPI(ctx, reqURL, "POST", &SSHLogOption{IsError: isErr, Message: msg})
-	_, extra := requestJSONResp(req, &ResponseText{})
-	return extra.Error
 }

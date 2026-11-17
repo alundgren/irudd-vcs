@@ -156,11 +156,11 @@ func runHookPreReceive(ctx context.Context, c *cli.Command) error {
 		return nil
 	}
 
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 
 	if len(os.Getenv("SSH_ORIGINAL_COMMAND")) == 0 {
 		if setting.OnlyAllowPushIfGiteaEnvironmentSet {
-			return fail(ctx, `Rejecting changes as Gitea environment not set.
+			return fail(`Rejecting changes as Gitea environment not set.
 If you are pushing over SSH you must push with a key managed by
 Gitea or set your environment appropriately.`, "")
 		}
@@ -227,7 +227,7 @@ Gitea or set your environment appropriately.`, "")
 				hookOptions.RefFullNames = refFullNames
 				extra := private.HookPreReceive(ctx, username, reponame, hookOptions)
 				if extra.HasError() {
-					return fail(ctx, extra.UserMsg, "HookPreReceive(batch) failed: %v", extra.Error)
+					return fail(extra.UserMsg, "HookPreReceive(batch) failed: %v", extra.Error)
 				}
 				count = 0
 				lastline = 0
@@ -239,7 +239,7 @@ Gitea or set your environment appropriately.`, "")
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return fail(ctx, "Hook failed: stdin read error", "scanner error: %v", err)
+		return fail("Hook failed: stdin read error", "scanner error: %v", err)
 	}
 
 	if count > 0 {
@@ -251,7 +251,7 @@ Gitea or set your environment appropriately.`, "")
 
 		extra := private.HookPreReceive(ctx, username, reponame, hookOptions)
 		if extra.HasError() {
-			return fail(ctx, extra.UserMsg, "HookPreReceive(last) failed: %v", extra.Error)
+			return fail(extra.UserMsg, "HookPreReceive(last) failed: %v", extra.Error)
 		}
 	} else if lastline > 0 {
 		fmt.Fprintf(out, "\n")
@@ -281,7 +281,7 @@ func runHookUpdate(_ context.Context, c *cli.Command) error {
 }
 
 func runHookPostReceive(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 
 	// no update-server-info here: dumb HTTP runs it when info/refs is requested
 
@@ -292,7 +292,7 @@ func runHookPostReceive(ctx context.Context, c *cli.Command) error {
 
 	if len(os.Getenv("SSH_ORIGINAL_COMMAND")) == 0 {
 		if setting.OnlyAllowPushIfGiteaEnvironmentSet {
-			return fail(ctx, `Rejecting changes as Gitea environment not set.
+			return fail(`Rejecting changes as Gitea environment not set.
 If you are pushing over SSH you must push with a key managed by
 Gitea or set your environment appropriately.`, "")
 		}
@@ -347,7 +347,7 @@ Gitea or set your environment appropriately.`, "")
 		hookOptions.RefFullNames = refFullNames
 		resp, extra := private.HookPostReceive(ctx, repoUser, repoName, hookOptions)
 		if extra.HasError() {
-			return fail(ctx, extra.UserMsg, "HookPostReceive failed: %v", extra.Error)
+			return fail(extra.UserMsg, "HookPostReceive failed: %v", extra.Error)
 		}
 		results = append(results, resp.Results...)
 		oldCommitIDs = oldCommitIDs[:0]
@@ -375,7 +375,7 @@ Gitea or set your environment appropriately.`, "")
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return fail(ctx, "Hook failed: stdin read error", "scanner error: %v", err)
+		return fail("Hook failed: stdin read error", "scanner error: %v", err)
 	}
 	return processBatch()
 }
@@ -414,103 +414,4 @@ func pushOptions() map[string]string {
 		}
 	}
 	return opts
-}
-
-// git PKT-Line api
-// pktLineType message type of pkt-line
-type pktLineType int64
-
-const (
-	_ pktLineType = 0 // unknown type
-	// flush-pkt "0000"
-	pktLineTypeFlush pktLineType = iota
-	// data line
-	pktLineTypeData
-)
-
-// gitPktLine pkt-line api
-type gitPktLine struct {
-	Type   pktLineType
-	Length uint64
-	Data   []byte
-}
-
-func readPktLine(ctx context.Context, in *bufio.Reader, requestType pktLineType) (*gitPktLine, error) {
-	var (
-		err error
-		r   *gitPktLine
-	)
-
-	// read prefix
-	lengthBytes := make([]byte, 4)
-	for i := range 4 {
-		lengthBytes[i], err = in.ReadByte()
-		if err != nil {
-			return nil, fail(ctx, "Protocol: stdin error", "Pkt-Line: read stdin failed : %v", err)
-		}
-	}
-
-	r = new(gitPktLine)
-	r.Length, err = strconv.ParseUint(string(lengthBytes), 16, 32)
-	if err != nil {
-		return nil, fail(ctx, "Protocol: format parse error", "Pkt-Line format is wrong :%v", err)
-	}
-
-	if r.Length == 0 {
-		if requestType == pktLineTypeData {
-			return nil, fail(ctx, "Protocol: format data error", "Pkt-Line format is wrong")
-		}
-		r.Type = pktLineTypeFlush
-		return r, nil
-	}
-
-	if r.Length <= 4 || r.Length > 65520 || requestType == pktLineTypeFlush {
-		return nil, fail(ctx, "Protocol: format length error", "Pkt-Line format is wrong")
-	}
-
-	r.Data = make([]byte, r.Length-4)
-	for i := range r.Data {
-		r.Data[i], err = in.ReadByte()
-		if err != nil {
-			return nil, fail(ctx, "Protocol: data error", "Pkt-Line: read stdin failed : %v", err)
-		}
-	}
-
-	r.Type = pktLineTypeData
-
-	return r, nil
-}
-
-func writeFlushPktLine(ctx context.Context, out io.Writer) error {
-	l, err := out.Write([]byte("0000"))
-	if err != nil || l != 4 {
-		return fail(ctx, "Protocol: write error", "Pkt-Line response failed: %v", err)
-	}
-	return nil
-}
-
-func writeDataPktLine(ctx context.Context, out io.Writer, data []byte) error {
-	hexchar := []byte("0123456789abcdef")
-	hex := func(n uint64) byte {
-		return hexchar[n&15]
-	}
-
-	length := uint64(len(data) + 4)
-	tmp := make([]byte, 4)
-	tmp[0] = hex(length >> 12)
-	tmp[1] = hex(length >> 8)
-	tmp[2] = hex(length >> 4)
-	tmp[3] = hex(length)
-
-	lr, err := out.Write(tmp)
-	if err != nil || lr != 4 {
-		return fail(ctx, "Protocol: write error", "Pkt-Line response failed: %v", err)
-	}
-
-	lr, err = out.Write(data)
-	if err != nil || int(length-4) != lr {
-		return fail(ctx, "Protocol: write error", "Pkt-Line response failed: %v", err)
-	}
-
-	return nil
 }

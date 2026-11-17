@@ -71,7 +71,6 @@ func Routes() *web.Router {
 	r.AfterRouting(setRealIP)
 
 	r.Get("/dummy", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	r.Post("/ssh/log", bind(private.SSHLogOption{}), SSHLog)
 	r.Post("/hook/pre-receive/{owner}/{repo}", RepoAssignment, bind(private.HookOptions{}), HookPreReceive)
 	r.Post("/hook/post-receive/{owner}/{repo}", context.OverrideContext(), bind(private.HookOptions{}), HookPostReceive)
 	r.Post("/manager/shutdown", Shutdown)

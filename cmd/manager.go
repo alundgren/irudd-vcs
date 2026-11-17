@@ -110,25 +110,25 @@ func newProcessesCommand() *cli.Command {
 }
 
 func runShutdown(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 	extra := private.Shutdown(ctx)
 	return handleCliResponseExtra(extra)
 }
 
 func runRestart(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 	extra := private.Restart(ctx)
 	return handleCliResponseExtra(extra)
 }
 
 func runFlushQueues(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 	extra := private.FlushQueues(ctx, c.Duration("timeout"), c.Bool("non-blocking"))
 	return handleCliResponseExtra(extra)
 }
 
 func runProcesses(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 	extra := private.Processes(ctx, os.Stdout, c.Bool("flat"), c.Bool("no-system"), c.Bool("stacktraces"), c.Bool("json"), c.String("cancel"))
 	return handleCliResponseExtra(extra)
 }
