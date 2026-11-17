@@ -210,3 +210,28 @@ func TestGiteaPostReceiveHook(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, refs, strings.ReplaceAll(string(content), "\r", ""))
 }
+
+func TestGiteaHooksSkipInternalPush(t *testing.T) {
+	sh := hookShell(t)
+	dir := t.TempDir()
+	fakeGitea := filepath.Join(dir, "fake-gitea")
+	require.NoError(t, os.WriteFile(fakeGitea, []byte("#!/bin/sh\necho \"gitea $*\"\n"), 0o755))
+	defer test.MockVariableValue(&setting.AppPath, filepath.ToSlash(fakeGitea))()
+	defer test.MockVariableValue(&setting.CustomConf, "app.ini")()
+	hookNames, _, giteaHookTpls := getHookTemplates()
+	for i, hookName := range hookNames {
+		hook := filepath.Join(dir, hookName)
+		require.NoError(t, os.WriteFile(hook, []byte(giteaHookTpls[i]), 0o755))
+		run := func(internal string) string {
+			cmd := exec.Command(sh, filepath.ToSlash(hook))
+			cmd.Env = append(os.Environ(), "GITEA_INTERNAL_PUSH="+internal)
+			cmd.Stdin = strings.NewReader("a1 b1 refs/heads/main\n")
+			out, err := cmd.Output()
+			require.NoError(t, err)
+			return strings.ReplaceAll(string(out), "\r", "")
+		}
+		assert.Empty(t, run("true"), hookName)
+		assert.Empty(t, run("1"), hookName)
+		assert.Equal(t, "gitea hook --config=app.ini "+hookName+"\n", run("false"), hookName)
+	}
+}
