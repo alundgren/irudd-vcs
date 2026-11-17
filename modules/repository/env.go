@@ -28,6 +28,7 @@ const (
 	EnvIsInternal   = "GITEA_INTERNAL_PUSH"
 	EnvAppURL       = "GITEA_ROOT_URL"
 	EnvNoRefRules   = "GITEA_NO_REF_RULES" // the default branch, set when no branch or tag rule applies to the pusher
+	EnvLocalURL     = "GITEA_LOCAL_URL"    // the running server's internal API URL, for its hooks
 
 	EnvPostReceiveFile = "GITEA_POST_RECEIVE_FILE" // where the post-receive hook writes its refs for the server to handle
 )

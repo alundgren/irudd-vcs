@@ -9,6 +9,7 @@ import (
 
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
+	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 
 	"github.com/urfave/cli/v3"
@@ -21,6 +22,9 @@ func setup(debug bool) {
 		setupConsoleLogger(log.FATAL, false, os.Stderr)
 	}
 	setting.MustInstalled()
+	if localURL := os.Getenv(repo_module.EnvLocalURL); localURL != "" {
+		setting.LocalURL = localURL // a hook of a server started with --port
+	}
 	if _, err := os.Stat(setting.RepoRootPath); err != nil {
 		_ = fail("Unable to access repository path", "Unable to access repository path %q, err: %v", setting.RepoRootPath, err)
 		return

@@ -19,6 +19,7 @@ import (
 	"gitea.dev/modules/gtprof"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/process"
+	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 	"gitea.dev/routers"
@@ -137,9 +138,11 @@ func serveInstalled(c *cli.Command) error {
 
 	// Override the provided port number within the configuration
 	if c.IsSet("port") {
-		if err := setPort(c.String("port")); err != nil {
-			return err
-		}
+		setPort(c.String("port"))
+	}
+	// git inherits the environment, so its hooks call this server's internal API even when --port overrides the config
+	if err := os.Setenv(repo_module.EnvLocalURL, setting.LocalURL); err != nil {
+		return fmt.Errorf("unable to set %s: %w", repo_module.EnvLocalURL, err)
 	}
 
 	gtprof.EnableBuiltinTracer(util.Iif(setting.IsProd, 2000*time.Millisecond, 100*time.Millisecond))
@@ -200,7 +203,7 @@ func runWeb(ctx context.Context, cmd *cli.Command) error {
 	return serveInstalled(cmd)
 }
 
-func setPort(port string) error {
+func setPort(port string) {
 	setting.AppURL = strings.Replace(setting.AppURL, setting.HTTPPort, port, 1)
 	setting.API.SwaggerURL = strings.Replace(setting.API.SwaggerURL, setting.HTTPPort, port, 1) // derived from the same ROOT_URL
 	setting.HTTPPort = port
@@ -217,21 +220,9 @@ func setPort(port string) error {
 			defaultLocalURL += setting.HTTPAddr
 		}
 		defaultLocalURL += ":" + setting.HTTPPort + "/"
-
-		// Save LOCAL_ROOT_URL if port changed
-		rootCfg := setting.CfgProvider
-		saveCfg, err := rootCfg.PrepareSaving()
-		if err != nil {
-			return fmt.Errorf("failed to save config file: %v", err)
-		}
-		rootCfg.Section("server").Key("LOCAL_ROOT_URL").SetValue(defaultLocalURL)
-		saveCfg.Section("server").Key("LOCAL_ROOT_URL").SetValue(defaultLocalURL)
-		setting.LocalURL = defaultLocalURL // the server calls its internal API for its own pushes too
-		if err = saveCfg.Save(); err != nil {
-			return fmt.Errorf("failed to save config file: %v", err)
-		}
+		// not saved to the config: a later start without --port must not leave the hooks on this port
+		setting.LocalURL = defaultLocalURL
 	}
-	return nil
 }
 
 func listen(m http.Handler, handleRedirector bool) error {
