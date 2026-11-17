@@ -83,11 +83,6 @@ func logPrinter(logger log.Logger) func(trigger Event, record *requestRecord) {
 		if logLevel == log.UNDEFINED {
 			logLevel = log.INFO
 		}
-		// lower the log level for some specific requests, in most cases these logs are not useful
-		if status > 0 && status < 400 &&
-			req.RequestURI == "/api/actions/runner.v1.RunnerService/FetchTask" /* Actions Runner polling */ {
-			logLevel = log.TRACE
-		}
 		message := completedMessage
 		if isUnknownHandler {
 			logLevel = log.ERROR

@@ -31,7 +31,7 @@ func authInternal(next http.Handler) http.Handler {
 		after, found := strings.CutPrefix(tokens, "Bearer ")
 		authSucceeded := found && subtle.ConstantTimeCompare([]byte(after), []byte(setting.InternalToken)) == 1
 		if !authSucceeded {
-			log.Debug("Forbidden attempt to access internal url: Authorization header: %s", tokens)
+			log.Debug("Forbidden attempt to access internal API")
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
