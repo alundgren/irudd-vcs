@@ -36,7 +36,7 @@ type result struct {
 }
 
 func main() {
-	parallel := flag.Int("p", max(1, runtime.NumCPU()/2), "number of tests to run at once")
+	parallel := flag.Int("p", max(1, runtime.NumCPU()*3/4), "number of tests to run at once") // fastest when measured on 16 CPUs: 8 or 16 workers took 60 s and 53 s, 12 took 50 s
 	run := flag.String("run", "", "run only the top-level tests matching this regular expression")
 	timeout := flag.String("timeout", "30m", "timeout of each test")
 	verbose := flag.Bool("v", false, "print the output of passing tests too")
