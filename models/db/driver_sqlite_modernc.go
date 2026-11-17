@@ -1,8 +1,6 @@
 // Copyright 2026 The Gitea Authors. All rights reserved.
 // SPDX-License-Identifier: MIT
 
-//go:build !sqlite_mattn
-
 // modernc driver is chosen as the default one (compared to mattn, ncruces)
 // * mattn was used as default, but it requires CGO
 // * the CI times are almost the same for these three (race detector must be disabled)

@@ -2,8 +2,6 @@
 // Copyright 2017 The Gitea Authors. All rights reserved.
 // SPDX-License-Identifier: MIT
 
-//go:build !gogit
-
 package git
 
 import (
@@ -14,8 +12,6 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/util"
 )
-
-const isGogit = false
 
 // Repository represents a Git repository.
 type Repository struct {

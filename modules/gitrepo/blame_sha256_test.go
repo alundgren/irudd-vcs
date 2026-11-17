@@ -18,11 +18,6 @@ func TestReadingBlameOutputSha256(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	if git.DefaultFeatures().UsingGogit {
-		t.Skip("Skipping test since gogit does not support sha256")
-		return
-	}
-
 	t.Run("Without .git-blame-ignore-revs", func(t *testing.T) {
 		storage := &mockRepository{path: "repo5_pulls_sha256"}
 		repo, err := OpenRepository(ctx, storage)

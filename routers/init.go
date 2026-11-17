@@ -20,7 +20,6 @@ import (
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/storage"
 	"gitea.dev/modules/system"
-	"gitea.dev/modules/util"
 	"gitea.dev/modules/validation"
 	"gitea.dev/modules/web"
 	"gitea.dev/modules/web/routing"
@@ -109,7 +108,7 @@ func InitWebInstalled(ctx context.Context) {
 	git.EnableBatchPool(ctx, 30*time.Second, setting.RepoRootPath)
 	log.Info("Git version: %s (home: %s)", git.DefaultFeatures().VersionInfo(), gitcmd.HomeDir())
 	if !git.DefaultFeatures().SupportHashSha256 {
-		log.Warn("sha256 hash support is disabled - requires Git >= 2.42." + util.Iif(git.DefaultFeatures().UsingGogit, " Gogit is currently unsupported.", ""))
+		log.Warn("sha256 hash support is disabled - requires Git >= 2.42.")
 	}
 
 	mustInit(system.Init)
