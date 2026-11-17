@@ -15,9 +15,39 @@ import (
 	"gitea.dev/modules/test"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TODO TestPullRequest_PushToBaseRepo
+
+func TestPushToBaseRepoSameRepository(t *testing.T) {
+	require.NoError(t, unittest.PrepareTestDatabase())
+	pr := unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 2}) // head branch2 in its base repo
+	require.NoError(t, pr.LoadBaseRepo(t.Context()))
+	branchCommit, err := gitrepo.GetBranchCommitID(t.Context(), pr.BaseRepo, pr.HeadBranch)
+	require.NoError(t, err)
+	masterCommit, err := gitrepo.GetBranchCommitID(t.Context(), pr.BaseRepo, "master")
+	require.NoError(t, err)
+	require.NotEqual(t, branchCommit, masterCommit)
+	gitRepo, err := gitrepo.OpenRepository(t.Context(), pr.BaseRepo)
+	require.NoError(t, err)
+	defer gitRepo.Close()
+	oldHead, err := gitRepo.GetRefCommitID(pr.GetGitHeadRefName())
+	require.NoError(t, err)
+	defer func() {
+		assert.NoError(t, gitrepo.UpdateRef(t.Context(), pr.BaseRepo, pr.GetGitHeadRefName(), oldHead))
+	}()
+	require.NoError(t, gitrepo.UpdateRef(t.Context(), pr.BaseRepo, pr.GetGitHeadRefName(), masterCommit))
+
+	pr = unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 2})
+	require.NoError(t, PushToBaseRepo(t.Context(), pr))
+	head, err := gitRepo.GetRefCommitID(pr.GetGitHeadRefName())
+	require.NoError(t, err)
+	assert.Equal(t, branchCommit, head)
+	// the push comment that follows a push to the head branch needs these
+	require.NotNil(t, pr.Issue)
+	assert.NotNil(t, pr.Issue.Poster)
+}
 
 func TestPullRequest_FormatSquashMergeCommitMessages(t *testing.T) {
 	oldest := &git.Commit{CommitMessage: git.CommitMessage{MessageRaw: "commit msg 1"}}

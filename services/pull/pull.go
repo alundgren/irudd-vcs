@@ -521,6 +521,7 @@ func pushToBaseRepoHelper(ctx context.Context, pr *issues_model.PullRequest, pre
 		return err
 	}
 
+	// callers rely on the issue being loaded, even when the push is skipped below
 	if err = pr.LoadIssue(ctx); err != nil {
 		return fmt.Errorf("unable to load issue %d for pr %d: %w", pr.IssueID, pr.ID, err)
 	}
@@ -529,6 +530,17 @@ func pushToBaseRepoHelper(ctx context.Context, pr *issues_model.PullRequest, pre
 	}
 
 	gitRefName := pr.GetGitHeadRefName()
+
+	// within one repository a ref update is one git process, where a push to itself runs about ten;
+	// the hooks ignore refs/pull, and a head that is not a branch still goes through the push
+	if pr.HeadRepoID == pr.BaseRepoID && prefixHeadBranch == "" {
+		commitID, err := gitrepo.GetBranchCommitID(ctx, pr.BaseRepo, pr.HeadBranch)
+		if err == nil {
+			return gitrepo.UpdateRef(ctx, pr.BaseRepo, gitRefName, commitID)
+		} else if !git.IsErrNotExist(err) {
+			return err
+		}
+	}
 
 	if err := gitrepo.Push(ctx, pr.HeadRepo, pr.BaseRepo, git.PushOptions{
 		Branch: prefixHeadBranch + pr.HeadBranch + ":" + gitRefName,
