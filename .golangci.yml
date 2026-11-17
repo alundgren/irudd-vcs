@@ -177,7 +177,9 @@ formatters:
         - blank
         - default
     gofumpt:
-      extra-rules: true
+      extra:
+        group-params: true
+        clothe-returns: true
   exclusions:
     generated: lax
 
