@@ -143,35 +143,10 @@ func prepareTemporaryRepoForMerge(ctx *mergeContext) error {
 		return fmt.Errorf("Unable to close .git/info/sparse-checkout file in tmpBasePath: %w", err)
 	}
 
-	setConfig := func(key, value string) error {
-		if err := ctx.PrepareGitCmd(gitcmd.NewCommand("config", "--local").AddDynamicArguments(key, value)).
-			RunWithStderr(ctx); err != nil {
-			log.Error("git config [%s -> %q]: %v\n%s\n%s", key, value, err, ctx.outbuf.String(), err.Stderr())
-			return fmt.Errorf("git config [%s -> %q]: %w\n%s\n%s", key, value, err, ctx.outbuf.String(), err.Stderr())
-		}
-		ctx.outbuf.Reset()
-		return nil
-	}
-
 	// Switch off LFS process (set required, clean and smudge here also)
-	if err := setConfig("filter.lfs.process", ""); err != nil {
-		return err
-	}
-
-	if err := setConfig("filter.lfs.required", "false"); err != nil {
-		return err
-	}
-
-	if err := setConfig("filter.lfs.clean", ""); err != nil {
-		return err
-	}
-
-	if err := setConfig("filter.lfs.smudge", ""); err != nil {
-		return err
-	}
-
-	if err := setConfig("core.sparseCheckout", "true"); err != nil {
-		return err
+	if err := appendTmpRepoConfig(ctx.tmpBasePath, "[filter \"lfs\"]\n\tprocess = \"\"\n\trequired = false\n\tclean = \"\"\n\tsmudge = \"\"\n[core]\n\tsparseCheckout = true\n"); err != nil {
+		log.Error("%-v Unable to configure temporary repo %s: %v", ctx.pr, ctx.tmpBasePath, err)
+		return fmt.Errorf("Unable to configure temporary repo: %w", err)
 	}
 
 	// Read base branch index

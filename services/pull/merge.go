@@ -312,18 +312,14 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 	}
 
 	// OK we should cache our current head and origin/headbranch
-	mergeHeadSHA, err := git.GetFullCommitID(ctx, mergeCtx.tmpBasePath, "HEAD")
-	if err != nil {
-		return "", fmt.Errorf("Failed to get full commit id for HEAD: %w", err)
+	// one rev-parse for the three, since each process costs 10-20 ms on Windows
+	stdout, _, err := gitcmd.NewCommand("rev-parse").AddDynamicArguments("HEAD", "original_"+tmpRepoBaseBranch, tmpRepoBaseBranch).
+		WithDir(mergeCtx.tmpBasePath).RunStdString(ctx)
+	commitIDs := strings.Fields(stdout)
+	if err != nil || len(commitIDs) != 3 {
+		return "", fmt.Errorf("Failed to get full commit ids for HEAD, origin/%s and the new merge: %w", pr.BaseBranch, err)
 	}
-	mergeBaseSHA, err := git.GetFullCommitID(ctx, mergeCtx.tmpBasePath, "original_"+tmpRepoBaseBranch)
-	if err != nil {
-		return "", fmt.Errorf("Failed to get full commit id for origin/%s: %w", pr.BaseBranch, err)
-	}
-	mergeCommitID, err := git.GetFullCommitID(ctx, mergeCtx.tmpBasePath, tmpRepoBaseBranch)
-	if err != nil {
-		return "", fmt.Errorf("Failed to get full commit id for the new merge: %w", err)
-	}
+	mergeHeadSHA, mergeBaseSHA, mergeCommitID := commitIDs[0], commitIDs[1], commitIDs[2]
 
 	// Now it's questionable about where this should go - either after or before the push
 	// I think in the interests of data safety - failures to push to the lfs should prevent
@@ -356,6 +352,7 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 	)
 
 	mergeCtx.env = append(mergeCtx.env, repo_module.EnvPushTrigger+"="+string(pushTrigger))
+	mergeCtx.env = append(mergeCtx.env, repo_module.NoRefRulesEnvironment(ctx, doer, pr.BaseRepo)...)
 	pushCmd := gitcmd.NewCommand("push", "origin").AddDynamicArguments(tmpRepoBaseBranch + ":" + git.BranchPrefix + pr.BaseBranch)
 
 	// Push back to upstream.
