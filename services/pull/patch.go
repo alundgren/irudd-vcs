@@ -21,7 +21,34 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/process"
 	"gitea.dev/modules/util"
+
+	lru "github.com/hashicorp/golang-lru/v2"
 )
+
+// prDiffCache keeps small PR diffs by merge base and head commit ID, which fix the output since replace
+// objects are disabled; clients fetch the diff of an open PR again and again
+var prDiffCache, _ = lru.New[string, []byte](64)
+
+const prDiffCacheMaxSize = 128 << 10
+
+// cappedBuffer writes through to w and keeps a copy until it grows past limit
+type cappedBuffer struct {
+	w     io.Writer
+	limit int
+	buf   []byte
+	over  bool
+}
+
+func (c *cappedBuffer) Write(p []byte) (int, error) {
+	if !c.over {
+		if len(c.buf)+len(p) > c.limit {
+			c.over, c.buf = true, nil
+		} else {
+			c.buf = append(c.buf, p...)
+		}
+	}
+	return c.w.Write(p)
+}
 
 // DownloadDiffOrPatch will write the patch for the pr to the writer
 func DownloadDiffOrPatch(ctx context.Context, pr *issues_model.PullRequest, w io.Writer, patch, binary bool) error {
@@ -37,13 +64,26 @@ func DownloadDiffOrPatch(ctx context.Context, pr *issues_model.PullRequest, w io
 	defer closer.Close()
 
 	compareArg := pr.MergeBase + "..." + pr.GetGitHeadRefName()
+	cacheKey := ""
+	if headID, err := gitRepo.GetRefCommitID(pr.GetGitHeadRefName()); err == nil && git.IsFullCommitID(pr.MergeBase) {
+		compareArg = pr.MergeBase + "..." + headID
+		cacheKey = fmt.Sprintf("%t %t %s", patch, binary, compareArg)
+		if out, ok := prDiffCache.Get(cacheKey); ok {
+			_, err = w.Write(out)
+			return err
+		}
+	}
+	out := &cappedBuffer{w: w, limit: prDiffCacheMaxSize}
 	switch {
 	case patch:
-		err = gitRepo.GetPatch(compareArg, w)
+		err = gitRepo.GetPatch(compareArg, out)
 	case binary:
-		err = gitRepo.GetDiffBinary(compareArg, w)
+		err = gitRepo.GetDiffBinary(compareArg, out)
 	default:
-		err = gitRepo.GetDiff(compareArg, w)
+		err = gitRepo.GetDiff(compareArg, out)
+	}
+	if err == nil && cacheKey != "" && !out.over {
+		prDiffCache.Add(cacheKey, out.buf)
 	}
 
 	if err != nil {
