@@ -32,7 +32,9 @@ func parseSignatureFromCommitLine(line string) *Signature {
 		ts, tz, _ := strings.Cut(s3, " ")
 		seconds, _ := strconv.ParseInt(ts, 10, 64)
 		if tzTime, err := time.Parse("-0700", tz); err == nil {
-			sig.When = time.Unix(seconds, 0).In(tzTime.Location())
+			// not tzTime.Location(): Parse returns time.Local when the offset matches it, and Local's DST rules would shift summer commits
+			_, offset := tzTime.Zone()
+			sig.When = time.Unix(seconds, 0).In(time.FixedZone("", offset))
 		}
 	} else {
 		// the old gitea code tried to parse the date in a few different formats, but it's not clear why.
