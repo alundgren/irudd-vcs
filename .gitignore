@@ -47,6 +47,8 @@ cpu.out
 /modules/options/bindata.*
 
 *.db
+*.db-shm
+*.db-wal
 *.log
 *.log.*.gz
 
