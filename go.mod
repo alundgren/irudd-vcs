@@ -1,6 +1,6 @@
 module gitea.dev
 
-go 1.27.3
+go 1.27.4
 
 require (
 	gitea.com/go-chi/binding v0.0.0-20260414111559-654cea7ac60a
