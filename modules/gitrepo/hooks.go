@@ -181,6 +181,32 @@ func removeGiteaUpdateHook(hookDir string) error {
 	return nil
 }
 
+// HasOnlyGiteaHooks reports whether a push to the repository runs only the current generated hooks, which do
+// nothing for a server push without ref rules, so the server can update a ref itself and handle its post-receive
+func HasOnlyGiteaHooks(repo Repository) bool {
+	hookDir := filepath.Join(repoPath(repo), "hooks")
+	hookNames, hookTpls, giteaHookTpls := getHookTemplates()
+	for i, hookName := range hookNames {
+		if content, err := os.ReadFile(filepath.Join(hookDir, hookName)); err != nil || string(content) != hookTpls[i] {
+			return false
+		}
+		entries, err := os.ReadDir(filepath.Join(hookDir, hookName+".d"))
+		if err != nil || len(entries) != 1 || entries[0].Name() != "gitea" {
+			return false
+		}
+		if content, err := os.ReadFile(filepath.Join(hookDir, hookName+".d", "gitea")); err != nil || string(content) != giteaHookTpls[i] {
+			return false
+		}
+	}
+	// receive-pack also runs these, and update-ref does not
+	for _, hookName := range []string{"update", "post-update"} {
+		if _, err := os.Lstat(filepath.Join(hookDir, hookName)); !os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
+}
+
 func checkExecutable(filename string) bool {
 	// windows has no concept of a executable bit
 	if runtime.GOOS == "windows" {

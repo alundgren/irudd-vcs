@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,19 +38,27 @@ func RunServerPush(ctx context.Context, env []string, push func(env []string) er
 	pushErr := push(append(env, repository.EnvPostReceiveFile+"="+filepath.ToSlash(file)))
 	// git runs post-receive for the refs a failed push did update, so these are handled too, and as with
 	// the hook a failure here does not fail the push
-	if err := serverPostReceive(ctx, env, file); err != nil {
+	if err := serverPostReceiveFile(ctx, env, file); err != nil {
 		log.Error("post-receive of a server push: %v", err)
 	}
 	return pushErr
 }
 
-func serverPostReceive(ctx context.Context, env []string, file string) error {
+// ServerPostReceive sends a ref that the server updated without a push to the post-receive handler, as RunServerPush does
+func ServerPostReceive(ctx context.Context, env []string, oldCommitID, newCommitID string, refName git.RefName) error {
+	return serverPostReceive(ctx, env, strings.NewReader(oldCommitID+" "+newCommitID+" "+refName.String()+"\n"))
+}
+
+func serverPostReceiveFile(ctx context.Context, env []string, file string) error {
 	f, err := os.Open(file)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	return serverPostReceive(ctx, env, f)
+}
 
+func serverPostReceive(ctx context.Context, env []string, refs io.Reader) error {
 	getEnv := func(key string) string {
 		for _, kv := range slices.Backward(env) { // the last one wins, as in exec
 			if k, v, ok := strings.Cut(kv, "="); ok && k == key {
@@ -83,7 +92,7 @@ func serverPostReceive(ctx context.Context, env []string, file string) error {
 		opts.OldCommitIDs, opts.NewCommitIDs, opts.RefFullNames = nil, nil, nil
 		return nil
 	}
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(refs)
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), " ")
 		if len(fields) != 3 {

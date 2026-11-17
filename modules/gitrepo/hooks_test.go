@@ -235,3 +235,34 @@ func TestGiteaHooksSkipInternalPush(t *testing.T) {
 		assert.Equal(t, "gitea hook --config=app.ini "+hookName+"\n", run("false"), hookName)
 	}
 }
+
+func TestHasOnlyGiteaHooks(t *testing.T) {
+	newRepo := func(t *testing.T) (*mockRepository, string) {
+		repoDir := t.TempDir()
+		hookDir := filepath.Join(repoDir, "hooks")
+		require.NoError(t, createDelegateHooks(hookDir))
+		return &mockRepository{path: repoDir}, hookDir
+	}
+
+	repo, _ := newRepo(t)
+	assert.True(t, HasOnlyGiteaHooks(repo))
+
+	repo, hookDir := newRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(hookDir, "post-receive.d", "custom"), []byte("#!/bin/sh\n"), 0o755))
+	assert.False(t, HasOnlyGiteaHooks(repo))
+
+	for _, name := range []string{"update", "post-update"} {
+		repo, hookDir = newRepo(t)
+		require.NoError(t, os.WriteFile(filepath.Join(hookDir, name), []byte("#!/bin/sh\n"), 0o755))
+		assert.False(t, HasOnlyGiteaHooks(repo), name)
+	}
+
+	// hooks from older templates may still start gitea
+	repo, hookDir = newRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(hookDir, "pre-receive.d", "gitea"), []byte("#!/bin/sh\n"), 0o755))
+	assert.False(t, HasOnlyGiteaHooks(repo))
+
+	repo, hookDir = newRepo(t)
+	require.NoError(t, os.Remove(filepath.Join(hookDir, "pre-receive")))
+	assert.False(t, HasOnlyGiteaHooks(repo))
+}
