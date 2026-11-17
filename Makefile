@@ -47,12 +47,6 @@ else
 endif
 EXTRA_GOFLAGS ?=
 
-ifeq ($(shell sed --version 2>/dev/null | grep -q GNU && echo gnu),gnu)
-	SED_INPLACE := sed -i
-else
-	SED_INPLACE := sed -i ''
-endif
-
 # GOTEST_FLAGS is for unit test and integration test
 GOTEST_FLAGS ?= -timeout 40m
 
@@ -112,6 +106,14 @@ SWAGGER_SPEC_INPUT := modules/apispec/v1_input.json
 SWAGGER_EXCLUDE := gitea.dev/sdk
 OPENAPI3_SPEC := modules/apispec/v1_openapi3_json.tmpl
 
+# the binary embeds these too, so a change to them must rebuild it; the specs have no rule here, as generating
+# them from every Go change would be slow, so run generate-swagger after changing the API
+BINDATA := modules/options/bindata.dat
+EMBED_SOURCES := $(SWAGGER_SPEC) $(OPENAPI3_SPEC) go.mod go.sum
+ifneq ($(filter bindata,$(TAGS)),)
+	EMBED_SOURCES += $(BINDATA)
+endif
+
 # Include local Makefile
 # Makefile.local is listed in .gitignore
 ifneq ("$(wildcard Makefile.local)","")
@@ -159,10 +161,9 @@ TAGS_PREREQ := $(TAGS_EVIDENCE)
 endif
 
 .PHONY: generate-swagger
-generate-swagger: $(SWAGGER_SPEC) $(OPENAPI3_SPEC) ## generate the Swagger 2.0 and OpenAPI 3.0 specs from code comments
-
-$(SWAGGER_SPEC): $(GO_SOURCES) $(SWAGGER_SPEC_INPUT)
+generate-swagger: ## generate the Swagger 2.0 and OpenAPI 3.0 specs from code comments
 	$(GO) run $(SWAGGER_PACKAGE) generate spec --exclude "$(SWAGGER_EXCLUDE)" --input "$(SWAGGER_SPEC_INPUT)" --output './$(SWAGGER_SPEC)'
+	$(GO) run build/generate-openapi.go
 
 .PHONY: swagger-check
 swagger-check: generate-swagger
@@ -175,16 +176,15 @@ swagger-check: generate-swagger
 
 .PHONY: swagger-validate
 swagger-validate: ## check if the swagger spec is valid
-	@# swagger "validate" requires that the "basePath" must start with a slash, but we are using Golang template "{{...}}"
-	@$(SED_INPLACE) -E -e 's|"basePath":( *)"(.*)"|"basePath":\1"/\2"|g' './$(SWAGGER_SPEC)' # add a prefix slash to basePath
+	@# swagger "validate" requires that the "basePath" must start with a slash, but we are using Golang template "{{...}}",
+	@# so validate a copy: the spec stays untouched even when validation fails
 	@# FIXME: there are some warnings
-	$(GO) run $(SWAGGER_PACKAGE) validate './$(SWAGGER_SPEC)'
-	@$(SED_INPLACE) -E -e 's|"basePath":( *)"/(.*)"|"basePath":\1"\2"|g' './$(SWAGGER_SPEC)' # remove the prefix slash from basePath
+	@tmp=$$(mktemp) && trap 'rm -f "$$tmp"' EXIT && \
+	sed -E -e 's|"basePath":( *)"(.*)"|"basePath":\1"/\2"|g' './$(SWAGGER_SPEC)' > "$$tmp" && \
+	$(GO) run $(SWAGGER_PACKAGE) validate "$$tmp"
 
 .PHONY: generate-openapi3
-generate-openapi3: $(OPENAPI3_SPEC) ## generate the OpenAPI 3.0 spec from the Swagger 2.0 spec
-
-$(OPENAPI3_SPEC): $(SWAGGER_SPEC) build/generate-openapi.go $(wildcard build/openapi3gen/*.go)
+generate-openapi3: ## generate the OpenAPI 3.0 spec from the Swagger 2.0 spec
 	$(GO) run build/generate-openapi.go
 
 .PHONY: openapi3-check
@@ -330,7 +330,7 @@ migrations.individual.test\#%:
 build: backend ## build the server
 
 .PHONY: backend
-backend: generate-backend $(EXECUTABLE) ## build the server binary
+backend: $(EXECUTABLE) ## build the server binary
 
 .PHONY: generate
 generate: generate-backend ## run "go generate"
@@ -343,11 +343,14 @@ generate-go: $(TAGS_PREREQ)
 	@echo "Running go generate..."
 	@CC= GOOS= GOARCH= CGO_ENABLED=0 $(GO) generate -tags '$(TAGS)' ./...
 
+$(BINDATA): $(shell find options -type f) build/generate-bindata.go modules/assetfs/embed.go
+	cd modules/options && $(GO) run ../../build/generate-bindata.go ../../options bindata.dat
+
 .PHONY: security-check
 security-check:
 	GOEXPERIMENT= go run $(GOVULNCHECK_PACKAGE) -show color ./...
 
-$(EXECUTABLE): $(GO_SOURCES) $(TAGS_PREREQ)
+$(EXECUTABLE): $(GO_SOURCES) $(EMBED_SOURCES) $(TAGS_PREREQ)
 	CGO_ENABLED="$(CGO_ENABLED)" $(GO) build $(GOFLAGS) $(EXTRA_GOFLAGS) -tags '$(TAGS)' -ldflags '-s -w $(LDFLAGS)' -o $@
 
 .PHONY: release
