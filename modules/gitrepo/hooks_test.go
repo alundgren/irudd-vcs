@@ -181,3 +181,32 @@ func TestGiteaPreReceiveHook(t *testing.T) {
 	assert.Equal(t, gitea+update+deleteMain, run("main", update+deleteMain), "deleting the default branch is gitea's to refuse")
 	assert.Empty(t, run("main", ""))
 }
+
+func TestGiteaPostReceiveHook(t *testing.T) {
+	sh := hookShell(t)
+	dir := t.TempDir()
+	fakeGitea := filepath.Join(dir, "fake-gitea")
+	require.NoError(t, os.WriteFile(fakeGitea, []byte("#!/bin/sh\necho \"gitea $*\"\ncat\n"), 0o755))
+	defer test.MockVariableValue(&setting.AppPath, filepath.ToSlash(fakeGitea))()
+	defer test.MockVariableValue(&setting.CustomConf, "app.ini")()
+	_, _, giteaHookTpls := getHookTemplates()
+	hook := filepath.Join(dir, "gitea")
+	require.NoError(t, os.WriteFile(hook, []byte(giteaHookTpls[1]), 0o755))
+
+	const refs = "a1 b1 refs/heads/main\na2 b2 refs/tags/v1\n"
+	run := func(file string) string {
+		cmd := exec.Command(sh, filepath.ToSlash(hook))
+		cmd.Env = append(os.Environ(), "GITEA_POST_RECEIVE_FILE="+file)
+		cmd.Stdin = strings.NewReader(refs)
+		out, err := cmd.Output()
+		require.NoError(t, err)
+		return strings.ReplaceAll(string(out), "\r", "")
+	}
+	assert.Equal(t, "gitea hook --config=app.ini post-receive\n"+refs, run(""), "a client push: gitea handles the refs")
+
+	file := filepath.Join(dir, "post-receive refs")
+	assert.Empty(t, run(filepath.ToSlash(file)), "a server push: the server handles the refs")
+	content, err := os.ReadFile(file)
+	require.NoError(t, err)
+	assert.Equal(t, refs, strings.ReplaceAll(string(content), "\r", ""))
+}

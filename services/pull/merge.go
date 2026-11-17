@@ -30,6 +30,7 @@ import (
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
+	"gitea.dev/modules/private"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
@@ -358,7 +359,12 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 	// Push back to upstream.
 	// This cause an api call to "/api/internal/hook/post-receive/...",
 	// If it's merge, all db transaction and operations should be there but not here to prevent deadlock.
-	if err := mergeCtx.PrepareGitCmd(pushCmd).RunWithStderr(ctx); err != nil {
+	var pushErr gitcmd.RunStdError // keeps the stderr for the checks below
+	_ = private.RunServerPush(ctx, mergeCtx.env, func(env []string) error {
+		pushErr = mergeCtx.PrepareGitCmd(pushCmd).WithEnv(env).RunWithStderr(ctx)
+		return pushErr
+	})
+	if err := pushErr; err != nil {
 		if strings.Contains(err.Stderr(), "non-fast-forward") {
 			return "", &git.ErrPushOutOfDate{
 				StdOut: mergeCtx.outbuf.String(),

@@ -14,6 +14,7 @@ import (
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/log"
+	"gitea.dev/modules/private"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 )
@@ -72,17 +73,18 @@ func updateHeadByRebaseOnToBase(ctx context.Context, pr *issues_model.PullReques
 	//       that prevents us from doint the whole merge in one db transaction
 	mergeCtx.outbuf.Reset()
 
-	if err := pushCmd.
-		WithEnv(append(repo_module.FullPushingEnvironment(
-			headUser,
-			doer,
-			pr.HeadRepo,
-			pr.ID,
-			pr.Index,
-		), repo_module.NoRefRulesEnvironment(ctx, doer, pr.HeadRepo)...)).
-		WithDir(mergeCtx.tmpBasePath).
-		WithStdoutBuffer(mergeCtx.outbuf).
-		RunWithStderr(ctx); err != nil {
+	var pushErr gitcmd.RunStdError // keeps the stderr for the checks below
+	_ = private.RunServerPush(ctx, append(repo_module.FullPushingEnvironment(
+		headUser,
+		doer,
+		pr.HeadRepo,
+		pr.ID,
+		pr.Index,
+	), repo_module.NoRefRulesEnvironment(ctx, doer, pr.HeadRepo)...), func(env []string) error {
+		pushErr = pushCmd.WithEnv(env).WithDir(mergeCtx.tmpBasePath).WithStdoutBuffer(mergeCtx.outbuf).RunWithStderr(ctx)
+		return pushErr
+	})
+	if err := pushErr; err != nil {
 		if strings.Contains(err.Stderr(), "non-fast-forward") {
 			return &git.ErrPushOutOfDate{
 				StdOut: mergeCtx.outbuf.String(),

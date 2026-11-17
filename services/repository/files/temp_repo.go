@@ -20,6 +20,7 @@ import (
 	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
+	"gitea.dev/modules/private"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/util"
 )
@@ -305,10 +306,12 @@ func (t *TemporaryUploadRepository) CommitTree(ctx context.Context, opts *Commit
 func (t *TemporaryUploadRepository) Push(ctx context.Context, doer *user_model.User, commitHash, branch string, force bool) error {
 	// Because calls hooks we need to pass in the environment
 	env := append(repo_module.PushingEnvironment(doer, t.repo), repo_module.NoRefRulesEnvironment(ctx, doer, t.repo)...)
-	if err := gitrepo.PushFromLocal(ctx, t.basePath, t.repo, git.PushOptions{
-		Branch: strings.TrimSpace(commitHash) + ":" + git.BranchPrefix + strings.TrimSpace(branch),
-		Env:    env,
-		Force:  force,
+	if err := private.RunServerPush(ctx, env, func(env []string) error {
+		return gitrepo.PushFromLocal(ctx, t.basePath, t.repo, git.PushOptions{
+			Branch: strings.TrimSpace(commitHash) + ":" + git.BranchPrefix + strings.TrimSpace(branch),
+			Env:    env,
+			Force:  force,
+		})
 	}); err != nil {
 		if git.IsErrPushOutOfDate(err) {
 			return err

@@ -28,6 +28,8 @@ const (
 	EnvIsInternal   = "GITEA_INTERNAL_PUSH"
 	EnvAppURL       = "GITEA_ROOT_URL"
 	EnvNoRefRules   = "GITEA_NO_REF_RULES" // the default branch, set when no branch or tag rule applies to the pusher
+
+	EnvPostReceiveFile = "GITEA_POST_RECEIVE_FILE" // where the post-receive hook writes its refs for the server to handle
 )
 
 type PushTrigger string

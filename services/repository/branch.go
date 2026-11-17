@@ -22,6 +22,7 @@ import (
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/optional"
+	"gitea.dev/modules/private"
 	"gitea.dev/modules/queue"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/reqctx"
@@ -195,9 +196,11 @@ func CreateNewBranchFromCommit(ctx context.Context, doer *user_model.User, repo 
 		return err
 	}
 
-	if err := gitrepo.Push(ctx, repo, repo, git.PushOptions{
-		Branch: fmt.Sprintf("%s:%s%s", commitID, git.BranchPrefix, branchName),
-		Env:    append(repo_module.PushingEnvironment(doer, repo), repo_module.NoRefRulesEnvironment(ctx, doer, repo)...),
+	if err := private.RunServerPush(ctx, append(repo_module.PushingEnvironment(doer, repo), repo_module.NoRefRulesEnvironment(ctx, doer, repo)...), func(env []string) error {
+		return gitrepo.Push(ctx, repo, repo, git.PushOptions{
+			Branch: fmt.Sprintf("%s:%s%s", commitID, git.BranchPrefix, branchName),
+			Env:    env,
+		})
 	}); err != nil {
 		if git.IsErrPushOutOfDate(err) || git.IsErrPushRejected(err) {
 			return err
@@ -340,7 +343,10 @@ func UpdateBranch(ctx context.Context, repo *repo_model.Repository, gitRepo *git
 	}
 
 	// branch protection will be checked in the pre received hook, so that we don't need any check here
-	return gitrepo.Push(ctx, repo, repo, pushOpts)
+	return private.RunServerPush(ctx, pushOpts.Env, func(env []string) error {
+		pushOpts.Env = env
+		return gitrepo.Push(ctx, repo, repo, pushOpts)
+	})
 }
 
 var ErrBranchIsDefault = util.ErrorWrap(util.ErrPermissionDenied, "branch is default or pull request target")

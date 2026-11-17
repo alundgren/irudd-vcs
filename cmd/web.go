@@ -226,6 +226,7 @@ func setPort(port string) error {
 		}
 		rootCfg.Section("server").Key("LOCAL_ROOT_URL").SetValue(defaultLocalURL)
 		saveCfg.Section("server").Key("LOCAL_ROOT_URL").SetValue(defaultLocalURL)
+		setting.LocalURL = defaultLocalURL // the server calls its internal API for its own pushes too
 		if err = saveCfg.Save(); err != nil {
 			return fmt.Errorf("failed to save config file: %v", err)
 		}
