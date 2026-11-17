@@ -64,28 +64,28 @@ func newLoggingCommand() *cli.Command {
 }
 
 func runPauseLogging(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 	userMsg := private.PauseLogging(ctx)
 	_, _ = fmt.Fprintln(os.Stdout, userMsg)
 	return nil
 }
 
 func runResumeLogging(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 	userMsg := private.ResumeLogging(ctx)
 	_, _ = fmt.Fprintln(os.Stdout, userMsg)
 	return nil
 }
 
 func runReleaseReopenLogging(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 	userMsg := private.ReleaseReopenLogging(ctx)
 	_, _ = fmt.Fprintln(os.Stdout, userMsg)
 	return nil
 }
 
 func runSetLogSQL(ctx context.Context, c *cli.Command) error {
-	setup(ctx, c.Bool("debug"))
+	setup(c.Bool("debug"))
 
 	extra := private.SetLogSQL(ctx, !c.Bool("off"))
 	return handleCliResponseExtra(extra)

@@ -9,12 +9,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 
 	repo_model "gitea.dev/models/repo"
-	"gitea.dev/models/unit"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/cache"
 	"gitea.dev/modules/git"
@@ -191,6 +189,7 @@ func genAPILinks(curURL *url.URL, total int64, pageSize, curPage int) []string {
 	if paginater.HasNext() {
 		u := *curURL
 		queries := u.Query()
+		util.DeleteCredentialQuery(queries)
 		queries.Set("page", strconv.Itoa(paginater.Next()))
 		u.RawQuery = queries.Encode()
 
@@ -199,6 +198,7 @@ func genAPILinks(curURL *url.URL, total int64, pageSize, curPage int) []string {
 	if !paginater.IsLast() {
 		u := *curURL
 		queries := u.Query()
+		util.DeleteCredentialQuery(queries)
 		queries.Set("page", strconv.Itoa(paginater.TotalPages()))
 		u.RawQuery = queries.Encode()
 
@@ -207,6 +207,7 @@ func genAPILinks(curURL *url.URL, total int64, pageSize, curPage int) []string {
 	if !paginater.IsFirst() {
 		u := *curURL
 		queries := u.Query()
+		util.DeleteCredentialQuery(queries)
 		queries.Set("page", "1")
 		u.RawQuery = queries.Encode()
 
@@ -215,6 +216,7 @@ func genAPILinks(curURL *url.URL, total int64, pageSize, curPage int) []string {
 	if paginater.HasPrevious() {
 		u := *curURL
 		queries := u.Query()
+		util.DeleteCredentialQuery(queries)
 		queries.Set("page", strconv.Itoa(paginater.Previous()))
 		u.RawQuery = queries.Encode()
 
@@ -320,14 +322,4 @@ func RepoRefForAPI(next http.Handler) http.Handler {
 // IsUserSiteAdmin returns true if current user is a site admin
 func (ctx *APIContext) IsUserSiteAdmin() bool {
 	return ctx.IsSigned && ctx.Doer.IsAdmin
-}
-
-// IsUserRepoAdmin returns true if current user is admin in current repo
-func (ctx *APIContext) IsUserRepoAdmin() bool {
-	return ctx.Repo.Permission.IsAdmin()
-}
-
-// IsUserRepoWriter returns true if current user has "write" privilege in current repo
-func (ctx *APIContext) IsUserRepoWriter(unitTypes []unit.Type) bool {
-	return slices.ContainsFunc(unitTypes, ctx.Repo.Permission.CanWrite)
 }

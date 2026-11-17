@@ -7,7 +7,12 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"time"
 )
+
+// readHeaderTimeout closes connections that do not finish their request headers in time, so slow clients cannot
+// hold connections open; without IdleTimeout it also ends idle keep-alive connections
+var readHeaderTimeout = 30 * time.Second
 
 func newHTTPServer(network, address, name string, handler http.Handler) (*Server, ServeFunction) {
 	server := NewServer(network, address, name)
@@ -16,9 +21,10 @@ func newHTTPServer(network, address, name string, handler http.Handler) (*Server
 	protocols.SetHTTP2(true)            // HTTP/2 can only be used when Gitea is configured to use TLS
 	protocols.SetUnencryptedHTTP2(true) // Allow HTTP/2 without TLS, in case Gitea is behind a reverse proxy
 	httpServer := http.Server{
-		Protocols:   &protocols,
-		Handler:     handler,
-		BaseContext: func(net.Listener) context.Context { return GetManager().HammerContext() },
+		Protocols:         &protocols,
+		Handler:           handler,
+		BaseContext:       func(net.Listener) context.Context { return GetManager().HammerContext() },
+		ReadHeaderTimeout: readHeaderTimeout, // it does not limit the body, so long git and LFS uploads are not cut off
 	}
 	server.OnShutdown = func() {
 		httpServer.SetKeepAlivesEnabled(false)

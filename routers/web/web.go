@@ -13,7 +13,6 @@ import (
 	"gitea.dev/modules/web/routing"
 	"gitea.dev/modules/web/types"
 	"gitea.dev/routers/common"
-	"gitea.dev/routers/web/healthcheck"
 	"gitea.dev/routers/web/repo"
 	auth_service "gitea.dev/services/auth"
 	"gitea.dev/services/context"
@@ -81,15 +80,12 @@ func checkSignedInUser(ctx *context.Context) {
 	}
 }
 
-// Routes returns the non-API routes: git over HTTP, LFS, health check and the API spec
+// Routes returns the non-API routes: git over HTTP, LFS and the API spec
 func Routes() *web.Router {
 	routes := web.NewRouter()
 
 	// GetHead allows a HEAD request redirect to GET if HEAD method is not defined for that route
 	routes.BeforeRouting(chi_middleware.GetHead)
-
-	routes.Head("/", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	routes.Get("/api/healthz", healthcheck.Check)
 
 	var mid []any
 	if setting.EnableGzip {

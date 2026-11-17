@@ -12,6 +12,7 @@ import (
 
 	issues_model "gitea.dev/models/issues"
 	"gitea.dev/modules/label"
+	"gitea.dev/modules/log"
 	"gitea.dev/modules/options"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
@@ -87,6 +88,10 @@ func LoadRepoConfig() error {
 	Gitignores = typeFiles[0].all
 	Licenses = typeFiles[1].all
 	Readmes = typeFiles[2].all
+	if len(Readmes) == 0 {
+		// a build without the bindata tag reads them from the source tree, which a copied binary doesn't have
+		log.Warn("No readme templates found: creating a repository with a readme will fail. Build with TAGS=bindata to embed them")
+	}
 
 	// Load label templates
 	LabelTemplateFiles = nil

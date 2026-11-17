@@ -22,8 +22,6 @@ type LogGlobalConfig struct {
 	StacktraceLogLevel log.Level
 	BufferLen          int
 
-	EnableSSHLog bool
-
 	AccessLogTemplate string
 	RequestIDHeaders  []string
 }
@@ -45,8 +43,6 @@ func loadLogGlobalFrom(rootCfg ConfigProvider) {
 		Log.RootPath = filepath.Join(AppWorkPath, Log.RootPath)
 	}
 	Log.RootPath = util.FilePathJoinAbs(Log.RootPath)
-
-	Log.EnableSSHLog = sec.Key("ENABLE_SSH_LOG").MustBool(false)
 
 	Log.AccessLogTemplate = sec.Key("ACCESS_LOG_TEMPLATE").MustString(accessLogTemplateDefault)
 	Log.RequestIDHeaders = sec.Key("REQUEST_ID_HEADERS").Strings(",")

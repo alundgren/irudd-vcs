@@ -5,6 +5,7 @@ package util
 
 import (
 	"errors"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -104,4 +105,25 @@ func TestSanitizeCredentialURLs(t *testing.T) {
 		result := SanitizeCredentialURLs(c.input)
 		assert.Equal(t, c.expected, result, "case %d: error should match", n)
 	}
+}
+
+func TestSanitizeRequestURI(t *testing.T) {
+	cases := map[string]string{
+		"/api/v1/repos":                          "/api/v1/repos",
+		"/api/v1/repos?page=2&limit=5":           "/api/v1/repos?page=2&limit=5",
+		"/api/v1/repos?token=abc":                "/api/v1/repos?token=" + userInfoPlaceholder,
+		"/api/v1/repos?page=2&access_token=abc":  "/api/v1/repos?page=2&access_token=" + userInfoPlaceholder,
+		"/api/v1/repos?%74oken=abc&q=a%20b":      "/api/v1/repos?%74oken=" + userInfoPlaceholder + "&q=a%20b",
+		"/api/v1/repos?mytoken=abc&token_type=x": "/api/v1/repos?mytoken=abc&token_type=x",
+		"/api/v1/repos?token":                    "/api/v1/repos?token=" + userInfoPlaceholder,
+	}
+	for input, expected := range cases {
+		assert.Equal(t, expected, SanitizeRequestURI(input), input)
+	}
+}
+
+func TestDeleteCredentialQuery(t *testing.T) {
+	query := url.Values{"page": {"2"}, "token": {"a"}, "access_token": {"b"}}
+	DeleteCredentialQuery(query)
+	assert.Equal(t, url.Values{"page": {"2"}}, query)
 }

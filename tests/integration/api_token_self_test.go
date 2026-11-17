@@ -58,6 +58,15 @@ func TestAPIGetCurrentToken(t *testing.T) {
 		req = NewRequest(t, "GET", "/api/v1/token")
 		MakeRequest(t, req, http.StatusUnauthorized)
 	})
+
+	t.Run("Query token is not accepted", func(t *testing.T) {
+		user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+		accessToken := createAPIAccessTokenWithoutCleanUp(t, "test-get-current-token-query", user, []auth_model.AccessTokenScope{auth_model.AccessTokenScopeAll})
+
+		resp := MakeRequest(t, NewRequest(t, "GET", "/api/v1/token?token="+accessToken.Token), http.StatusUnauthorized)
+		assert.Contains(t, resp.Header().Get("X-Gitea-Warning"), "Authorization header")
+		MakeRequest(t, NewRequest(t, "GET", "/api/v1/token?access_token="+accessToken.Token), http.StatusUnauthorized)
+	})
 }
 
 // TestAPITokenSelfService tests delete operations on token

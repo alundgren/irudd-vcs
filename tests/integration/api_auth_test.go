@@ -8,9 +8,12 @@ import (
 	"testing"
 
 	auth_model "gitea.dev/models/auth"
+	"gitea.dev/models/unittest"
+	user_model "gitea.dev/models/user"
 	"gitea.dev/tests"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAPIAuth(t *testing.T) {
@@ -29,6 +32,20 @@ func TestAPIAuth(t *testing.T) {
 	req = NewRequestf(t, "GET", "/api/v1/users/user2/repos").AddTokenAuth("Bearer wrong_token")
 	resp = MakeRequest(t, req, http.StatusUnauthorized)
 	assert.Contains(t, resp.Body.String(), `{"message":"invalid token"`)
+
+	// a deleted token stops working at once in every place a token is accepted, although the token cache knows it
+	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+	revoked := createAPIAccessTokenWithoutCleanUp(t, "test-api-auth-revoked", user2, []auth_model.AccessTokenScope{auth_model.AccessTokenScopeAll})
+	gitURL := "/user2/repo1.git/info/refs?service=git-upload-pack"
+	MakeRequest(t, NewRequest(t, "GET", "/api/v1/user").AddTokenAuth(revoked.Token), http.StatusOK)
+	MakeRequest(t, NewRequest(t, "GET", "/api/v1/user").AddBasicAuth("user2", revoked.Token), http.StatusOK)
+	MakeRequest(t, NewRequest(t, "GET", gitURL).AddBasicAuth("user2", revoked.Token), http.StatusOK)
+	require.NoError(t, auth_model.DeleteAccessTokenByID(t.Context(), revoked.ID, user2.ID))
+	MakeRequest(t, NewRequest(t, "GET", "/api/v1/user").AddTokenAuth(revoked.Token), http.StatusUnauthorized)
+	MakeRequest(t, NewRequest(t, "GET", "/api/v1/user").AddBasicAuth("user2", revoked.Token), http.StatusUnauthorized)
+	MakeRequest(t, NewRequest(t, "GET", "/api/v1/user").AddBasicAuth(revoked.Token, ""), http.StatusUnauthorized)
+	MakeRequest(t, NewRequest(t, "GET", gitURL).AddBasicAuth("user2", revoked.Token), http.StatusUnauthorized)
+	MakeRequest(t, NewRequest(t, "GET", gitURL).AddTokenAuth(revoked.Token), http.StatusUnauthorized)
 
 	// anonymous requests only get the version
 	MakeRequest(t, NewRequest(t, "GET", "/api/v1/version"), http.StatusOK)

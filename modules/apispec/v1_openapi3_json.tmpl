@@ -5584,12 +5584,6 @@
       }
     },
     "securitySchemes": {
-      "AccessToken": {
-        "description": "This authentication option is deprecated for removal in Gitea 1.23. Please use AuthorizationHeaderToken instead.",
-        "in": "query",
-        "name": "access_token",
-        "type": "apiKey"
-      },
       "AuthorizationHeaderToken": {
         "description": "API tokens must be prepended with \"token\" followed by a space.",
         "in": "header",
@@ -5599,12 +5593,6 @@
       "BasicAuth": {
         "scheme": "basic",
         "type": "http"
-      },
-      "Token": {
-        "description": "This authentication option is deprecated for removal in Gitea 1.23. Please use AuthorizationHeaderToken instead.",
-        "in": "query",
-        "name": "token",
-        "type": "apiKey"
       }
     }
   },
@@ -13852,12 +13840,6 @@
   "security": [
     {
       "BasicAuth": []
-    },
-    {
-      "Token": []
-    },
-    {
-      "AccessToken": []
     },
     {
       "AuthorizationHeaderToken": []

@@ -6,6 +6,8 @@ package util
 import (
 	"bytes"
 	"net"
+	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -125,4 +127,51 @@ func SanitizeCredentialURLs(s string) string {
 	}
 	res = append(res, bs...)
 	return UnsafeBytesToString(res)
+}
+
+// credentialQueryKeys are the query parameters that clients use for API tokens, which must not reach logs or links
+var credentialQueryKeys = []string{"token", "access_token"}
+
+func isCredentialQueryKey(rawKey string) bool {
+	key, err := url.QueryUnescape(rawKey)
+	if err != nil {
+		key = rawKey
+	}
+	return slices.Contains(credentialQueryKeys, key)
+}
+
+// HasCredentialQuery reports whether a raw query string holds a token parameter
+func HasCredentialQuery(rawQuery string) bool {
+	if !strings.Contains(rawQuery, "token") && !strings.Contains(rawQuery, "%") {
+		return false // fast path, a percent-encoded key may still decode to a token key
+	}
+	for pair := range strings.SplitSeq(rawQuery, "&") {
+		key, _, _ := strings.Cut(pair, "=")
+		if isCredentialQueryKey(key) {
+			return true
+		}
+	}
+	return false
+}
+
+// SanitizeRequestURI masks the values of token query parameters in a request URI, for logging
+func SanitizeRequestURI(uri string) string {
+	path, rawQuery, ok := strings.Cut(uri, "?")
+	if !ok || !HasCredentialQuery(rawQuery) {
+		return uri
+	}
+	pairs := strings.Split(rawQuery, "&")
+	for i, pair := range pairs {
+		if key, _, _ := strings.Cut(pair, "="); isCredentialQueryKey(key) {
+			pairs[i] = key + "=" + userInfoPlaceholder
+		}
+	}
+	return path + "?" + strings.Join(pairs, "&")
+}
+
+// DeleteCredentialQuery removes the token parameters from query values
+func DeleteCredentialQuery(query url.Values) {
+	for _, key := range credentialQueryKeys {
+		query.Del(key)
+	}
 }

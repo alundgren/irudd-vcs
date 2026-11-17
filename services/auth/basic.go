@@ -8,10 +8,8 @@ import (
 	"errors"
 	"net/http"
 
-	auth_model "gitea.dev/models/auth"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/httpauth"
-	"gitea.dev/modules/log"
 	"gitea.dev/modules/util"
 )
 
@@ -21,10 +19,7 @@ var (
 )
 
 // BasicMethodName is the constant name of the basic authentication method
-const (
-	BasicMethodName       = "basic"
-	AccessTokenMethodName = "access_token"
-)
+const BasicMethodName = "basic"
 
 // Basic implements the Auth interface and authenticates requests (API requests
 // only) by looking for Basic authentication data or "x-oauth-basic" token in the "Authorization"
@@ -36,57 +31,22 @@ func (b *Basic) Name() string {
 	return BasicMethodName
 }
 
-func (b *Basic) parseAuthBasic(req *http.Request) (ret struct{ authToken, uname, passwd string }) {
+// parseAuthBasic returns the token of a Basic Authorization header: the password, or the username when the
+// password is empty or "x-oauth-basic", as git clients send it
+func parseAuthBasic(req *http.Request) (token string, ok bool) {
 	authHeader := req.Header.Get("Authorization")
 	if authHeader == "" {
-		return ret
+		return "", false
 	}
 	parsed, ok := httpauth.ParseAuthorizationHeader(authHeader)
 	if !ok || parsed.BasicAuth == nil {
-		return ret
+		return "", false
 	}
 	uname, passwd := parsed.BasicAuth.Username, parsed.BasicAuth.Password
-
-	// Check if username or password is a token
-	isUsernameToken := len(passwd) == 0 || passwd == "x-oauth-basic"
-	// Assume username is token
-	authToken := uname
-	if !isUsernameToken {
-		log.Trace("Basic Authorization: Attempting login for: %s", uname)
-		// Assume password is token
-		authToken = passwd
-	} else {
-		log.Trace("Basic Authorization: Attempting login with username as token")
+	if passwd == "" || passwd == "x-oauth-basic" {
+		return uname, uname != ""
 	}
-	ret.authToken, ret.uname, ret.passwd = authToken, uname, passwd
-	return ret
-}
-
-// VerifyAuthToken only the access token provided as parameter, used by other auth methods that want to reuse access token verification logic
-func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store DataStore, authToken string) (*user_model.User, error) {
-	// check personal access token
-	token, err := auth_model.GetAccessTokenBySHA(req.Context(), authToken)
-	if err == nil {
-		log.Trace("Basic Authorization: Valid AccessToken for user[%d]", token.UID)
-		u, err := user_model.GetUserByID(req.Context(), token.UID)
-		if err != nil {
-			log.Error("GetUserByID:  %v", err)
-			return nil, err
-		}
-
-		if err = auth_model.TouchAccessToken(req.Context(), token); err != nil {
-			log.Error("TouchAccessToken: %v", err)
-		}
-
-		store.GetData()["LoginMethod"] = AccessTokenMethodName
-		store.GetData()["IsApiToken"] = true
-		store.GetData()["ApiTokenScope"] = token.Scope
-		return u, nil
-	} else if !errors.Is(err, util.ErrNotExist) {
-		log.Error("GetAccessTokenBySHA: %v", err)
-	}
-
-	return nil, nil //nolint:nilnil // the auth method is not applicable
+	return passwd, true
 }
 
 // Verify extracts and validates Basic data (username and password/token) from the
@@ -94,13 +54,13 @@ func (b *Basic) VerifyAuthToken(req *http.Request, w http.ResponseWriter, store 
 // name/token on successful validation.
 // Returns nil if header is empty or validation fails.
 func (b *Basic) Verify(req *http.Request, w http.ResponseWriter, store DataStore) (*user_model.User, error) {
-	parseBasicRet := b.parseAuthBasic(req)
-	if parseBasicRet.authToken == "" && parseBasicRet.uname == "" {
+	token, ok := parseAuthBasic(req)
+	if !ok {
 		return nil, nil //nolint:nilnil // the auth method is not applicable
 	}
-	u, err := b.VerifyAuthToken(req, w, store, parseBasicRet.authToken)
-	if u != nil || err != nil {
-		return u, err
+	u, err := userFromAccessToken(req.Context(), store, token)
+	if errors.Is(err, util.ErrNotExist) {
+		return nil, ErrUserAuthMessage("invalid token") // there are no passwords, only tokens
 	}
-	return nil, ErrUserAuthMessage("invalid token") // there are no passwords, only tokens
+	return u, err
 }

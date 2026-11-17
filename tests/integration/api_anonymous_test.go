@@ -68,6 +68,10 @@ func TestAPIAnonymousAccess(t *testing.T) {
 	}
 	assert.Greater(t, checked, 120, "every route should have been checked")
 
+	// the upstream health check and HEAD / probe are not served
+	MakeRequest(t, NewRequest(t, "GET", "/api/healthz"), http.StatusNotFound)
+	MakeRequest(t, NewRequest(t, "HEAD", "/"), http.StatusNotFound)
+
 	// git over HTTP and LFS need the token too
 	for _, req := range []*RequestWrapper{
 		NewRequest(t, "GET", "/user2/repo1.git/info/refs?service=git-upload-pack"),

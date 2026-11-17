@@ -37,25 +37,6 @@ type HookOptions struct {
 	PushTrigger                     repository.PushTrigger
 }
 
-// SSHLogOption ssh log options
-type SSHLogOption struct {
-	IsError bool
-	Message string
-}
-
-// HookPostReceiveResult represents an individual result from PostReceive
-type HookPostReceiveResult struct {
-	Results []HookPostReceiveBranchResult
-}
-
-// HookPostReceiveBranchResult represents an individual branch result from PostReceive
-type HookPostReceiveBranchResult struct {
-	Message bool
-	Create  bool
-	Branch  string
-	URL     string
-}
-
 func newInternalRequestAPIForHooks(ctx context.Context, hookName, ownerName, repoName string, opts HookOptions) *httplib.Request {
 	reqURL := setting.LocalURL + fmt.Sprintf("api/internal/hook/%s/%s/%s", hookName, url.PathEscape(ownerName), url.PathEscape(repoName))
 	req := newInternalRequestAPI(ctx, reqURL, "POST", opts)
@@ -74,15 +55,8 @@ func HookPreReceive(ctx context.Context, ownerName, repoName string, opts HookOp
 }
 
 // HookPostReceive updates services and users
-func HookPostReceive(ctx context.Context, ownerName, repoName string, opts HookOptions) (*HookPostReceiveResult, ResponseExtra) {
+func HookPostReceive(ctx context.Context, ownerName, repoName string, opts HookOptions) ResponseExtra {
 	req := newInternalRequestAPIForHooks(ctx, "post-receive", ownerName, repoName, opts)
-	return requestJSONResp(req, &HookPostReceiveResult{})
-}
-
-// SSHLog sends ssh error log response
-func SSHLog(ctx context.Context, isErr bool, msg string) error {
-	reqURL := setting.LocalURL + "api/internal/ssh/log"
-	req := newInternalRequestAPI(ctx, reqURL, "POST", &SSHLogOption{IsError: isErr, Message: msg})
 	_, extra := requestJSONResp(req, &ResponseText{})
-	return extra.Error
+	return extra
 }

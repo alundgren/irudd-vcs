@@ -46,7 +46,7 @@ func (b *Base) ParseMultipartForm() bool {
 		// TODO: all errors caused by client side should be ignored (connection closed).
 		if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 			// Errors caused by server side (disk full) should be logged.
-			log.Error("Failed to parse request multipart form for %s: %v", b.Req.RequestURI, err)
+			log.Error("Failed to parse request multipart form for %s: %v", util.SanitizeRequestURI(b.Req.RequestURI), err)
 		}
 		b.HTTPError(http.StatusInternalServerError, "failed to parse request multipart form")
 		return false

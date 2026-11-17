@@ -4,8 +4,6 @@ This document lists the tools you need to build irudd-vcs from source. Once your
 environment is ready, see [development.md](development.md) for the build and
 development workflow, and [testing.md](testing.md) for running tests.
 
-For the contribution workflow and review process, see [CONTRIBUTING.md](../CONTRIBUTING.md).
-
 ## Requirements
 
 ### Go
@@ -32,11 +30,6 @@ target in the [`Makefile`](../Makefile) and run its commands directly.
 ### Git LFS
 
 The integration tests require [Git LFS](https://git-lfs.com/) to be installed.
-
-### Docker or Podman (optional)
-
-`make lint-shell` runs ShellCheck in a container unless a matching `shellcheck`
-binary is installed.
 
 ## Installing dependencies
 

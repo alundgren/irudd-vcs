@@ -4,27 +4,29 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"unicode"
 
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
+	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 
 	"github.com/urfave/cli/v3"
 )
 
-func setup(ctx context.Context, debug bool) {
+func setup(debug bool) {
 	if debug {
 		setupConsoleLogger(log.TRACE, false, os.Stderr)
 	} else {
 		setupConsoleLogger(log.FATAL, false, os.Stderr)
 	}
 	setting.MustInstalled()
+	if localURL := os.Getenv(repo_module.EnvLocalURL); localURL != "" {
+		setting.LocalURL = localURL // a hook of a server started with --port
+	}
 	if _, err := os.Stat(setting.RepoRootPath); err != nil {
-		_ = fail(ctx, "Unable to access repository path", "Unable to access repository path %q, err: %v", setting.RepoRootPath, err)
+		_ = fail("Unable to access repository path", "Unable to access repository path %q, err: %v", setting.RepoRootPath, err)
 		return
 	}
 	// no git.InitSimple: these commands only call the private API, and git version is a process per hook
@@ -32,7 +34,7 @@ func setup(ctx context.Context, debug bool) {
 
 // fail prints message to stdout, it's mainly used for git serv and git hook commands.
 // The output will be passed to git client and shown to user.
-func fail(ctx context.Context, userMessage, logMsgFmt string, args ...any) error {
+func fail(userMessage, logMsgFmt string, args ...any) error {
 	if userMessage == "" {
 		userMessage = "Internal Server Error (no specific error)"
 	}
@@ -45,17 +47,9 @@ func fail(ctx context.Context, userMessage, logMsgFmt string, args ...any) error
 	_, _ = fmt.Fprintln(os.Stderr, "error:", userMessage)
 	_, _ = fmt.Fprintln(os.Stderr, "error:")
 
-	if logMsgFmt != "" {
-		logMsg := fmt.Sprintf(logMsgFmt, args...)
-		if !setting.IsProd {
-			_, _ = fmt.Fprintln(os.Stderr, "Gitea:", logMsg)
-		}
-		if unicode.IsPunct(rune(userMessage[len(userMessage)-1])) {
-			logMsg = userMessage + " " + logMsg
-		} else {
-			logMsg = userMessage + ". " + logMsg
-		}
-		_ = private.SSHLog(ctx, true, logMsg)
+	// the details reach only the client in development: the server log has them for errors from the internal API
+	if logMsgFmt != "" && !setting.IsProd {
+		_, _ = fmt.Fprintln(os.Stderr, "Gitea:", fmt.Sprintf(logMsgFmt, args...))
 	}
 	return cli.Exit("", 1)
 }

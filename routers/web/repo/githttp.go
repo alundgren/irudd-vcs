@@ -156,11 +156,7 @@ func httpBase(ctx *context.Context, optGitService ...string) *serviceHandler {
 			return nil
 		}
 
-		if owner.IsOrganization() && !setting.Repository.EnablePushCreateOrg {
-			ctx.PlainText(http.StatusForbidden, "Push to create is not enabled for organizations.")
-			return nil
-		}
-		if !owner.IsOrganization() && !setting.Repository.EnablePushCreateUser {
+		if !setting.Repository.EnablePushCreateUser {
 			ctx.PlainText(http.StatusForbidden, "Push to create is not enabled for users.")
 			return nil
 		}

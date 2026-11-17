@@ -18,6 +18,9 @@ To build from source or make a distribution package, see [docs/build-source.md](
 
 ## Running
 
+To set it up as the backend for t3code, follow [docs/install.md](docs/install.md). Build
+distributed binaries with the `bindata` tag, so that they carry their repository templates.
+
 There is no install page. If `custom/conf/app.ini` doesn't exist, the first `gitea web`
 creates a minimal one with `INSTALL_LOCK = true` and generated secrets, using SQLite under
 `data/`. An existing config must set `INSTALL_LOCK = true` in its `[security]` section.
@@ -36,10 +39,6 @@ There are no scheduled background jobs. Run maintenance with `./gitea admin main
 
 The API is documented by the generated specs served at `/swagger.v1.json` (Swagger 2.0)
 and `/openapi3.v1.json` (OpenAPI 3.0) when `[api] ENABLE_SWAGGER` is enabled.
-
-## Contributing
-
-Read the [contributors guide](CONTRIBUTING.md) before starting to work on a change.
 
 ## License
 

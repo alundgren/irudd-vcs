@@ -128,7 +128,7 @@ func serverPostReceive(ctx context.Context, env []string, refs io.Reader) error 
 		if len(opts.RefFullNames) == 0 {
 			return nil
 		}
-		if _, extra := HookPostReceive(ctx, repoUser, repoName, opts); extra.HasError() {
+		if extra := HookPostReceive(ctx, repoUser, repoName, opts); extra.HasError() {
 			return fmt.Errorf("%s: %w", extra.UserMsg, extra.Error)
 		}
 		opts.OldCommitIDs, opts.NewCommitIDs, opts.RefFullNames = nil, nil, nil
