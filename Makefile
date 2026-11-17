@@ -451,13 +451,5 @@ update-go: ## update go dependencies
 generate-gitignore: ## update gitignore files
 	$(GO) run build/generate-gitignores.go
 
-.PHONY: generate-manpage
-generate-manpage: ## generate manpage
-	@[ -f gitea ] || make backend
-	@mkdir -p man/man1/ man/man5
-	@./gitea docs --man > man/man1/gitea.1
-	@gzip -9 man/man1/gitea.1 && echo man/man1/gitea.1.gz created
-	@#TODO A small script that formats config-cheat-sheet.en-us.md nicely for use as a config man page
-
 # Disable parallel execution because some targets don't specify exact dependencies
 .NOTPARALLEL:
