@@ -16,12 +16,10 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/cache"
 	"gitea.dev/modules/cachegroup"
-	"gitea.dev/modules/git"
 	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
 	repo_module "gitea.dev/modules/repository"
-	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
 	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
@@ -133,7 +131,7 @@ func HookPostReceive(ctx *gitea_context.PrivateContext) {
 		return
 	}
 
-	hookPostReceiveRespondWithTrailer(ctx, opts, repo)
+	ctx.PlainText(http.StatusOK, "ok")
 }
 
 func hookPostReceiveUpdateRepoByOptions(ctx *gitea_context.PrivateContext, opts *private.HookOptions, repo *repo_model.Repository) bool {
@@ -180,65 +178,6 @@ func hookPostReceiveUpdateRepoByOptions(ctx *gitea_context.PrivateContext, opts 
 		}
 	}
 	return true
-}
-
-func hookPostReceiveRespondWithTrailer(ctx *gitea_context.PrivateContext, opts *private.HookOptions, repo *repo_model.Repository) {
-	results := make([]private.HookPostReceiveBranchResult, 0, len(opts.OldCommitIDs))
-	baseRepo := repo
-	if repo.IsFork {
-		if err := repo.GetBaseRepo(ctx); err != nil {
-			ctx.PrivateError(http.StatusInternalServerError, err, "failed to load base repo")
-			return
-		}
-		if repo.BaseRepo.AllowsPulls(ctx) {
-			baseRepo = repo.BaseRepo
-		}
-	}
-
-	if !baseRepo.AllowsPulls(ctx) {
-		// We can stop there's no need to go any further
-		ctx.JSON(http.StatusOK, private.HookPostReceiveResult{})
-		return
-	}
-
-	// Now handle the pull request notification trailers
-	for i := range opts.OldCommitIDs {
-		refFullName := opts.RefFullNames[i]
-		newCommitID := opts.NewCommitIDs[i]
-
-		// If we've pushed a branch (and not deleted it)
-		if !git.IsEmptyCommitID(newCommitID) && refFullName.IsBranch() {
-			branch := refFullName.BranchName()
-
-			if branch == baseRepo.DefaultBranch && !repo.IsFork {
-				// If our branch is the default branch of an unforked repo - there's no PR to create or refer to
-				results = append(results, private.HookPostReceiveBranchResult{})
-				continue
-			}
-
-			pr, err := issues_model.GetUnmergedPullRequest(ctx, repo.ID, baseRepo.ID, branch, baseRepo.DefaultBranch, issues_model.PullRequestFlowGithub)
-			if err != nil && !errors.Is(err, util.ErrNotExist) {
-				ctx.PrivateError(http.StatusInternalServerError, err, "failed to get active PR for branch "+branch)
-				return
-			}
-			if pr == nil {
-				results = append(results, private.HookPostReceiveBranchResult{
-					Message: setting.Git.PullRequestPushMessage && baseRepo.AllowsPulls(ctx),
-					Create:  true,
-					Branch:  branch,
-					URL:     fmt.Sprintf("%s/pulls/new/%s", repo.HTMLURL(), util.PathEscapeSegments(branch)),
-				})
-			} else {
-				results = append(results, private.HookPostReceiveBranchResult{
-					Message: setting.Git.PullRequestPushMessage && baseRepo.AllowsPulls(ctx),
-					Create:  false,
-					Branch:  branch,
-					URL:     fmt.Sprintf("%s/pulls/%d", baseRepo.HTMLURL(), pr.Index),
-				})
-			}
-		}
-	}
-	ctx.JSON(http.StatusOK, private.HookPostReceiveResult{Results: results})
 }
 
 func loadContextCacheUser(ctx context.Context, id int64) (*user_model.User, error) {

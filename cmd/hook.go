@@ -331,11 +331,6 @@ Gitea or set your environment appropriately.`, "")
 	oldCommitIDs := make([]string, 0, hookBatchSize)
 	newCommitIDs := make([]string, 0, hookBatchSize)
 	refFullNames := make([]git.RefName, 0, hookBatchSize)
-	results := make([]private.HookPostReceiveBranchResult, 0)
-
-	defer func() {
-		hookPrintResults(results)
-	}()
 
 	processBatch := func() error {
 		if len(refFullNames) == 0 {
@@ -345,11 +340,10 @@ Gitea or set your environment appropriately.`, "")
 		hookOptions.OldCommitIDs = oldCommitIDs
 		hookOptions.NewCommitIDs = newCommitIDs
 		hookOptions.RefFullNames = refFullNames
-		resp, extra := private.HookPostReceive(ctx, repoUser, repoName, hookOptions)
+		extra := private.HookPostReceive(ctx, repoUser, repoName, hookOptions)
 		if extra.HasError() {
 			return fail(extra.UserMsg, "HookPostReceive failed: %v", extra.Error)
 		}
-		results = append(results, resp.Results...)
 		oldCommitIDs = oldCommitIDs[:0]
 		newCommitIDs = newCommitIDs[:0]
 		refFullNames = refFullNames[:0]
@@ -378,28 +372,6 @@ Gitea or set your environment appropriately.`, "")
 		return fail("Hook failed: stdin read error", "scanner error: %v", err)
 	}
 	return processBatch()
-}
-
-func hookPrintResults(results []private.HookPostReceiveBranchResult) {
-	for _, res := range results {
-		hookPrintResult(res.Message, res.Create, res.Branch, res.URL)
-	}
-}
-
-func hookPrintResult(output, isCreate bool, branch, url string) {
-	if !output {
-		return
-	}
-	fmt.Fprintln(os.Stderr, "")
-	if isCreate {
-		fmt.Fprintf(os.Stderr, "Create a new pull request for '%s':\n", branch)
-		fmt.Fprintf(os.Stderr, "  %s\n", url)
-	} else {
-		fmt.Fprint(os.Stderr, "Visit the existing pull request:\n")
-		fmt.Fprintf(os.Stderr, "  %s\n", url)
-	}
-	fmt.Fprintln(os.Stderr, "")
-	_ = os.Stderr.Sync()
 }
 
 func pushOptions() map[string]string {

@@ -22,7 +22,6 @@ var Git = struct {
 	CommitsRangeSize              int // CommitsRangeSize the default commits range size
 	VerbosePush                   bool
 	VerbosePushDelay              time.Duration
-	PullRequestPushMessage        bool
 	LargeObjectThreshold          int64
 	DisableCoreProtectNTFS        bool
 	DisablePartialClone           bool
@@ -33,7 +32,6 @@ var Git = struct {
 	CommitsRangeSize:              50,
 	VerbosePush:                   true,
 	VerbosePushDelay:              5 * time.Second,
-	PullRequestPushMessage:        true,
 	LargeObjectThreshold:          1024 * 1024,
 	DisablePartialClone:           false,
 	DiffRenameSimilarityThreshold: "50%",
