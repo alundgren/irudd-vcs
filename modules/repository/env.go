@@ -25,6 +25,7 @@ const (
 	EnvPushTrigger  = "GITEA_PUSH_TRIGGER"
 	EnvIsInternal   = "GITEA_INTERNAL_PUSH"
 	EnvAppURL       = "GITEA_ROOT_URL"
+	EnvNoRefRules   = "GITEA_NO_REF_RULES" // the default branch, set when no branch or tag rule applies to the pusher
 )
 
 type PushTrigger string

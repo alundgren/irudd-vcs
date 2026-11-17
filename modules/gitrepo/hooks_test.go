@@ -12,6 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"gitea.dev/modules/setting"
+	"gitea.dev/modules/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -146,4 +149,35 @@ func TestRemoveGiteaUpdateHook(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(hookDir, "update"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
 	require.NoError(t, createDelegateHooks(hookDir))
 	assert.FileExists(t, filepath.Join(hookDir, "update"))
+}
+
+func TestGiteaPreReceiveHook(t *testing.T) {
+	sh := hookShell(t)
+	dir := t.TempDir()
+	fakeGitea := filepath.Join(dir, "fake-gitea")
+	require.NoError(t, os.WriteFile(fakeGitea, []byte("#!/bin/sh\necho \"gitea $*\"\ncat\n"), 0o755))
+	defer test.MockVariableValue(&setting.AppPath, filepath.ToSlash(fakeGitea))()
+	defer test.MockVariableValue(&setting.CustomConf, "app.ini")()
+	_, _, giteaHookTpls := getHookTemplates()
+	hook := filepath.Join(dir, "gitea")
+	require.NoError(t, os.WriteFile(hook, []byte(giteaHookTpls[0]), 0o755))
+
+	run := func(noRefRules, refs string) string {
+		cmd := exec.Command(sh, filepath.ToSlash(hook))
+		cmd.Env = append(os.Environ(), "GITEA_NO_REF_RULES="+noRefRules)
+		cmd.Stdin = strings.NewReader(refs)
+		out, err := cmd.Output()
+		require.NoError(t, err)
+		return strings.ReplaceAll(string(out), "\r", "")
+	}
+	const zero = "0000000000000000000000000000000000000000"
+	const gitea = "gitea hook --config=app.ini pre-receive\n"
+	update := "a1 b1 refs/heads/main\na2 b2 refs/tags/v1\n"
+	deleteMain := "a1 " + zero + " refs/heads/main\n"
+
+	assert.Equal(t, gitea+update, run("", update), "rules apply: gitea checks every ref")
+	assert.Empty(t, run("main", update), "no rules: nothing to check")
+	assert.Empty(t, run("main", "a1 "+zero+" refs/heads/other\n"), "deleting another branch is allowed")
+	assert.Equal(t, gitea+update+deleteMain, run("main", update+deleteMain), "deleting the default branch is gitea's to refuse")
+	assert.Empty(t, run("main", ""))
 }
