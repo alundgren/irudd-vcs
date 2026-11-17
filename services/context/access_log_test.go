@@ -68,6 +68,12 @@ func TestAccessLogger(t *testing.T) {
 	req.Header.Add("User-Agent", "user-agent")
 	recorder.record(time.Date(2000, 1, 2, 3, 4, 5, 0, time.UTC), &testAccessLoggerResponseWriterMock{}, req)
 	assert.Equal(t, []string{`remote-addr - - [02/Jan/2000:03:04:05 +0000] "GET /path https" 200 123123 "referer" "user-agent"`}, mockLogger.logs)
+
+	mockLogger.logs = nil
+	req.URL.RawQuery = "page=2&token=secret"
+	recorder.record(time.Date(2000, 1, 2, 3, 4, 5, 0, time.UTC), &testAccessLoggerResponseWriterMock{}, req)
+	assert.Equal(t, []string{`remote-addr - - [02/Jan/2000:03:04:05 +0000] "GET /path?page=2&token=(masked) https" 200 123123 "referer" "user-agent"`}, mockLogger.logs)
+	assert.Equal(t, "page=2&token=secret", req.URL.RawQuery, "the request itself keeps its query")
 }
 
 func TestAccessLoggerRequestID(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
+	"gitea.dev/modules/util"
 	"gitea.dev/modules/web/middleware"
 )
 
@@ -87,6 +88,9 @@ func (lr *accessLogRecorder) record(start time.Time, respWriter ResponseWriter, 
 	if signedUser, ok := data[middleware.ContextDataKeySignedUser].(*user_model.User); ok {
 		identity = signedUser.Name
 	}
+	if util.HasCredentialQuery(req.URL.RawQuery) {
+		req = sanitizedRequest(req)
+	}
 	buf := bytes.NewBuffer([]byte{})
 	tmplData := accessLoggerTmplData{
 		Identity: &identity,
@@ -126,4 +130,14 @@ func AccessLogger() func(http.Handler) http.Handler {
 			recorder.record(start, w.(ResponseWriter), req)
 		})
 	}
+}
+
+// sanitizedRequest returns a shallow copy of req for the access log template, without the token query values
+func sanitizedRequest(req *http.Request) *http.Request {
+	clone := *req
+	u := *req.URL
+	_, u.RawQuery, _ = strings.Cut(util.SanitizeRequestURI("?"+u.RawQuery), "?")
+	clone.URL = &u
+	clone.RequestURI = util.SanitizeRequestURI(req.RequestURI)
+	return &clone
 }

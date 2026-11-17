@@ -191,6 +191,7 @@ func genAPILinks(curURL *url.URL, total int64, pageSize, curPage int) []string {
 	if paginater.HasNext() {
 		u := *curURL
 		queries := u.Query()
+		util.DeleteCredentialQuery(queries)
 		queries.Set("page", strconv.Itoa(paginater.Next()))
 		u.RawQuery = queries.Encode()
 
@@ -199,6 +200,7 @@ func genAPILinks(curURL *url.URL, total int64, pageSize, curPage int) []string {
 	if !paginater.IsLast() {
 		u := *curURL
 		queries := u.Query()
+		util.DeleteCredentialQuery(queries)
 		queries.Set("page", strconv.Itoa(paginater.TotalPages()))
 		u.RawQuery = queries.Encode()
 
@@ -207,6 +209,7 @@ func genAPILinks(curURL *url.URL, total int64, pageSize, curPage int) []string {
 	if !paginater.IsFirst() {
 		u := *curURL
 		queries := u.Query()
+		util.DeleteCredentialQuery(queries)
 		queries.Set("page", "1")
 		u.RawQuery = queries.Encode()
 
@@ -215,6 +218,7 @@ func genAPILinks(curURL *url.URL, total int64, pageSize, curPage int) []string {
 	if paginater.HasPrevious() {
 		u := *curURL
 		queries := u.Query()
+		util.DeleteCredentialQuery(queries)
 		queries.Set("page", strconv.Itoa(paginater.Previous()))
 		u.RawQuery = queries.Encode()
 
