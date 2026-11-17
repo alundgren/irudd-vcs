@@ -14,12 +14,11 @@ import (
 )
 
 func enableTestBatchPool(t *testing.T, idle time.Duration) {
-	ctx, cancel := context.WithCancel(context.Background())
 	root, err := filepath.Abs(testReposDir)
 	require.NoError(t, err)
-	EnableBatchPool(ctx, idle, root)
+	// a context that never ends: cancelling it would run ReleaseBatches later, in whichever test runs then
+	EnableBatchPool(context.Background(), idle, root)
 	t.Cleanup(func() {
-		cancel()
 		ReleaseBatches("")
 		catFileBatchPool.mu.Lock()
 		catFileBatchPool.ctx = nil
