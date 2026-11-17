@@ -5,11 +5,8 @@
 package auth
 
 import (
-	"context"
-	"errors"
 	"net/http"
 
-	auth_model "gitea.dev/models/auth"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/auth/httpauth"
 	"gitea.dev/modules/log"
@@ -43,23 +40,6 @@ func parseToken(req *http.Request) (string, bool) {
 	return "", false
 }
 
-// userFromToken returns the user corresponding to the OAuth token.
-// It will set 'IsApiToken' to true if the token is an API token and
-// set 'ApiTokenScope' to the scope of the access token (TODO: this behavior should be fixed, don't set ctx.Data)
-func (o *OAuth2) userFromToken(ctx context.Context, tokenSHA string, store DataStore) (*user_model.User, error) {
-	t, err := auth_model.GetAccessTokenBySHA(ctx, tokenSHA)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = auth_model.TouchAccessToken(ctx, t); err != nil {
-		log.Error("TouchAccessToken: %v", err)
-	}
-	store.GetData()["IsApiToken"] = true
-	store.GetData()["ApiTokenScope"] = t.Scope
-	return user_model.GetUserByID(ctx, t.UID)
-}
-
 // Verify extracts the user ID from the OAuth token in the "Authorization" header and returns the corresponding user object for that ID.
 // If verification is successful returns an existing user object.
 // Returns nil if verification fails.
@@ -69,9 +49,5 @@ func (o *OAuth2) Verify(req *http.Request, w http.ResponseWriter, store DataStor
 		return nil, nil //nolint:nilnil // the auth method is not applicable
 	}
 
-	user, err := o.userFromToken(req.Context(), token, store)
-	if err != nil && !errors.Is(err, util.ErrNotExist) {
-		log.Error("userFromToken: %v", err) // the callers might ignore the error, so log it here
-	}
-	return user, err
+	return userFromAccessToken(req.Context(), store, token)
 }
