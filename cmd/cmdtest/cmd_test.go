@@ -66,7 +66,11 @@ func runTestApp(app *cli.Command, args ...string) (runResult, error) {
 }
 
 func TestCliCmd(t *testing.T) {
-	defaultWorkPath := filepath.FromSlash("/tmp/mocked-work-path")
+	// the cases name Unix paths; map them onto an absolute directory of this platform
+	tmp := t.TempDir()
+	localPath := strings.NewReplacer("/dev/null", filepath.ToSlash(tmp)+"/null.ini", "/tmp", filepath.ToSlash(tmp))
+	local := func(s string) string { return filepath.FromSlash(localPath.Replace(s)) }
+	defaultWorkPath := filepath.Join(tmp, "mocked-work-path")
 	defaultCustomPath := filepath.Join(defaultWorkPath, "custom")
 	defaultCustomConf := filepath.Join(defaultCustomPath, "conf/app.ini")
 	defer setting.MockBuiltinPaths(defaultWorkPath, "", "")()
@@ -169,15 +173,16 @@ func TestCliCmd(t *testing.T) {
 				},
 			})
 			for k, v := range c.env {
-				t.Setenv(k, v)
+				t.Setenv(k, local(v))
 			}
-			args := strings.Split(c.cmd, " ") // for test only, "split" is good enough
+			args := strings.Split(local(c.cmd), " ") // for test only, "split" is good enough
 			r, err := runTestApp(app, args...)
+			exp := local(c.exp)
 			assert.NoError(t, err, c.cmd)
-			assert.NotEmpty(t, c.exp, c.cmd)
-			if !assert.Contains(t, r.Stdout, c.exp, c.cmd) {
+			assert.NotEmpty(t, exp, c.cmd)
+			if !assert.Contains(t, r.Stdout, exp, c.cmd) {
 				t.Log("Full output:\n" + r.Stdout)
-				t.Log("Expected:\n" + c.exp)
+				t.Log("Expected:\n" + exp)
 			}
 		})
 	}
@@ -229,11 +234,12 @@ func TestCliCmdBefore(t *testing.T) {
 			return nil
 		},
 	})
-	_, err := runTestApp(app, "./gitea", "--config", "/dev/null", "test-cmd")
+	conf := filepath.Join(t.TempDir(), "app.ini") // /dev/null is not absolute on Windows
+	_, err := runTestApp(app, "./gitea", "--config", conf, "test-cmd")
 	assert.NoError(t, err)
 	assert.Equal(t, ctxNew, actionCtx)
 	assert.Equal(t, "/tmp/any.ini", configValues["before"], "BeforeFunc must be called before preparing config")
-	assert.Equal(t, "/dev/null", configValues["action"])
+	assert.Equal(t, conf, configValues["action"])
 }
 
 func TestCliCmdCompletion(t *testing.T) {
