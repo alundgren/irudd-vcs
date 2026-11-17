@@ -326,8 +326,9 @@ test-integration:
 	@# Use a compiled binary: testlogger forwards gitea logs to t.Log, so `go test -v`
 	@# would flood output per passing test. testcache can't help these tests anyway —
 	@# they mutate the work directory, so cache inputs change between runs.
+	@# The runner starts each top-level test in its own process, TEST_PARALLEL (half the CPUs) at once.
 	$(GO) test $(GOTEST_FLAGS) -tags '$(TAGS)' -c gitea.dev/tests/integration -o ./test-integration-$(GITEA_TEST_DATABASE).test
-	./tools/test-integration.sh ./test-integration-$(GITEA_TEST_DATABASE).test
+	$(GO) run tools/test-integration.go $(if $(TEST_PARALLEL),-p $(TEST_PARALLEL)) ./test-integration-$(GITEA_TEST_DATABASE).test
 
 .PHONY: test-integration-compile
 test-integration-compile:

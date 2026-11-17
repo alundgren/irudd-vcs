@@ -4,7 +4,7 @@ RUN_MODE = prod
 
 [database]
 DB_TYPE = sqlite3
-PATH    = gitea-test.db
+PATH    = {{TEST_WORK_PATH}}/gitea-test.db
 
 [queue]
 TYPE = immediate
@@ -16,9 +16,9 @@ TYPE = immediate
 TYPE = immediate
 
 [server]
-HTTP_PORT        = 3003
-ROOT_URL         = http://localhost:3003/
-LOCAL_ROOT_URL   = http://127.0.0.1:3003/
+HTTP_PORT        = {{TEST_HTTP_PORT}}
+ROOT_URL         = http://localhost:{{TEST_HTTP_PORT}}/
+LOCAL_ROOT_URL   = http://127.0.0.1:{{TEST_HTTP_PORT}}/
 LFS_START_SERVER = true
 LFS_JWT_SECRET   = Tv_MjmZuHqpIY6GFl12ebgkRAMt4RlWt0v4EHKSXO0w
 ENABLE_GZIP      = true

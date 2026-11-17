@@ -31,6 +31,11 @@ Integration tests exercise the server against a real SQLite database. They live 
 make test-integration
 ```
 
+This runs each top-level test in its own process, half as many at once as there are CPUs; set
+`TEST_PARALLEL` to change that. Each process is a `GITEA_TEST_INSTANCE` with its own work path,
+database and port (3003 plus the instance), and the slowest tests of the last run start first.
+The repository hooks run the test binary itself as gitea, so no separately built gitea is needed.
+
 Run a single integration test with the `#` selector:
 
 ```bash
