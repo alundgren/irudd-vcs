@@ -73,13 +73,13 @@ func updateHeadByRebaseOnToBase(ctx context.Context, pr *issues_model.PullReques
 	mergeCtx.outbuf.Reset()
 
 	if err := pushCmd.
-		WithEnv(repo_module.FullPushingEnvironment(
+		WithEnv(append(repo_module.FullPushingEnvironment(
 			headUser,
 			doer,
 			pr.HeadRepo,
 			pr.ID,
 			pr.Index,
-		)).
+		), repo_module.NoRefRulesEnvironment(ctx, doer, pr.HeadRepo)...)).
 		WithDir(mergeCtx.tmpBasePath).
 		WithStdoutBuffer(mergeCtx.outbuf).
 		RunWithStderr(ctx); err != nil {

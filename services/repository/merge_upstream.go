@@ -49,7 +49,7 @@ func MergeUpstream(ctx reqctx.RequestContext, doer *user_model.User, repo *repo_
 
 	err = gitrepo.Push(ctx, repo.BaseRepo, repo, git.PushOptions{
 		Branch: fmt.Sprintf("%s:%s", divergingInfo.BaseBranchName, branch),
-		Env:    repo_module.PushingEnvironment(doer, repo),
+		Env:    append(repo_module.PushingEnvironment(doer, repo), repo_module.NoRefRulesEnvironment(ctx, doer, repo)...),
 	})
 	if err == nil {
 		return "fast-forward", nil
