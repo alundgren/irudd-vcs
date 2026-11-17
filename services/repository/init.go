@@ -39,6 +39,7 @@ func initRepoCommit(ctx context.Context, tmpPath string, repo *repo_model.Reposi
 	}
 
 	cmd := gitcmd.NewCommand("commit", "--message=Initial commit").
+		AddConfig("maintenance.auto", "false"). // the repository is thrown away
 		AddOptionFormat("--author='%s <%s>'", sig.Name, sig.Email)
 
 	cmd.AddArguments("--no-gpg-sign") // commits are never signed
