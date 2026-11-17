@@ -110,8 +110,8 @@ func TestAdoptRepository(t *testing.T) {
 
 	// a failed adopt because some mock data
 	// remove the hooks directory and create a file so that we cannot create the hooks successfully
-	_ = os.RemoveAll(filepath.Join(destDir, "hooks", "update.d"))
-	assert.NoError(t, os.WriteFile(filepath.Join(destDir, "hooks", "update.d"), []byte("tests"), os.ModePerm))
+	_ = os.RemoveAll(filepath.Join(destDir, "hooks", "pre-receive.d"))
+	assert.NoError(t, os.WriteFile(filepath.Join(destDir, "hooks", "pre-receive.d"), []byte("tests"), os.ModePerm))
 
 	adoptedRepo, err = AdoptRepository(t.Context(), user2, user2, CreateRepoOptions{Name: "test-adopt"})
 	assert.Error(t, err)
