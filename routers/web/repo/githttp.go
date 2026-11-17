@@ -18,7 +18,6 @@ import (
 	"time"
 
 	auth_model "gitea.dev/models/auth"
-	git_model "gitea.dev/models/git"
 	"gitea.dev/models/perm"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
@@ -239,20 +238,6 @@ func (h *serviceHandler) getStorageRepo() gitrepo.Repository {
 	return h.repo
 }
 
-// hasRefRules reports whether pre-receive has more to check for the doer than a deletion of the default
-// branch, which the hook then skips: the owner may write every ref that no branch or tag rule protects
-func hasRefRules(ctx *context.Context, repo *repo_model.Repository) bool {
-	if ctx.Doer == nil || (ctx.Doer.ID != repo.OwnerID && !ctx.Doer.IsAdmin) {
-		return true
-	}
-	branchRules, err := git_model.FindRepoProtectedBranchRules(ctx, repo.ID)
-	if err != nil || len(branchRules) > 0 {
-		return true
-	}
-	tagRules, err := git_model.GetProtectedTags(ctx, repo.ID)
-	return err != nil || len(tagRules) > 0
-}
-
 func setHeaderNoCache(ctx *context.Context) {
 	ctx.Resp.Header().Set("Expires", "Fri, 01 Jan 1980 00:00:00 GMT")
 	ctx.Resp.Header().Set("Pragma", "no-cache")
@@ -349,8 +334,8 @@ func serviceRPC(ctx *context.Context, service string) {
 
 	// set this for allow pre-receive and post-receive execute
 	h.environ = append(h.environ, "SSH_ORIGINAL_COMMAND="+service)
-	if service == ServiceTypeReceivePack && !hasRefRules(ctx, h.repo) {
-		h.environ = append(h.environ, repo_module.EnvNoRefRules+"="+h.repo.DefaultBranch)
+	if service == ServiceTypeReceivePack {
+		h.environ = append(h.environ, repo_module.NoRefRulesEnvironment(ctx, ctx.Doer, h.repo)...)
 	}
 
 	if protocol := ctx.Req.Header.Get("Git-Protocol"); protocol != "" && safeGitProtocolHeader.MatchString(protocol) {

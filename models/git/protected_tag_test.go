@@ -6,6 +6,7 @@ package git_test
 import (
 	"testing"
 
+	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	"gitea.dev/models/unittest"
 
@@ -162,4 +163,21 @@ func TestIsUserAllowedToControlTag(t *testing.T) {
 			assert.Equal(t, c.allowed, isAllowed, "case %d: error should match", n)
 		}
 	})
+}
+
+func TestHasProtectionRules(t *testing.T) {
+	assert.NoError(t, unittest.PrepareTestDatabase())
+
+	has, err := git_model.HasProtectionRules(t.Context(), 1)
+	assert.NoError(t, err)
+	assert.True(t, has, "repo 1 protects tags")
+
+	has, err = git_model.HasProtectionRules(t.Context(), 2)
+	assert.NoError(t, err)
+	assert.False(t, has)
+
+	assert.NoError(t, db.Insert(t.Context(), &git_model.ProtectedBranch{RepoID: 2, RuleName: "main"}))
+	has, err = git_model.HasProtectionRules(t.Context(), 2)
+	assert.NoError(t, err)
+	assert.True(t, has, "a branch rule")
 }

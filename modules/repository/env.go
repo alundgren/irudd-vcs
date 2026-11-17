@@ -4,9 +4,11 @@
 package repository
 
 import (
+	"context"
 	"os"
 	"strconv"
 
+	git_model "gitea.dev/models/git"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/setting"
@@ -48,6 +50,18 @@ func InternalPushingEnvironment(doer *user_model.User, repo *repo_model.Reposito
 // PushingEnvironment returns an os environment to allow hooks to work on push
 func PushingEnvironment(doer *user_model.User, repo *repo_model.Repository) []string {
 	return FullPushingEnvironment(doer, doer, repo, 0, 0)
+}
+
+// NoRefRulesEnvironment lets the pre-receive hook skip gitea, which only checks a deletion of the default
+// branch then, when the repository protects no branch or tag and the doer may write every other ref
+func NoRefRulesEnvironment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository) []string {
+	if doer == nil || (doer.ID != repo.OwnerID && !doer.IsAdmin) || repo.DefaultBranch == "" {
+		return nil
+	}
+	if has, err := git_model.HasProtectionRules(ctx, repo.ID); err != nil || has {
+		return nil
+	}
+	return []string{EnvNoRefRules + "=" + repo.DefaultBranch}
 }
 
 func DoerPushingEnvironment(doer *user_model.User, repo *repo_model.Repository) []string {
