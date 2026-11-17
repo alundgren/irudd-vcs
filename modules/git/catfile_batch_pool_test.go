@@ -17,7 +17,9 @@ import (
 
 func enableTestBatchPool(t *testing.T, idle time.Duration) {
 	ctx, cancel := context.WithCancel(context.Background())
-	EnableBatchPool(ctx, idle)
+	root, err := filepath.Abs(testReposDir)
+	require.NoError(t, err)
+	EnableBatchPool(ctx, idle, root)
 	t.Cleanup(func() {
 		cancel()
 		ReleaseBatches("")
@@ -94,6 +96,17 @@ func TestCatFileBatchPool(t *testing.T) {
 		})
 		assert.Nil(t, pooledBatchOf(repoPath), "the context ended the process")
 		use(t, t.Context(), queryHead)
+	})
+
+	t.Run("OutsideRoot", func(t *testing.T) {
+		tmpRepo := filepath.Join(t.TempDir(), "tmp.git")
+		require.NoError(t, InitRepository(t.Context(), tmpRepo, true, Sha1ObjectFormat.Name()))
+		repo, err := OpenRepository(t.Context(), tmpRepo)
+		require.NoError(t, err)
+		_, err = repo.GetRefCommitID("refs/heads/master")
+		require.Error(t, err)
+		require.NoError(t, repo.Close())
+		assert.Nil(t, pooledBatchOf(tmpRepo), "a temporary repository is removed right after, so its process ends with it")
 	})
 
 	t.Run("Release", func(t *testing.T) {

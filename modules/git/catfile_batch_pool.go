@@ -25,6 +25,7 @@ type batchPool struct {
 	mu      sync.Mutex
 	ctx     context.Context // nil while disabled
 	idle    time.Duration
+	root    string                  // only repositories under it are kept, not temporary ones that are removed right after
 	entries map[string]*pooledBatch // by repository path
 	gen     uint64                  // bumped by ReleaseBatches, so batches in use then are not kept
 }
@@ -39,13 +40,13 @@ var pooledBatches sync.Map
 
 var catFileBatchPool = &batchPool{entries: map[string]*pooledBatch{}}
 
-// EnableBatchPool lets closed repositories keep their cat-file process for idle; processes end with ctx.
-// Unit tests leave it disabled, since they remove repositories without ReleaseBatches.
-func EnableBatchPool(ctx context.Context, idle time.Duration) {
+// EnableBatchPool lets closed repositories under root keep their cat-file process for idle; processes end
+// with ctx. Unit tests leave it disabled, since they remove repositories without ReleaseBatches.
+func EnableBatchPool(ctx context.Context, idle time.Duration, root string) {
 	p := catFileBatchPool
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.ctx, p.idle = ctx, idle
+	p.ctx, p.idle, p.root = ctx, idle, filepath.Clean(root)+string(filepath.Separator)
 	context.AfterFunc(ctx, func() { ReleaseBatches("") })
 }
 
@@ -74,6 +75,10 @@ func ReleaseBatches(dir string) {
 func (p *batchPool) newBatch(repoPath string) *catFileBatchCommand {
 	p.mu.Lock()
 	poolCtx, gen := p.ctx, p.gen
+	if !strings.HasPrefix(filepath.Clean(repoPath), p.root) {
+		p.mu.Unlock()
+		return nil
+	}
 	if e, ok := p.entries[repoPath]; ok {
 		e.timer.Stop()
 		delete(p.entries, repoPath)
