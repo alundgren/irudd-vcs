@@ -20,6 +20,9 @@ import (
 )
 
 func TestCreateDelegateHooksPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no permission bits for the hooks to keep")
+	}
 	hookDir := t.TempDir()
 	existingHookDir := filepath.Join(hookDir, "post-receive.d")
 	require.NoError(t, os.MkdirAll(existingHookDir, 0o777))

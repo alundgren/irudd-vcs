@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testQueueBasic(t *testing.T, newFn func(cfg *BaseConfig) (baseQueue, error), cfg *BaseConfig, isUnique bool) {
 	t.Run(fmt.Sprintf("testQueueBasic-%s-unique:%v", cfg.ManagedName, isUnique), func(t *testing.T) {
 		q, err := newFn(cfg)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		defer q.Close() // Windows cannot remove the temp dir of an open level db
 
 		ctx := t.Context()
 		_ = q.RemoveAll(ctx)
