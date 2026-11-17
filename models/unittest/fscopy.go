@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"gitea.dev/modules/git"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 )
@@ -42,6 +43,7 @@ func SyncFile(srcPath, destPath string) error {
 // It returns error when error occurs in underlying functions.
 func SyncDirs(srcPath, destPath string) error {
 	destPath = filepath.Clean(destPath)
+	git.ReleaseBatches(destPath) // pooled cat-file processes hold repository files open
 	destPathAbs, err := filepath.Abs(destPath)
 	if err != nil {
 		return err

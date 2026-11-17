@@ -75,6 +75,7 @@ func IsRepositoryExist(ctx context.Context, repo Repository) (bool, error) {
 // DeleteRepository deletes the repository directory from the disk, it will return
 // nil if the repository does not exist.
 func DeleteRepository(ctx context.Context, repo Repository) error {
+	git.ReleaseBatches(repoPath(repo))
 	return util.RemoveAll(repoPath(repo))
 }
 
@@ -85,6 +86,7 @@ func RenameRepository(ctx context.Context, repo, newRepo Repository) error {
 		return fmt.Errorf("Failed to create dir %s: %w", filepath.Dir(dstDir), err)
 	}
 
+	git.ReleaseBatches(repoPath(repo))
 	if err := util.Rename(repoPath(repo), dstDir); err != nil {
 		return fmt.Errorf("rename repository directory: %w", err)
 	}

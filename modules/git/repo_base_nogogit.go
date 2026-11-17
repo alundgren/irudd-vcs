@@ -26,6 +26,7 @@ type Repository struct {
 	mu                 sync.Mutex
 	catFileBatchCloser CatFileBatchCloser
 	catFileBatchInUse  bool
+	stopBatchKill      func() bool // set for a pool batch, which ends with the first context unless returned
 
 	Ctx             context.Context
 	LastCommitCache *LastCommitCache
@@ -61,8 +62,11 @@ func (repo *Repository) CatFileBatch(ctx context.Context) (_ CatFileBatch, close
 	defer repo.mu.Unlock()
 
 	if repo.catFileBatchCloser == nil {
-		repo.catFileBatchCloser, err = NewBatch(ctx, repo.Path)
-		if err != nil {
+		if b := catFileBatchPool.newBatch(repo.Path); b != nil {
+			// a Repository that is never closed still ends the process with its context, as before
+			comm := b.batch
+			repo.catFileBatchCloser, repo.stopBatchKill = b, context.AfterFunc(ctx, func() { comm.Close() })
+		} else if repo.catFileBatchCloser, err = NewBatch(ctx, repo.Path); err != nil {
 			repo.catFileBatchCloser = nil // otherwise it is "interface(nil)" and will cause wrong logic
 			return nil, nil, err
 		}
@@ -92,9 +96,19 @@ func (repo *Repository) Close() error {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	if repo.catFileBatchCloser != nil {
-		repo.catFileBatchCloser.Close()
+		if b, ok := repo.catFileBatchCloser.(*catFileBatchCommand); ok && repo.stopBatchKill != nil {
+			// stopBatchKill fails once the context has ended the process
+			if repo.stopBatchKill() && !repo.catFileBatchInUse {
+				catFileBatchPool.put(repo.Path, b)
+			} else {
+				catFileBatchPool.closeBatch(b)
+			}
+		} else {
+			repo.catFileBatchCloser.Close()
+		}
 		repo.catFileBatchCloser = nil
 		repo.catFileBatchInUse = false
+		repo.stopBatchKill = nil
 	}
 	repo.LastCommitCache = nil
 	repo.tagCache = nil
