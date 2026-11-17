@@ -210,10 +210,7 @@ func GetPullRequest(ctx *context.APIContext) {
 		return
 	}
 
-	if err = pr.LoadBaseRepo(ctx); err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
+	pr.BaseRepo, pr.Issue.Repo = ctx.Repo.Repository, ctx.Repo.Repository // found by this repository, so no second load
 	if err = pr.LoadHeadRepo(ctx); err != nil {
 		ctx.APIErrorInternal(err)
 		return

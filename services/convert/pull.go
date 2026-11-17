@@ -166,14 +166,17 @@ func ToAPIPullRequest(ctx context.Context, pr *issues_model.PullRequest, doer *u
 	}
 
 	if pr.HeadRepo != nil && pr.Flow == issues_model.PullRequestFlowGithub {
-		p, err := access_model.GetDoerRepoPermission(ctx, pr.HeadRepo, doer)
-		if err != nil {
-			log.Error("GetDoerRepoPermission[%d]: %v", pr.HeadRepoID, err)
-			p.AccessMode = perm.AccessModeNone
-		}
-
 		apiPullRequest.Head.RepoID = pr.HeadRepo.ID
-		apiPullRequest.Head.Repository = ToRepo(ctx, pr.HeadRepo, p)
+		if pr.HeadRepoID == pr.BaseRepoID {
+			apiPullRequest.Head.Repository = apiPullRequest.Base.Repository // same repository and doer
+		} else {
+			p, err := access_model.GetDoerRepoPermission(ctx, pr.HeadRepo, doer)
+			if err != nil {
+				log.Error("GetDoerRepoPermission[%d]: %v", pr.HeadRepoID, err)
+				p.AccessMode = perm.AccessModeNone
+			}
+			apiPullRequest.Head.Repository = ToRepo(ctx, pr.HeadRepo, p)
+		}
 
 		headGitRepo := gitRepo // a pull request within one repository needs no second git process
 		if pr.HeadRepoID != pr.BaseRepoID {
