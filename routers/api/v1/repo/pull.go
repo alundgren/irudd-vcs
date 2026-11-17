@@ -902,6 +902,10 @@ func MergePullRequest(ctx *context.APIContext) {
 		ctx.APIErrorAuto(err)
 		return
 	}
+	if pr, err = pull_service.FinishPullRequestCheck(ctx, pr); err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
 
 	if err := pr.LoadHeadRepo(ctx); err != nil {
 		ctx.APIErrorInternal(err)
