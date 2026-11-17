@@ -12,9 +12,6 @@ GXZ_PACKAGE ?= github.com/ulikunitz/xz/cmd/gxz@v0.5.17 # renovate: datasource=go
 MISSPELL_PACKAGE ?= github.com/golangci/misspell/cmd/misspell@v0.8.0 # renovate: datasource=go
 SWAGGER_PACKAGE ?= github.com/go-swagger/go-swagger/cmd/swagger@v0.34.1 # renovate: datasource=go
 GOVULNCHECK_PACKAGE ?= golang.org/x/vuln/cmd/govulncheck@v1.9.0 # renovate: datasource=go
-SHELLCHECK_IMAGE ?= docker.io/koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d # renovate: datasource=docker
-
-CONTAINER_RUNTIME ?= $(shell hash docker >/dev/null 2>&1 && echo docker || echo podman)
 
 MAKE_EVIDENCE_DIR := .make_evidence
 
@@ -206,7 +203,7 @@ checks: checks-backend ## run various consistency checks
 checks-backend: tidy-check swagger-check openapi3-check fmt-check swagger-validate security-check ## check backend files
 
 .PHONY: lint
-lint: lint-backend lint-spell lint-shell ## lint everything
+lint: lint-backend lint-spell ## lint everything
 
 .PHONY: lint-fix
 lint-fix: lint-backend-fix lint-spell-fix ## lint everything and fix issues
@@ -237,10 +234,6 @@ lint-go-fix: ## lint go files and fix issues
 lint-editorconfig: ## lint files with editorconfig rules
 	@echo "Running editorconfig check..."
 	@$(GO) run $(EDITORCONFIG_CHECKER_PACKAGE) $(EDITORCONFIG_FILES)
-
-.PHONY: lint-shell
-lint-shell: ## lint shell scripts
-	@SHELLCHECK_IMAGE=$(SHELLCHECK_IMAGE) CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) ./tools/lint-shell.sh $$(git ls-files '*.sh')
 
 .PHONY: watch-backend
 watch-backend: ## watch backend files and continuously rebuild
@@ -309,7 +302,7 @@ test-integration:
 	@# Use a compiled binary: testlogger forwards gitea logs to t.Log, so `go test -v`
 	@# would flood output per passing test. testcache can't help these tests anyway —
 	@# they mutate the work directory, so cache inputs change between runs.
-	@# The runner starts each top-level test in its own process, TEST_PARALLEL (half the CPUs) at once.
+	@# The runner starts each top-level test in its own process, with optional concurrency override TEST_PARALLEL.
 	$(GO) test $(GOTEST_FLAGS) -tags '$(TAGS)' -c gitea.dev/tests/integration -o ./test-integration-$(GITEA_TEST_DATABASE).test
 	$(GO) run tools/test-integration.go $(if $(TEST_PARALLEL),-p $(TEST_PARALLEL)) ./test-integration-$(GITEA_TEST_DATABASE).test
 

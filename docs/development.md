@@ -2,13 +2,11 @@
 
 This document describes how to build irudd-vcs from source and the day-to-day
 development workflow. For prerequisites, see [build-setup.md](build-setup.md).
-For running tests, see [testing.md](testing.md). For the contribution workflow
-and review process, see [CONTRIBUTING.md](../CONTRIBUTING.md).
+For running tests, see [testing.md](testing.md).
 
 Area-specific guidelines:
 
 - [Backend development guidelines](guidelines-backend.md)
-- [Refactoring guidelines](guidelines-refactoring.md)
 
 ## Building
 
@@ -48,7 +46,7 @@ make fmt
 Then lint:
 
 ```bash
-# lint everything (Go, editorconfig, spelling, shell scripts)
+# lint everything (Go, editorconfig, spelling)
 make lint
 # or only the Go code
 make lint-go

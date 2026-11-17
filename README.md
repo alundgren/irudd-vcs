@@ -37,10 +37,6 @@ There are no scheduled background jobs. Run maintenance with `./gitea admin main
 The API is documented by the generated specs served at `/swagger.v1.json` (Swagger 2.0)
 and `/openapi3.v1.json` (OpenAPI 3.0) when `[api] ENABLE_SWAGGER` is enabled.
 
-## Contributing
-
-Read the [contributors guide](CONTRIBUTING.md) before starting to work on a change.
-
 ## License
 
 This project is licensed under the MIT License.

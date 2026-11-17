@@ -1,8 +1,7 @@
 # Backend development guidelines
 
 This document covers backend-specific architecture and contribution expectations.
-For the general workflow see [CONTRIBUTING.md](../CONTRIBUTING.md), and for building
-and testing see [development.md](development.md) and [testing.md](testing.md).
+For building and testing see [development.md](development.md) and [testing.md](testing.md).
 
 ## Background
 
