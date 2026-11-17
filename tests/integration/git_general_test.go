@@ -104,7 +104,7 @@ func lfsCommitAndPushTest(t *testing.T, dstPath string, sizes ...int) (pushedFil
 	t.Run("CommitAndPushLFS", func(t *testing.T) {
 		defer tests.PrintCurrentTest(t)()
 		prefix := "lfs-data-file-"
-		err := gitcmd.NewCommand("lfs").AddArguments("install").WithDir(dstPath).Run(t.Context())
+		err := gitcmd.NewCommand("lfs").AddArguments("install", "--local").WithDir(dstPath).Run(t.Context()) // not into the shared git home
 		assert.NoError(t, err)
 		_, _, err = gitcmd.NewCommand("lfs").AddArguments("track").AddDynamicArguments(prefix + "*").
 			WithDir(dstPath).RunStdString(t.Context())
@@ -132,6 +132,10 @@ func lfsCommitAndPushTest(t *testing.T, dstPath string, sizes ...int) (pushedFil
 			defer tests.PrintCurrentTest(t)()
 			lockTest(t, dstPath)
 		})
+
+		// the later steps push plain files; the LFS hooks would start git-lfs, 0.6 s on Windows, on every commit, checkout and push
+		err = gitcmd.NewCommand("lfs", "uninstall", "--local").WithDir(dstPath).Run(t.Context())
+		assert.NoError(t, err)
 	})
 	return pushedFiles
 }
