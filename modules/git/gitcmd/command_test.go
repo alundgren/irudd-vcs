@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -108,11 +109,13 @@ func TestCommandString(t *testing.T) {
 	cmd := NewCommand("a", "-m msg", "it's a test", `say "hello"`)
 	assert.Equal(t, cmd.prog+` a "-m msg" "it's a test" "say \"hello\""`, cmd.LogString())
 
-	cmd = NewCommand("url: https://a:b@c/", "/root/dir-a/dir-b")
-	assert.Equal(t, cmd.prog+` "url: https://(masked)@c/" .../dir-a/dir-b`, cmd.LogString())
+	dir := filepath.Join(t.TempDir(), "dir-a", "dir-b") // an absolute path on every platform
+	shortDir := ".../" + filepath.Join("dir-a", "dir-b")
+	cmd = NewCommand("url: https://a:b@c/").AddDynamicArguments(dir)
+	assert.Equal(t, cmd.prog+` "url: https://(masked)@c/" `+shortDir, cmd.LogString())
 
-	cmd = NewCommand("url: a:b@c/", "/root/dir-a/dir-b")
-	assert.Equal(t, cmd.prog+` "url: (masked)@c/" .../dir-a/dir-b`, cmd.LogString())
+	cmd = NewCommand("url: a:b@c/").AddDynamicArguments(dir)
+	assert.Equal(t, cmd.prog+` "url: (masked)@c/" `+shortDir, cmd.LogString())
 }
 
 func TestRunStdError(t *testing.T) {

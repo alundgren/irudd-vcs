@@ -75,7 +75,12 @@ func IsRepositoryExist(ctx context.Context, repo Repository) (bool, error) {
 // DeleteRepository deletes the repository directory from the disk, it will return
 // nil if the repository does not exist.
 func DeleteRepository(ctx context.Context, repo Repository) error {
-	return util.RemoveAll(repoPath(repo))
+	git.ReleaseBatches(repoPath(repo))
+	if err := util.RemoveAll(repoPath(repo)); err != nil {
+		git.ReleaseBatches(repoPath(repo)) // a concurrent task may have pooled a cat-file process in it meanwhile
+		return util.RemoveAll(repoPath(repo))
+	}
+	return nil
 }
 
 // RenameRepository renames a repository's name on disk
@@ -85,8 +90,12 @@ func RenameRepository(ctx context.Context, repo, newRepo Repository) error {
 		return fmt.Errorf("Failed to create dir %s: %w", filepath.Dir(dstDir), err)
 	}
 
+	git.ReleaseBatches(repoPath(repo))
 	if err := util.Rename(repoPath(repo), dstDir); err != nil {
-		return fmt.Errorf("rename repository directory: %w", err)
+		git.ReleaseBatches(repoPath(repo)) // a concurrent task may have pooled a cat-file process in it meanwhile
+		if err := util.Rename(repoPath(repo), dstDir); err != nil {
+			return fmt.Errorf("rename repository directory: %w", err)
+		}
 	}
 	return nil
 }

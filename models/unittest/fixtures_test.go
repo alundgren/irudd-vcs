@@ -71,6 +71,7 @@ func prepareTestFixturesLoaders(t testing.TB) unittest.FixturesOptions {
 		"user.yml",
 	}}
 	require.NoError(t, unittest.CreateTestEngine(filepath.Join(t.TempDir(), "sqlite-test.db"), opts))
+	t.Cleanup(func() { _ = unittest.GetXORMEngine().Close() }) // Windows cannot remove the temp dir while the database is open
 	return opts
 }
 
@@ -95,7 +96,6 @@ func TestFixturesLoader(t *testing.T) {
 
 func BenchmarkFixturesLoader(b *testing.B) {
 	opts := prepareTestFixturesLoaders(b)
-	require.NoError(b, unittest.CreateTestEngine(filepath.Join(b.TempDir(), "sqlite-test.db"), opts))
 	loaderInternal, err := unittest.NewFixturesLoader(unittest.GetXORMEngine(), opts)
 	require.NoError(b, err)
 	loaderVendor, err := NewFixturesLoaderVendor(unittest.GetXORMEngine(), opts)

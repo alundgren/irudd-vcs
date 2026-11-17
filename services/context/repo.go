@@ -7,12 +7,12 @@ package context
 import (
 	"context"
 	"fmt"
-	git_model "gitea.dev/models/git"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
 
+	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"

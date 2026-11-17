@@ -18,9 +18,10 @@ import (
 type baseLevelQueueUnique struct {
 	internal atomic.Pointer[levelqueue.UniqueQueue]
 
-	conn string
-	cfg  *BaseConfig
-	db   *leveldb.DB
+	conn   string
+	cfg    *BaseConfig
+	db     *leveldb.DB
+	pushed chan struct{}
 
 	mu sync.Mutex // the levelqueue.UniqueQueue is not thread-safe, there is no mutex protecting the underlying queue&set together
 }
@@ -32,7 +33,7 @@ func newBaseLevelQueueUnique(cfg *BaseConfig) (baseQueue, error) {
 	if err != nil {
 		return nil, err
 	}
-	q := &baseLevelQueueUnique{conn: conn, cfg: cfg, db: db}
+	q := &baseLevelQueueUnique{conn: conn, cfg: cfg, db: db, pushed: make(chan struct{}, 1)}
 	lq, err := levelqueue.NewUniqueQueue(db, []byte(cfg.QueueFullName), []byte(cfg.SetFullName), false)
 	if err != nil {
 		return nil, err
@@ -42,12 +43,12 @@ func newBaseLevelQueueUnique(cfg *BaseConfig) (baseQueue, error) {
 }
 
 func (q *baseLevelQueueUnique) PushItem(ctx context.Context, data []byte) error {
-	c := baseLevelQueueCommon(q.cfg, &q.mu, func() baseLevelQueuePushPoper { return q.internal.Load() })
+	c := baseLevelQueueCommon(q.cfg, &q.mu, q.pushed, func() baseLevelQueuePushPoper { return q.internal.Load() })
 	return c.PushItem(ctx, data)
 }
 
 func (q *baseLevelQueueUnique) PopItem(ctx context.Context) ([]byte, error) {
-	c := baseLevelQueueCommon(q.cfg, &q.mu, func() baseLevelQueuePushPoper { return q.internal.Load() })
+	c := baseLevelQueueCommon(q.cfg, &q.mu, q.pushed, func() baseLevelQueuePushPoper { return q.internal.Load() })
 	return c.PopItem(ctx)
 }
 

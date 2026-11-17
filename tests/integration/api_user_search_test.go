@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	auth_model "gitea.dev/models/auth"
-	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/tests"
@@ -53,29 +52,19 @@ func TestAPIUserSearchLoggedIn(t *testing.T) {
 
 func TestAPIUserSearchNotLoggedIn(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
-	query := "user2"
-	req := NewRequestf(t, "GET", "/api/v1/users/search?q=%s", query)
-	resp := MakeRequest(t, req, http.StatusOK)
-
-	results := DecodeJSON(t, resp, &SearchResults{})
-	assert.NotEmpty(t, results.Data)
-	var modelUser *user_model.User
-	for _, user := range results.Data {
-		assert.Contains(t, user.UserName, query)
-		modelUser = unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: user.ID})
-		assert.Equal(t, modelUser.GetPlaceholderEmail(), user.Email)
-	}
+	req := NewRequestf(t, "GET", "/api/v1/users/search?q=%s", "user2")
+	MakeRequest(t, req, http.StatusUnauthorized)
 }
 
 func TestAPIUserSearchSystemUsers(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
+	ownerSession := loginUser(t, "user2") // adds the token to requests without one
 	for _, systemUser := range []*user_model.User{
 		user_model.NewGhostUser(),
-		user_model.NewActionsUser(),
 	} {
 		t.Run(systemUser.Name, func(t *testing.T) {
 			req := NewRequestf(t, "GET", "/api/v1/users/search?uid=%d", systemUser.ID)
-			resp := MakeRequest(t, req, http.StatusOK)
+			resp := ownerSession.MakeRequest(t, req, http.StatusOK)
 
 			results := DecodeJSON(t, resp, &SearchResults{})
 			assert.NotEmpty(t, results.Data)
@@ -107,16 +96,6 @@ func TestAPIUserSearchAdminLoggedInUserHidden(t *testing.T) {
 	}
 }
 
-func TestAPIUserSearchNotLoggedInUserHidden(t *testing.T) {
-	defer tests.PrepareTestEnv(t)()
-	query := "user31"
-	req := NewRequestf(t, "GET", "/api/v1/users/search?q=%s", query)
-	resp := MakeRequest(t, req, http.StatusOK)
-
-	results := DecodeJSON(t, resp, &SearchResults{})
-	assert.Empty(t, results.Data)
-}
-
 func TestAPIUserSearchByEmail(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 
@@ -133,11 +112,9 @@ func TestAPIUserSearchByEmail(t *testing.T) {
 	assert.Len(t, results.Data, 1)
 	assert.Equal(t, query, results.Data[0].Email)
 
-	// no login user can not search user with private email
+	// anonymous requests can not search at all
 	req = NewRequestf(t, "GET", "/api/v1/users/search?q=%s", query)
-	resp = MakeRequest(t, req, http.StatusOK)
-	results = DecodeJSON(t, resp, &SearchResults{})
-	assert.Empty(t, results.Data)
+	MakeRequest(t, req, http.StatusUnauthorized)
 
 	// user can search self with private email
 	user2 := "user2"

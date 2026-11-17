@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 
@@ -131,10 +130,6 @@ func (l *LocalStorage) Delete(path string) error {
 	err := util.Remove(localFullPath)
 	l.deleteEmptyParentDirs(localFullPath)
 	return err
-}
-
-func (l *LocalStorage) ServeDirectURL(path, name, _ string, reqParams *ServeDirectOptions) (*url.URL, error) {
-	return nil, ErrURLNotSupported
 }
 
 func (l *LocalStorage) normalizeWalkError(err error) error {

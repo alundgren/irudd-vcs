@@ -22,9 +22,6 @@ go test -run '^TestName$' ./modulepath/
 make test-backend#TestName
 ```
 
-Outside CI, the MinIO and Azure Blob storage tests are skipped when the service at
-`TEST_MINIO_ENDPOINT` or `TEST_AZURESTORAGE_ENDPOINT` is not reachable.
-
 ## Integration tests
 
 Integration tests exercise the server against a real SQLite database. They live in
@@ -33,6 +30,11 @@ Integration tests exercise the server against a real SQLite database. They live 
 ```bash
 make test-integration
 ```
+
+This runs each top-level test in its own process, three for every four CPUs at once; set
+`TEST_PARALLEL` to change that. Each process is a `GITEA_TEST_INSTANCE` with its own work path,
+database and port (3003 plus the instance), and the slowest tests of the last run start first.
+The repository hooks run the test binary itself as gitea, so no separately built gitea is needed.
 
 Run a single integration test with the `#` selector:
 

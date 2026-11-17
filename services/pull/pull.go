@@ -75,7 +75,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 
 	assigneeCommentMap := make(map[int64]*issues_model.Comment)
 	assignees := make(map[int64]*user_model.User)
-	var reviewNotifiers []*issue_service.ReviewRequestNotifier
 	if err := db.WithTx(ctx, func(ctx context.Context) error {
 		if err := issues_model.NewPullRequest(ctx, repo, issue, labelIDs, pr); err != nil {
 			return err
@@ -119,12 +118,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 			return err
 		}
 
-		if !pr.IsWorkInProgress(ctx) {
-			reviewNotifiers, err = issue_service.PullRequestCodeOwnersReview(ctx, pr)
-			if err != nil {
-				return err
-			}
-		}
 		return nil
 	}); err != nil {
 		// cleanup: this will only remove the reference, the real commit will be clean up when next GC
@@ -133,8 +126,6 @@ func NewPullRequest(ctx context.Context, opts *NewPullRequestOptions) error {
 		}
 		return err
 	}
-
-	issue_service.ReviewRequestNotify(ctx, issue, issue.Poster, reviewNotifiers)
 
 	// Request reviews, these should be requested before other notifications because they will add request reviews record
 	// on database
@@ -443,16 +434,6 @@ func AddTestPullRequestTask(opts TestPullRequestOptions) {
 						}
 					}
 
-					if !pr.IsWorkInProgress(ctx) {
-						reviewNotifiers, err := issue_service.PullRequestCodeOwnersReview(ctx, pr)
-						if err != nil {
-							log.Error("PullRequestCodeOwnersReview: %v", err)
-						}
-						if len(reviewNotifiers) > 0 {
-							issue_service.ReviewRequestNotify(ctx, pr.Issue, opts.Doer, reviewNotifiers)
-						}
-					}
-
 					notify_service.PullRequestSynchronized(ctx, opts.Doer, pr, opts.OldCommitID, opts.NewCommitID)
 				}
 			}
@@ -540,6 +521,7 @@ func pushToBaseRepoHelper(ctx context.Context, pr *issues_model.PullRequest, pre
 		return err
 	}
 
+	// callers rely on the issue being loaded, even when the push is skipped below
 	if err = pr.LoadIssue(ctx); err != nil {
 		return fmt.Errorf("unable to load issue %d for pr %d: %w", pr.IssueID, pr.ID, err)
 	}
@@ -548,6 +530,17 @@ func pushToBaseRepoHelper(ctx context.Context, pr *issues_model.PullRequest, pre
 	}
 
 	gitRefName := pr.GetGitHeadRefName()
+
+	// within one repository a ref update is one git process, where a push to itself runs about ten;
+	// the hooks ignore refs/pull, and a head that is not a branch still goes through the push
+	if pr.HeadRepoID == pr.BaseRepoID && prefixHeadBranch == "" {
+		commitID, err := gitrepo.GetBranchCommitID(ctx, pr.BaseRepo, pr.HeadBranch)
+		if err == nil {
+			return gitrepo.UpdateRef(ctx, pr.BaseRepo, gitRefName, commitID)
+		} else if !git.IsErrNotExist(err) {
+			return err
+		}
+	}
 
 	if err := gitrepo.Push(ctx, pr.HeadRepo, pr.BaseRepo, git.PushOptions{
 		Branch: prefixHeadBranch + pr.HeadBranch + ":" + gitRefName,

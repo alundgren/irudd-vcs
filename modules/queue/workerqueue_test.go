@@ -21,6 +21,7 @@ func runWorkerPoolQueue[T any](q *WorkerPoolQueue[T]) func() {
 	go q.Run()
 	return func() {
 		q.ShutdownWait(1 * time.Second)
+		_ = q.baseQueue.Close() // a stopped queue keeps its level db open, which Windows cannot remove
 	}
 }
 
@@ -247,6 +248,7 @@ func TestWorkerPoolQueueShutdown(t *testing.T) {
 	// no item was ever handled, so we still get all of them again
 	q, _ = newWorkerPoolQueueForTest("test-workpoolqueue", qs, handler, false)
 	assert.Equal(t, 20, q.GetQueueItemNumber())
+	_ = q.baseQueue.Close()
 }
 
 func TestWorkerPoolQueueWorkerIdleReset(t *testing.T) {

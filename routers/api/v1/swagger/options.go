@@ -45,9 +45,6 @@ type swaggerParameterBodies struct {
 	IssueLabelsOption api.IssueLabelsOption
 
 	// in:body
-	RenameUserOption api.RenameUserOption
-
-	// in:body
 	CreateLabelOption api.CreateLabelOption
 	// in:body
 	EditLabelOption api.EditLabelOption
@@ -70,12 +67,6 @@ type swaggerParameterBodies struct {
 
 	// in:body
 	CreateStatusOption api.CreateStatusOption
-
-	// in:body
-	CreateUserOption api.CreateUserOption
-
-	// in:body
-	EditUserOption api.EditUserOption
 
 	// in:body
 	GetFilesOptions api.GetFilesOptions

@@ -41,6 +41,15 @@ func (rules ProtectedBranchRules) sort() {
 	})
 }
 
+// HasProtectionRules reports whether a repository protects any branch or tag
+func HasProtectionRules(ctx context.Context, repoID int64) (bool, error) {
+	has, err := db.GetEngine(ctx).Where("repo_id = ?", repoID).Exist(new(ProtectedBranch))
+	if err != nil || has {
+		return has, err
+	}
+	return db.GetEngine(ctx).Where("repo_id = ?", repoID).Exist(new(ProtectedTag))
+}
+
 // FindRepoProtectedBranchRules load all repository's protected rules
 func FindRepoProtectedBranchRules(ctx context.Context, repoID int64) (ProtectedBranchRules, error) {
 	var rules ProtectedBranchRules

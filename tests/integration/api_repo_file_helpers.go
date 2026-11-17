@@ -82,7 +82,7 @@ func createOrReplaceFileInBranch(user *user_model.User, repo *repo_model.Reposit
 }
 
 // TODO: replace all usages of this function with testCreateFileInBranch or testCreateFile
-func createFile(user *user_model.User, repo *repo_model.Repository, treePath string, optContent ...string) (*api.FilesResponse, error) {
-	content := util.OptionalArg(optContent, "This is a NEW file") // some tests need this default content because its SHA is hardcoded
+func createFile(user *user_model.User, repo *repo_model.Repository, treePath string) (*api.FilesResponse, error) {
+	content := "This is a NEW file" // some tests need this default content because its SHA is hardcoded
 	return createFileInBranch(user, repo, createFileInBranchOptions{}, map[string]string{treePath: content})
 }

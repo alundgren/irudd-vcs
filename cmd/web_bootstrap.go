@@ -52,6 +52,6 @@ func bootstrapConfig(cmd *cli.Command) error {
 	}
 
 	log.Info("Created config file %q", setting.CustomConf)
-	log.Info("Create the first admin with: gitea admin user create --admin --username NAME --email EMAIL --random-password")
+	log.Info("Create the first admin with: gitea admin user create --username NAME --email EMAIL")
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -248,6 +249,8 @@ func doGitRemoteArchive(remote string, args ...string) func(*testing.T) {
 		stdout, stderr, err := gitcmd.NewCommand("archive").AddOptionValues("--remote", remote).AddArguments(gitcmd.ToTrustedCmdArgs(args)...).
 			RunStdString(t.Context())
 		require.NoError(t, err)
+		// git archive can exit before its remote-http helper writes the end packet; the helper then fails on a closed pipe
+		stderr = strings.TrimSpace(strings.TrimPrefix(stderr, "fatal: unable to write response end packet: Broken pipe"))
 		assert.Empty(t, stderr)
 		assert.NotEmpty(t, stdout)
 	}

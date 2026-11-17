@@ -22,6 +22,7 @@ import (
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/optional"
+	"gitea.dev/modules/private"
 	"gitea.dev/modules/queue"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/reqctx"
@@ -195,9 +196,15 @@ func CreateNewBranchFromCommit(ctx context.Context, doer *user_model.User, repo 
 		return err
 	}
 
-	if err := gitrepo.Push(ctx, repo, repo, git.PushOptions{
-		Branch: fmt.Sprintf("%s:%s%s", commitID, git.BranchPrefix, branchName),
-		Env:    repo_module.PushingEnvironment(doer, repo),
+	env := append(repo_module.PushingEnvironment(doer, repo), repo_module.NoRefRulesEnvironment(ctx, doer, repo)...)
+	if private.UpdateServerRef(ctx, repo, env, git.RefNameFromBranch(branchName), "", commitID) {
+		return nil
+	}
+	if err := private.RunServerPush(ctx, env, func(env []string) error {
+		return gitrepo.Push(ctx, repo, repo, git.PushOptions{
+			Branch: fmt.Sprintf("%s:%s%s", commitID, git.BranchPrefix, branchName),
+			Env:    env,
+		})
 	}); err != nil {
 		if git.IsErrPushOutOfDate(err) || git.IsErrPushRejected(err) {
 			return err
@@ -331,7 +338,7 @@ func UpdateBranch(ctx context.Context, repo *repo_model.Repository, gitRepo *git
 
 	pushOpts := git.PushOptions{
 		Branch: fmt.Sprintf("%s:%s%s", newCommit.ID.String(), git.BranchPrefix, branchName),
-		Env:    repo_module.PushingEnvironment(doer, repo),
+		Env:    append(repo_module.PushingEnvironment(doer, repo), repo_module.NoRefRulesEnvironment(ctx, doer, repo)...),
 		Force:  isForcePush || force,
 	}
 
@@ -339,8 +346,16 @@ func UpdateBranch(ctx context.Context, repo *repo_model.Repository, gitRepo *git
 		pushOpts.ForceWithLease = fmt.Sprintf("%s:%s", git.BranchPrefix+branchName, branch.CommitID)
 	}
 
+	// the push without a lease moves a branch at the same commit as the lease does
+	if private.UpdateServerRef(ctx, repo, pushOpts.Env, git.RefNameFromBranch(branchName), branch.CommitID, newCommit.ID.String()) {
+		return nil
+	}
+
 	// branch protection will be checked in the pre received hook, so that we don't need any check here
-	return gitrepo.Push(ctx, repo, repo, pushOpts)
+	return private.RunServerPush(ctx, pushOpts.Env, func(env []string) error {
+		pushOpts.Env = env
+		return gitrepo.Push(ctx, repo, repo, pushOpts)
+	})
 }
 
 var ErrBranchIsDefault = util.ErrorWrap(util.ErrPermissionDenied, "branch is default or pull request target")
@@ -445,7 +460,8 @@ func deleteBranchSuccessPostProcess(doer *user_model.User, repo *repo_model.Repo
 			PusherName:   doer.Name,
 			RepoUserName: repo.OwnerName,
 			RepoName:     repo.Name,
-		}); err != nil {
+		},
+	); err != nil {
 		log.Error("PushUpdateOptions: %v", err)
 	}
 }

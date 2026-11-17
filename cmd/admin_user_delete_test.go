@@ -18,6 +18,7 @@ import (
 
 func TestAdminUserDelete(t *testing.T) {
 	ctx := t.Context()
+	require.NoError(t, db.TruncateBeans(ctx, &user_model.User{})) // creating the owner needs an empty user table
 	defer func() {
 		require.NoError(t, db.TruncateBeans(t.Context(), &user_model.User{}))
 		require.NoError(t, db.TruncateBeans(t.Context(), &user_model.EmailAddress{}))
@@ -26,7 +27,7 @@ func TestAdminUserDelete(t *testing.T) {
 
 	setupTestUser := func(t *testing.T) {
 		unittest.AssertNotExistsBean(t, &user_model.User{LowerName: "testuser"})
-		err := microcmdUserCreate().Run(t.Context(), []string{"create", "--username", "testuser", "--email", "testuser@gitea.local", "--random-password"})
+		err := microcmdUserCreate().Run(t.Context(), []string{"create", "--username", "testuser", "--email", "testuser@gitea.local"})
 		require.NoError(t, err)
 	}
 
@@ -95,7 +96,7 @@ func TestAdminUserDeleteFailure(t *testing.T) {
 			ctx := t.Context()
 			if strings.Contains(tc.name, "user exists") {
 				unittest.AssertNotExistsBean(t, &user_model.User{LowerName: "testuser"})
-				err := microcmdUserCreate().Run(t.Context(), []string{"create", "--username", "testuser", "--email", "testuser@gitea.local", "--random-password"})
+				err := microcmdUserCreate().Run(t.Context(), []string{"create", "--username", "testuser", "--email", "testuser@gitea.local"})
 				require.NoError(t, err)
 			}
 

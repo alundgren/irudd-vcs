@@ -4,8 +4,10 @@
 package pull
 
 import (
+	"context"
 	"fmt"
 
+	issues_model "gitea.dev/models/issues"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/container"
@@ -17,24 +19,28 @@ import (
 
 // doMergeStyleSquash gets a commit author signature for squash commits
 func getAuthorSignatureSquash(ctx *mergeContext) (*git.Signature, error) {
-	if err := ctx.pr.Issue.LoadPoster(ctx); err != nil {
-		log.Error("%-v Issue[%d].LoadPoster: %v", ctx.pr, ctx.pr.Issue.ID, err)
-		return nil, err
-	}
-
-	// Try to get a signature from the same user in one of the commits, as the
-	// poster email might be private or commits might have a different signature
-	// than the primary email address of the poster.
 	gitRepo, err := git.OpenRepository(ctx, ctx.tmpBasePath)
 	if err != nil {
 		log.Error("%-v Unable to open base repository: %v", ctx.pr, err)
 		return nil, err
 	}
 	defer gitRepo.Close()
+	return squashAuthorSignature(ctx, ctx.pr, gitRepo, git.RefNameFromBranch(tmpRepoTrackingBranch), git.RefNameHead)
+}
 
-	commits, err := gitRepo.CommitsBetween(git.RefNameFromBranch(tmpRepoTrackingBranch), git.RefNameHead, -1)
+// squashAuthorSignature gets the author of a squash commit from the commits of the head that are not in the base
+func squashAuthorSignature(ctx context.Context, pr *issues_model.PullRequest, gitRepo *git.Repository, headRef, baseRef git.RefName) (*git.Signature, error) {
+	if err := pr.Issue.LoadPoster(ctx); err != nil {
+		log.Error("%-v Issue[%d].LoadPoster: %v", pr, pr.Issue.ID, err)
+		return nil, err
+	}
+
+	// Try to get a signature from the same user in one of the commits, as the
+	// poster email might be private or commits might have a different signature
+	// than the primary email address of the poster.
+	commits, err := gitRepo.CommitsBetween(headRef, baseRef, -1)
 	if err != nil {
-		log.Error("%-v Unable to get commits between: head and tracking branch: %v", ctx.pr, err)
+		log.Error("%-v Unable to get commits between: head and tracking branch: %v", pr, err)
 		return nil, err
 	}
 
@@ -42,13 +48,13 @@ func getAuthorSignatureSquash(ctx *mergeContext) (*git.Signature, error) {
 	for _, commit := range commits {
 		if commit.Author != nil && uniqueEmails.Add(commit.Author.Email) {
 			commitUser, _ := user_model.GetUserByEmail(ctx, commit.Author.Email)
-			if commitUser != nil && commitUser.ID == ctx.pr.Issue.Poster.ID {
+			if commitUser != nil && commitUser.ID == pr.Issue.Poster.ID {
 				return commit.Author, nil
 			}
 		}
 	}
 
-	return ctx.pr.Issue.Poster.NewGitSig(), nil
+	return pr.Issue.Poster.NewGitSig(), nil
 }
 
 // doMergeStyleSquash squashes the tracking branch on the current HEAD (=base)

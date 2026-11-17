@@ -23,37 +23,42 @@ func gitConfigContains(sub string) bool {
 }
 
 func TestGitConfig(t *testing.T) {
-	ctx := t.Context()
-	assert.False(t, gitConfigContains("key-a"))
+	testGitConfig(t, &globalConfig{ctx: t.Context()}, "key")
+	testGitConfig(t, loadGlobalConfig(t.Context()), "cached-key")
+}
 
-	assert.NoError(t, configSetNonExist(ctx, "test.key-a", "val-a"))
-	assert.True(t, gitConfigContains("key-a = val-a"))
+// testGitConfig runs the same steps with values read up front and with a git process per lookup
+func testGitConfig(t *testing.T, c *globalConfig, key string) {
+	assert.False(t, gitConfigContains(key+"-a"))
 
-	assert.NoError(t, configSetNonExist(ctx, "test.key-a", "val-a-changed"))
-	assert.False(t, gitConfigContains("key-a = val-a-changed"))
+	assert.NoError(t, c.setNonExist("test."+key+"-a", "val-a"))
+	assert.True(t, gitConfigContains(key+"-a = val-a"))
 
-	assert.NoError(t, configSet(ctx, "test.key-a", "val-a-changed"))
-	assert.True(t, gitConfigContains("key-a = val-a-changed"))
+	assert.NoError(t, c.setNonExist("test."+key+"-a", "val-a-changed"))
+	assert.False(t, gitConfigContains(key+"-a = val-a-changed"))
 
-	assert.NoError(t, configAddNonExist(ctx, "test.key-b", "val-b"))
-	assert.True(t, gitConfigContains("key-b = val-b"))
+	assert.NoError(t, c.set("test."+key+"-a", "val-a-changed"))
+	assert.True(t, gitConfigContains(key+"-a = val-a-changed"))
 
-	assert.NoError(t, configAddNonExist(ctx, "test.key-b", "val-2b"))
-	assert.True(t, gitConfigContains("key-b = val-b"))
-	assert.True(t, gitConfigContains("key-b = val-2b"))
+	assert.NoError(t, c.addNonExist("test."+key+"-b", "val-b"))
+	assert.True(t, gitConfigContains(key+"-b = val-b"))
 
-	assert.NoError(t, configUnsetAll(ctx, "test.key-b", "val-b"))
-	assert.False(t, gitConfigContains("key-b = val-b"))
-	assert.True(t, gitConfigContains("key-b = val-2b"))
+	assert.NoError(t, c.addNonExist("test."+key+"-b", "val-2b"))
+	assert.True(t, gitConfigContains(key+"-b = val-b"))
+	assert.True(t, gitConfigContains(key+"-b = val-2b"))
 
-	assert.NoError(t, configUnsetAll(ctx, "test.key-b", "val-2b"))
-	assert.False(t, gitConfigContains("key-b = val-2b"))
+	assert.NoError(t, c.unsetAll("test."+key+"-b", "val-b"))
+	assert.False(t, gitConfigContains(key+"-b = val-b"))
+	assert.True(t, gitConfigContains(key+"-b = val-2b"))
 
-	assert.NoError(t, configSet(ctx, "test.key-x", "*"))
-	assert.True(t, gitConfigContains("key-x = *"))
-	assert.NoError(t, configSetNonExist(ctx, "test.key-x", "*"))
-	assert.NoError(t, configUnsetAll(ctx, "test.key-x", "*"))
-	assert.False(t, gitConfigContains("key-x = *"))
+	assert.NoError(t, c.unsetAll("test."+key+"-b", "val-2b"))
+	assert.False(t, gitConfigContains(key+"-b = val-2b"))
+
+	assert.NoError(t, c.set("test."+key+"-x", "*"))
+	assert.True(t, gitConfigContains(key+"-x = *"))
+	assert.NoError(t, c.setNonExist("test."+key+"-x", "*"))
+	assert.NoError(t, c.unsetAll("test."+key+"-x", "*"))
+	assert.False(t, gitConfigContains(key+"-x = *"))
 }
 
 func TestSyncGitConfig(t *testing.T) {

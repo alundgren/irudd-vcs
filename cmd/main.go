@@ -129,7 +129,6 @@ func NewMainApp(appVer AppVersion) *cli.Command {
 	subCmdStandalone := []*cli.Command{
 		cmdConfig(),
 		newGenerateCommand(),
-		newDocsCommand(),
 	}
 
 	// TODO: we should eventually drop the default command,

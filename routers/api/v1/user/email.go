@@ -58,7 +58,7 @@ func AddEmail(ctx *context.APIContext) {
 	//   "422":
 	//     "$ref": "#/responses/validationError"
 
-	if user_model.IsFeatureDisabledWithLoginType(ctx.Doer, setting.UserFeatureManageCredentials) {
+	if setting.Admin.UserDisabledFeatures.Contains(setting.UserFeatureManageCredentials) {
 		ctx.APIErrorNotFound("emails are not allowed to be changed")
 		return
 	}
@@ -120,7 +120,7 @@ func DeleteEmail(ctx *context.APIContext) {
 	//   "404":
 	//     "$ref": "#/responses/notFound"
 
-	if user_model.IsFeatureDisabledWithLoginType(ctx.Doer, setting.UserFeatureManageCredentials) {
+	if setting.Admin.UserDisabledFeatures.Contains(setting.UserFeatureManageCredentials) {
 		ctx.APIErrorNotFound("emails are not allowed to be changed")
 		return
 	}

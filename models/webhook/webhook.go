@@ -289,6 +289,11 @@ func (opts ListWebhookOptions) ToConds() builder.Cond {
 	return cond
 }
 
+// HasActiveWebhooks reports whether any webhook, of a repository, owner or the system, is active
+func HasActiveWebhooks(ctx context.Context) (bool, error) {
+	return db.GetEngine(ctx).Where(builder.Eq{"is_active": true}).Exist(new(Webhook))
+}
+
 // UpdateWebhook updates information of webhook.
 func UpdateWebhook(ctx context.Context, w *Webhook) error {
 	_, err := db.GetEngine(ctx).ID(w.ID).AllCols().Update(w)

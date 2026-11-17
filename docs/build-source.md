@@ -9,20 +9,11 @@ Various [make tasks](../Makefile) are provided to keep the build process as simp
 Depending on requirements, the following build tags can be included.
 
 - `bindata`: Build a single monolithic binary with the `options/` assets (gitignore, license, label and readme templates) embedded. Recommended for distribution.
-- `gogit`: (EXPERIMENTAL) Use go-git variants of Git commands.
-- `sqlite_mattn sqlite_unlock_notify`: Use the cgo `mattn/go-sqlite3` driver instead of the default pure-Go `modernc.org/sqlite` driver. Enables cgo.
 
 To include all assets, use the `bindata` tag:
 
 ```bash
 TAGS="bindata" make build
-```
-
-Tag `gogit` is used to try to resolve some Windows-specific performance problems, POSIX systems don't need it.
-You can build a Windows binary by:
-
-```bash
-GOOS=windows TAGS="bindata gogit" make build
 ```
 
 ## Changing default paths
@@ -50,7 +41,8 @@ Running `gitea help` will allow you to review what the computed settings will be
 
 ## Cross Build
 
-The build uses Go's toolchain variables for cross-building.
+The build needs no cgo (SQLite is the pure-Go `modernc.org/sqlite`), so Go cross-builds every target itself.
+`make release-binaries` builds the `RELEASE_TARGETS`.
 
 For example, to cross build for Linux ARM64:
 

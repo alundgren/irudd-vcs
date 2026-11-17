@@ -530,6 +530,7 @@ func TestChangeRepoFilesWithoutBranchNames(t *testing.T) {
 
 func TestChangeRepoFilesForDelete(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, u *url.URL) {
+		ownerSession := loginUser(t, "user2") // adds the token to requests without one
 		ctx, _ := contexttest.MockContext(t, "user2/repo1")
 		ctx.SetPathParam("id", "1")
 		contexttest.LoadRepo(t, ctx, 1)
@@ -542,7 +543,7 @@ func TestChangeRepoFilesForDelete(t *testing.T) {
 
 		t.Run("Delete README.md by commit", func(t *testing.T) {
 			urlRaw := "/api/v1/repos/user2/repo1/raw/README.md?ref=branch2"
-			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
+			ownerSession.MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
 			opts := &files_service.ChangeRepoFilesOptions{
 				OldBranch:    "branch2",
 				LastCommitID: "985f0301dba5e7b34be866819cd15ad3d8f508ee",
@@ -559,12 +560,12 @@ func TestChangeRepoFilesForDelete(t *testing.T) {
 			assert.NotNil(t, filesResponse)
 			assert.Nil(t, filesResponse.Files[0])
 			assert.Equal(t, "test message\n", filesResponse.Commit.Message)
-			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusNotFound)
+			ownerSession.MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusNotFound)
 		})
 
 		t.Run("Delete README.md with options", func(t *testing.T) {
 			urlRaw := "/api/v1/repos/user2/repo1/raw/README.md?ref=master"
-			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
+			ownerSession.MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
 			opts := &files_service.ChangeRepoFilesOptions{
 				Files: []*files_service.ChangeRepoFile{
 					{
@@ -586,12 +587,12 @@ func TestChangeRepoFilesForDelete(t *testing.T) {
 			assert.Equal(t, api.Identity{Name: "Bob Smith", Email: "bob@smith.com"}, filesResponse.Commit.Author.Identity)
 			assert.Equal(t, api.Identity{Name: "Bob Smith", Email: "bob@smith.com"}, filesResponse.Commit.Committer.Identity)
 			assert.Equal(t, &api.PayloadCommitVerification{Reason: "gpg.error.not_signed_commit"}, filesResponse.Verification)
-			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusNotFound)
+			ownerSession.MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusNotFound)
 		})
 
 		t.Run("Delete directory", func(t *testing.T) {
 			urlRaw := "/api/v1/repos/user2/repo1/raw/docs/README.md?ref=sub-home-md-img-check"
-			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
+			ownerSession.MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusOK)
 			opts := &files_service.ChangeRepoFilesOptions{
 				OldBranch:    "sub-home-md-img-check",
 				LastCommitID: "4649299398e4d39a5c09eb4f534df6f1e1eb87cc",
@@ -609,7 +610,7 @@ func TestChangeRepoFilesForDelete(t *testing.T) {
 			assert.NotNil(t, filesResponse)
 			assert.Nil(t, filesResponse.Files[0])
 			assert.Equal(t, "test message\n", filesResponse.Commit.Message)
-			MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusNotFound)
+			ownerSession.MakeRequest(t, NewRequest(t, "GET", urlRaw), http.StatusNotFound)
 		})
 	})
 }

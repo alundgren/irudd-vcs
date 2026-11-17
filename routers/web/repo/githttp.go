@@ -282,7 +282,9 @@ func prepareGitCmdWithAllowedService(service string, allowedServices []string) *
 	}
 	switch service {
 	case ServiceTypeReceivePack:
-		return gitcmd.NewCommand(ServiceTypeReceivePack)
+		// refs/pull belongs to Gitea: receive-pack refuses client writes to hidden refs one by one, and
+		// Gitea's own pushes to them do not come through here
+		return gitcmd.NewCommand(ServiceTypeReceivePack).AddConfig("receive.hideRefs", "refs/pull/")
 	case ServiceTypeUploadPack:
 		return gitcmd.NewCommand(ServiceTypeUploadPack)
 	case ServiceTypeUploadArchive:
@@ -332,6 +334,9 @@ func serviceRPC(ctx *context.Context, service string) {
 
 	// set this for allow pre-receive and post-receive execute
 	h.environ = append(h.environ, "SSH_ORIGINAL_COMMAND="+service)
+	if service == ServiceTypeReceivePack {
+		h.environ = append(h.environ, repo_module.NoRefRulesEnvironment(ctx, ctx.Doer, h.repo)...)
+	}
 
 	if protocol := ctx.Req.Header.Get("Git-Protocol"); protocol != "" && safeGitProtocolHeader.MatchString(protocol) {
 		h.environ = append(h.environ, "GIT_PROTOCOL="+protocol)

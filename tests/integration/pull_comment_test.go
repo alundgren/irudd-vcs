@@ -8,11 +8,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
 	issues_model "gitea.dev/models/issues"
+	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
+	"gitea.dev/modules/gitrepo"
 	"gitea.dev/modules/json"
 	api "gitea.dev/modules/structs"
 
@@ -43,6 +46,7 @@ func testPullCommentRebase(t *testing.T, u *url.URL, session *TestSession) {
 
 	dstPath := t.TempDir()
 	u.Path = "/user2/repo1.git"
+	u.User = gitUserInfo(t, "user1")
 	doGitClone(dstPath, u)(t)
 	doGitCheckoutBranch(dstPath, "test-branch/rebase")(t)
 	doGitCreateBranch(dstPath, "local-branch/rebase")(t)
@@ -98,14 +102,43 @@ func testPullCommentRetarget(t *testing.T, _ *url.URL, session *TestSession) {
 	testWaitForPullRequestStatus(t, &issues_model.Issue{Title: testPRTitle}, issues_model.PullRequestStatusMergeable)
 }
 
+func testPullCommentSameRepoPush(t *testing.T, _ *url.URL, session *TestSession) {
+	const testPRTitle, branch = "Test PR for same repository push comment", "test-branch/same-repo"
+	testEditFile(t, session, "user2", "repo1", branch, "README.md", "Hello, World (Edited)\n")
+	testPullCreate(t, session, "user2", "repo1", true, "master", branch, testPRTitle)
+	prIssue := testWaitForPullRequestStatus(t, &issues_model.Issue{Title: testPRTitle}, issues_model.PullRequestStatusMergeable)
+
+	// a push to the head branch of a pull within one repository moves its ref and adds a push comment
+	testEditFile(t, session, "user2", "repo1", branch, "README.md", "Hello, World (Edited Again)\n")
+	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerName: "user2", Name: "repo1"})
+	branchCommit, err := gitrepo.GetBranchCommitID(t.Context(), repo, branch)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		comments, err := issues_model.FindComments(t.Context(), &issues_model.FindCommentsOptions{IssueID: prIssue.ID, Type: issues_model.CommentTypePullRequestPush})
+		require.NoError(t, err)
+		return slices.ContainsFunc(comments, func(c *issues_model.Comment) bool {
+			var pushContent issues_model.PushActionContent
+			return json.Unmarshal([]byte(c.Content), &pushContent) == nil && slices.Contains(pushContent.CommitIDs, branchCommit)
+		})
+	}, 5*time.Second, 20*time.Millisecond)
+	gitRepo, err := gitrepo.OpenRepository(t.Context(), repo)
+	require.NoError(t, err)
+	defer gitRepo.Close()
+	head, err := gitRepo.GetRefCommitID(prIssue.PullRequest.GetGitHeadRefName())
+	require.NoError(t, err)
+	assert.Equal(t, branchCommit, head)
+}
+
 func TestPullComment(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, u *url.URL) {
 		session := loginUser(t, "user1")
 		testCreateBranch(t, session, "user2", "repo1", "branch/master", "test-branch/rebase", http.StatusCreated)
 		testCreateBranch(t, session, "user2", "repo1", "branch/master", "test-branch/retarget", http.StatusCreated)
+		testCreateBranch(t, session, "user2", "repo1", "branch/master", "test-branch/same-repo", http.StatusCreated)
 		testRepoFork(t, session, "user2", "repo1", "user1", "repo1", "")
 
 		t.Run("RebaseComment", func(t *testing.T) { testPullCommentRebase(t, u, session) })
 		t.Run("RetargetComment", func(t *testing.T) { testPullCommentRetarget(t, u, session) })
+		t.Run("SameRepoPushComment", func(t *testing.T) { testPullCommentSameRepoPush(t, u, session) })
 	})
 }

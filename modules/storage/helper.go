@@ -6,7 +6,6 @@ package storage
 import (
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 )
 
@@ -28,10 +27,6 @@ func (s discardStorage) Stat(_ string) (os.FileInfo, error) {
 
 func (s discardStorage) Delete(_ string) error {
 	return fmt.Errorf("%s", s)
-}
-
-func (s discardStorage) ServeDirectURL(_, _, _ string, _ *ServeDirectOptions) (*url.URL, error) {
-	return nil, fmt.Errorf("%s", s)
 }
 
 func (s discardStorage) IterateObjects(_ string, _ func(string, Object) error) error {

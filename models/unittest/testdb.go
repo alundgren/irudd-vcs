@@ -107,7 +107,9 @@ func ResetTestDatabase() (cleanup func(), err error) {
 	if !strings.HasSuffix(connOpts.SQLitePath, "-test.db") {
 		return nil, errors.New(`testing database file for sqlite3 must end in "-test.db"`)
 	}
-	_ = os.Remove(connOpts.SQLitePath)
+	for _, suffix := range []string{"", "-wal", "-shm"} { // a WAL left from another database must not be replayed into this one
+		_ = os.Remove(connOpts.SQLitePath + suffix)
+	}
 	err = os.MkdirAll(filepath.Dir(connOpts.SQLitePath), os.ModePerm)
 	if err != nil {
 		return nil, err

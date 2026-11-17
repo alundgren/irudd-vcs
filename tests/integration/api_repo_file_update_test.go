@@ -234,14 +234,14 @@ func TestAPIUpdateFile(t *testing.T) {
 		apiError := DecodeJSON(t, resp, &context.APIError{})
 		assert.Equal(t, expectedAPIError, apiError)
 
-		// Test creating a file in repo1 by user4 who does not have write access
+		// Test creating a file in repo1 by user4, who owns it like every signed-in user
 		fileID++
 		treePath = fmt.Sprintf("update/file%d.txt", fileID)
 		createFile(user2, repo16, treePath)
 		updateFileOptions = getUpdateFileOptions()
 		req = NewRequestWithJSON(t, "PUT", fmt.Sprintf("/api/v1/repos/%s/%s/contents/%s", user2.Name, repo16.Name, treePath), &updateFileOptions).
 			AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusOK)
 
 		// Tests a repo with no token given so will fail
 		fileID++
@@ -249,7 +249,7 @@ func TestAPIUpdateFile(t *testing.T) {
 		createFile(user2, repo16, treePath)
 		updateFileOptions = getUpdateFileOptions()
 		req = NewRequestWithJSON(t, "PUT", fmt.Sprintf("/api/v1/repos/%s/%s/contents/%s", user2.Name, repo16.Name, treePath), &updateFileOptions)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusUnauthorized)
 
 		// Test using access token for a private repo that the user of the token owns
 		fileID++
@@ -275,15 +275,15 @@ func TestAPIUpdateFile(t *testing.T) {
 		createFile(org3, repo3, treePath)
 		updateFileOptions = getUpdateFileOptions()
 		req = NewRequestWithJSON(t, "PUT", fmt.Sprintf("/api/v1/repos/%s/%s/contents/%s", org3.Name, repo3.Name, treePath), &updateFileOptions)
-		MakeRequest(t, req, http.StatusNotFound)
+		MakeRequest(t, req, http.StatusUnauthorized)
 
-		// Test using repo "user2/repo1" where user4 is a NOT collaborator
+		// Test using repo "user2/repo1" by user4, who owns it like every signed-in user
 		fileID++
 		treePath = fmt.Sprintf("update/file%d.txt", fileID)
 		createFile(user2, repo1, treePath)
 		updateFileOptions = getUpdateFileOptions()
 		req = NewRequestWithJSON(t, "PUT", fmt.Sprintf("/api/v1/repos/%s/%s/contents/%s", user2.Name, repo1.Name, treePath), &updateFileOptions).
 			AddTokenAuth(token4)
-		MakeRequest(t, req, http.StatusForbidden)
+		MakeRequest(t, req, http.StatusOK)
 	})
 }

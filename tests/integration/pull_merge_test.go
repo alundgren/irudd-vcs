@@ -606,7 +606,7 @@ func TestPullDontRetargetChildOnWrongRepo(t *testing.T) {
 	})
 }
 
-func TestPullRequestMergedWithNoPermissionDeleteBranch(t *testing.T) {
+func TestPullRequestMergedDeleteBranchOfOtherUser(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, giteaURL *url.URL) {
 		session := loginUser(t, "user4")
 		testRepoFork(t, session, "user2", "repo1", "user4", "repo1", "")
@@ -616,7 +616,7 @@ func TestPullRequestMergedWithNoPermissionDeleteBranch(t *testing.T) {
 		elemBasePR := strings.Split(testPullURL(t, respBasePR), "/")
 		assert.Equal(t, "pulls", elemBasePR[3])
 
-		// user2 has no permission to delete branch of repo user1/repo1
+		// user2 may delete the head branch in user4/repo1, every signed-in user owns every repository
 		session2 := loginUser(t, "user2")
 		testPullMerge(t, session2, elemBasePR[1], elemBasePR[2], elemBasePR[4], MergeOptions{
 			Style:        repo_model.MergeStyleMerge,
@@ -625,8 +625,7 @@ func TestPullRequestMergedWithNoPermissionDeleteBranch(t *testing.T) {
 
 		repo1 := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerName: "user4", Name: "repo1"})
 		branchBasePR := unittest.AssertExistsAndLoadBean(t, &git_model.Branch{RepoID: repo1.ID, Name: "base-pr"})
-		// branch has not been deleted
-		assert.False(t, branchBasePR.IsDeleted)
+		assert.True(t, branchBasePR.IsDeleted)
 	})
 }
 

@@ -54,25 +54,13 @@ type CreateRepoOptions struct {
 }
 
 func prepareRepoCommit(ctx context.Context, repo *repo_model.Repository, tmpDir string, opts CreateRepoOptions) error {
-	commitTimeStr := time.Now().Format(time.RFC3339)
 	authorSig := repo.Owner.NewGitSig()
 
-	// Because this may call hooks we should pass in the environment
-	env := append(os.Environ(),
-		"GIT_AUTHOR_NAME="+authorSig.Name,
-		"GIT_AUTHOR_EMAIL="+authorSig.Email,
-		"GIT_AUTHOR_DATE="+commitTimeStr,
-		"GIT_COMMITTER_NAME="+authorSig.Name,
-		"GIT_COMMITTER_EMAIL="+authorSig.Email,
-		"GIT_COMMITTER_DATE="+commitTimeStr,
-	)
-
-	// Clone to temporary path and do the init commit.
-	if err := gitrepo.CloneRepoToLocal(ctx, repo, tmpDir, git.CloneRepoOptions{
-		Env: env,
-	}); err != nil {
-		log.Error("Failed to clone from %v into %s\nError: %v", repo, tmpDir, err)
-		return fmt.Errorf("git clone: %w", err)
+	// Init a temporary repository for the init commit: the new repository is empty, a clone of it
+	// starts upload-pack as well, and the commit is pushed to its path
+	if err := git.InitRepository(ctx, tmpDir, false, repo.ObjectFormatName); err != nil {
+		log.Error("Failed to init %s for %v\nError: %v", tmpDir, repo, err)
+		return fmt.Errorf("git init: %w", err)
 	}
 
 	// README
@@ -249,7 +237,7 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 
 	// 1 - create the repository database operations first
 	err := db.WithTx(ctx, func(ctx context.Context) error {
-		return createRepositoryInDB(ctx, doer, owner, repo, false)
+		return createRepositoryInDB(ctx, owner, repo, false)
 	})
 	if err != nil {
 		return nil, err
@@ -310,7 +298,7 @@ func CreateRepositoryDirectly(ctx context.Context, doer, owner *user_model.User,
 }
 
 // createRepositoryInDB creates a repository for the user/organization.
-func createRepositoryInDB(ctx context.Context, doer, u *user_model.User, repo *repo_model.Repository, isFork bool) (err error) {
+func createRepositoryInDB(ctx context.Context, u *user_model.User, repo *repo_model.Repository, isFork bool) (err error) {
 	if err = repo_model.IsUsableRepoName(repo.Name); err != nil {
 		return err
 	}

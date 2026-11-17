@@ -31,16 +31,26 @@ type CompareInfo struct {
 	// for direct comparison "..": it is base commit ID
 	CompareBase string
 
-	Commits  []*git.Commit
-	NumFiles int
+	Commits []*git.Commit
 }
 
 // GetCompareInfo generates and returns compare information between base and head branches of repositories.
 // It does its best to fill the fields as many as it can.
 // MergeBase can be empty if the base and head are unrelated.
 func GetCompareInfo(ctx context.Context, baseRepo, headRepo *repo_model.Repository, headGitRepo *git.Repository, baseRef, headRef git.RefName, directComparison, fileOnly bool) (compareInfo CompareInfo, err error) {
-	baseCommitID, err1 := gitrepo.GetFullCommitID(ctx, baseRepo, baseRef.String())
-	headCommitID, err2 := gitrepo.GetFullCommitID(ctx, headRepo, headRef.String())
+	// the head repository is open, so its cat-file batch resolves refs without a rev-parse process each
+	resolve := func(repo *repo_model.Repository, ref git.RefName) (string, error) {
+		if repo.ID != headRepo.ID {
+			return gitrepo.GetFullCommitID(ctx, repo, ref.String())
+		}
+		id, err := headGitRepo.ConvertToGitID(ref.String())
+		if err != nil {
+			return "", err
+		}
+		return id.String(), nil
+	}
+	baseCommitID, err1 := resolve(baseRepo, baseRef)
+	headCommitID, err2 := resolve(headRepo, headRef)
 	compareInfo = CompareInfo{
 		BaseRepo:         baseRepo,
 		BaseRef:          baseRef,
@@ -90,10 +100,5 @@ func GetCompareInfo(ctx context.Context, baseRepo, headRepo *repo_model.Reposito
 			return compareInfo, fmt.Errorf("ShowPrettyFormatLogToList: %w", err)
 		}
 	}
-
-	// Count number of changed files.
-	// TODO: This probably should be removed as we need to use shortstat elsewhere
-	// Now there is git diff --shortstat but this appears to be slower than simply iterating with --nameonly
-	compareInfo.NumFiles, err = headGitRepo.GetDiffNumChangedFiles(compareInfo.BaseCommitID, compareInfo.HeadCommitID, directComparison)
-	return compareInfo, err
+	return compareInfo, nil
 }

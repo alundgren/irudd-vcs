@@ -10,6 +10,7 @@ import (
 	"gitea.dev/modules/setting"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestManager(t *testing.T) {
@@ -37,10 +38,11 @@ CONN_STR = redis://
 
 	// test default config
 	q, err := newQueueFromConfig("default", "")
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	defer q.baseQueue.Close() // the queue never runs, so nothing else closes its level db
 	assert.Equal(t, "default", q.GetName())
 	assert.Equal(t, "level", q.GetType())
-	assert.Equal(t, filepath.Join(setting.AppDataPath, "queues/common"), q.baseConfig.DataFullDir)
+	assert.Equal(t, filepath.ToSlash(filepath.Join(setting.AppDataPath, "queues/common")), q.baseConfig.DataFullDir)
 	assert.Equal(t, 100000, q.baseConfig.Length)
 	assert.Equal(t, 20, q.batchLength)
 	assert.Empty(t, q.baseConfig.ConnStr)
@@ -78,7 +80,7 @@ MAX_WORKERS = 123
 	q1 := createWorkerPoolQueue[string](t.Context(), "no-such", cfgProvider, nil, false)
 	assert.Equal(t, "no-such", q1.GetName())
 	assert.Equal(t, "dummy", q1.GetType()) // no handler, so it becomes dummy
-	assert.Equal(t, filepath.Join(setting.AppDataPath, "queues/dir1"), q1.baseConfig.DataFullDir)
+	assert.Equal(t, filepath.ToSlash(filepath.Join(setting.AppDataPath, "queues/dir1")), q1.baseConfig.DataFullDir)
 	assert.Equal(t, 100, q1.baseConfig.Length)
 	assert.Equal(t, 20, q1.batchLength)
 	assert.Equal(t, "addrs=127.0.0.1:6379 db=0", q1.baseConfig.ConnStr)
@@ -94,7 +96,7 @@ MAX_WORKERS = 123
 	q2 := createWorkerPoolQueue(t.Context(), "sub", cfgProvider, func(s ...int) (unhandled []int) { return nil }, false)
 	assert.Equal(t, "sub", q2.GetName())
 	assert.Equal(t, "level", q2.GetType())
-	assert.Equal(t, filepath.Join(setting.AppDataPath, "queues/dir2"), q2.baseConfig.DataFullDir)
+	assert.Equal(t, filepath.ToSlash(filepath.Join(setting.AppDataPath, "queues/dir2")), q2.baseConfig.DataFullDir)
 	assert.Equal(t, 102, q2.baseConfig.Length)
 	assert.Equal(t, 22, q2.batchLength)
 	assert.Empty(t, q2.baseConfig.ConnStr)

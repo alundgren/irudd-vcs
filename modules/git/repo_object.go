@@ -5,6 +5,8 @@
 package git
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	"gitea.dev/modules/git/gitcmd"
@@ -36,6 +38,13 @@ func (repo *Repository) GetObjectFormat() (ObjectFormat, error) {
 		return repo.objectFormat, nil
 	}
 
+	if repo != nil {
+		if format := objectFormatFromBareConfig(repo.Path); format != nil {
+			repo.objectFormat = format
+			return format, nil
+		}
+	}
+
 	str, err := repo.hashObjectBytes(nil, false)
 	if err != nil {
 		return nil, err
@@ -48,6 +57,34 @@ func (repo *Repository) GetObjectFormat() (ObjectFormat, error) {
 	repo.objectFormat = hash.Type()
 
 	return repo.objectFormat, nil
+}
+
+// objectFormatFromBareConfig reads extensions.objectformat from a bare repository's config, which saves
+// spawning git on every request. It returns nil when repoPath is not a bare repository or the value is unknown.
+func objectFormatFromBareConfig(repoPath string) ObjectFormat {
+	for _, dir := range []string{"objects", "refs"} {
+		if st, err := os.Stat(filepath.Join(repoPath, dir)); err != nil || !st.IsDir() {
+			return nil
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(repoPath, "config"))
+	if err != nil {
+		return nil
+	}
+	section := ""
+	for line := range strings.Lines(string(data)) {
+		line = strings.TrimSpace(line)
+		if header, ok := strings.CutPrefix(line, "["); ok {
+			name, _, _ := strings.Cut(header, "]")
+			section = strings.ToLower(strings.TrimSpace(name))
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if section == "extensions" && ok && strings.EqualFold(strings.TrimSpace(key), "objectformat") {
+			return ObjectFormatFromName(strings.ToLower(strings.Trim(strings.TrimSpace(value), "\"")))
+		}
+	}
+	return Sha1ObjectFormat // git's default without the extension
 }
 
 // HashObjectBytes returns hash for the content

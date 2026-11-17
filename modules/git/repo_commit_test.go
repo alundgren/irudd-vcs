@@ -190,3 +190,32 @@ M 100644 :1 b.txt
 	require.NoError(t, err)
 	assert.Len(t, commits, 2)
 }
+
+func TestGetCommitByPathCached(t *testing.T) {
+	bareRepo1, err := OpenRepository(t.Context(), filepath.Join(testReposDir, "repo1_bare"))
+	require.NoError(t, err)
+	defer bareRepo1.Close()
+
+	head, err := bareRepo1.GetCommit("ce064814f4a0d337b333e646ece456cd39fab612")
+	require.NoError(t, err)
+	key := head.ID.String() + ":foo/link_short"
+	lastCommitByPath.Remove(key)
+
+	// the later commits leave the path alone, so the answer is an older commit
+	last, err := head.GetCommitByPath("foo/link_short")
+	require.NoError(t, err)
+	assert.Equal(t, "37991dec2c8e592043f47155ce4808d4580f9123", last.ID.String())
+	cached, ok := lastCommitByPath.Get(key)
+	require.True(t, ok)
+	assert.Equal(t, last.ID, cached)
+
+	again, err := head.GetCommitByPath("foo/link_short")
+	require.NoError(t, err)
+	assert.Equal(t, last.ID, again.ID)
+	assert.Equal(t, last.CommitMessage, again.CommitMessage)
+
+	_, err = head.GetCommitByPath("no/such/path")
+	require.Error(t, err)
+	_, ok = lastCommitByPath.Get(head.ID.String() + ":no/such/path")
+	assert.False(t, ok)
+}

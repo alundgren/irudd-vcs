@@ -5,13 +5,10 @@ package nosql
 
 import (
 	"context"
-	"strconv"
 	"sync"
-	"time"
 
 	"gitea.dev/modules/process"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -23,18 +20,7 @@ type Manager struct {
 	finished process.FinishedFunc
 	mutex    sync.Mutex
 
-	RedisConnections   map[string]*redisClientHolder
 	LevelDBConnections map[string]*levelDBHolder
-}
-
-type redisClientHolder struct {
-	redis.UniversalClient
-	name  []string
-	count int64
-}
-
-func (r *redisClientHolder) Close() error {
-	return manager.CloseRedisClient(r.name[0])
 }
 
 type levelDBHolder struct {
@@ -54,25 +40,8 @@ func GetManager() *Manager {
 		manager = &Manager{
 			ctx:                ctx,
 			finished:           finished,
-			RedisConnections:   make(map[string]*redisClientHolder),
 			LevelDBConnections: make(map[string]*levelDBHolder),
 		}
 	}
 	return manager
-}
-
-func valToTimeDuration(vs []string) (result time.Duration) {
-	var err error
-	for _, v := range vs {
-		result, err = time.ParseDuration(v)
-		if err != nil {
-			var val int
-			val, err = strconv.Atoi(v)
-			result = time.Duration(val)
-		}
-		if err == nil {
-			return result
-		}
-	}
-	return result
 }

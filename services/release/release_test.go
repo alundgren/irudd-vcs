@@ -50,13 +50,13 @@ func TestRelease_createTag(t *testing.T) {
 		IsPrerelease: false,
 		IsTag:        false,
 	}
-	_, err = createTag(t.Context(), gitRepo, release, "")
+	err = createTag(t.Context(), gitRepo, release, "")
 	assert.NoError(t, err)
 	assert.NotEmpty(t, release.CreatedUnix)
 	releaseCreatedUnix := release.CreatedUnix
 	advance()
 	release.Note = "Changed note"
-	_, err = createTag(t.Context(), gitRepo, release, "")
+	err = createTag(t.Context(), gitRepo, release, "")
 	assert.NoError(t, err)
 	assert.Equal(t, int64(releaseCreatedUnix), int64(release.CreatedUnix))
 
@@ -74,12 +74,12 @@ func TestRelease_createTag(t *testing.T) {
 		IsPrerelease: false,
 		IsTag:        false,
 	}
-	_, err = createTag(t.Context(), gitRepo, release, "")
+	err = createTag(t.Context(), gitRepo, release, "")
 	assert.NoError(t, err)
 	releaseCreatedUnix = release.CreatedUnix
 	advance()
 	release.Title = "Changed title"
-	_, err = createTag(t.Context(), gitRepo, release, "")
+	err = createTag(t.Context(), gitRepo, release, "")
 	assert.NoError(t, err)
 	assert.Less(t, int64(releaseCreatedUnix), int64(release.CreatedUnix))
 
@@ -97,13 +97,13 @@ func TestRelease_createTag(t *testing.T) {
 		IsPrerelease: true,
 		IsTag:        false,
 	}
-	_, err = createTag(t.Context(), gitRepo, release, "")
+	err = createTag(t.Context(), gitRepo, release, "")
 	assert.NoError(t, err)
 	releaseCreatedUnix = release.CreatedUnix
 	advance()
 	release.Title = "Changed title"
 	release.Note = "Changed note"
-	_, err = createTag(t.Context(), gitRepo, release, "")
+	err = createTag(t.Context(), gitRepo, release, "")
 	assert.NoError(t, err)
 	assert.Equal(t, int64(releaseCreatedUnix), int64(release.CreatedUnix))
 }

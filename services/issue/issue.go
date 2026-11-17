@@ -18,7 +18,7 @@ import (
 )
 
 // NewIssue creates new issue with labels for repository.
-func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs []int64, assigneeIDs []int64) error {
+func NewIssue(ctx context.Context, repo *repo_model.Repository, issue *issues_model.Issue, labelIDs, assigneeIDs []int64) error {
 	if err := issue.LoadPoster(ctx); err != nil {
 		return err
 	}
@@ -83,21 +83,7 @@ func ChangeTitle(ctx context.Context, issue *issues_model.Issue, doer *user_mode
 		return err
 	}
 
-	var reviewNotifiers []*ReviewRequestNotifier
-	if issue.IsPull && issues_model.HasWorkInProgressPrefix(oldTitle) && !issues_model.HasWorkInProgressPrefix(title) {
-		if err := issue.LoadPullRequest(ctx); err != nil {
-			return err
-		}
-
-		var err error
-		reviewNotifiers, err = PullRequestCodeOwnersReview(ctx, issue.PullRequest)
-		if err != nil {
-			log.Error("PullRequestCodeOwnersReview: %v", err)
-		}
-	}
-
 	notify_service.IssueChangeTitle(ctx, doer, issue, oldTitle)
-	ReviewRequestNotify(ctx, issue, issue.Poster, reviewNotifiers)
 
 	return nil
 }

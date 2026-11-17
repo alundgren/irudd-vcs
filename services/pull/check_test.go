@@ -11,7 +11,6 @@ import (
 	"gitea.dev/models/db"
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
-	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/queue"
@@ -79,7 +78,7 @@ func TestCheckSigningRequirementsHeadCommits(t *testing.T) {
 	require.NoError(t, pr.LoadHeadRepo(ctx))
 
 	check := func() error {
-		return checkSigningRequirements(ctx, pr, nil, repo_model.MergeStyleFastForwardOnly)
+		return checkSigningRequirements(ctx, pr)
 	}
 
 	// No protected branch rule on the base branch: the check must pass.
@@ -122,4 +121,28 @@ func TestMarkPullRequestAsMergeable(t *testing.T) {
 	markPullRequestAsMergeable(ctx, pr)
 	pr = unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 2})
 	require.Equal(t, issues_model.PullRequestStatusMergeable, pr.Status)
+}
+
+func TestFinishPullRequestCheck(t *testing.T) {
+	assert.NoError(t, unittest.PrepareTestDatabase())
+
+	// the queue never checks it, as when its task still waits
+	prPatchCheckerQueue = queue.CreateUniqueQueue(graceful.GetManager().ShutdownContext(), "pr_patch_checker", func(items ...string) []string { return items })
+	defer func() { prPatchCheckerQueue = nil }()
+
+	ctx := t.Context()
+	pr := unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 2})
+	require.True(t, markPullRequestStatusAsChecking(ctx, pr))
+	AddPullRequestToCheckQueue(pr.ID)
+
+	pr, err := FinishPullRequestCheck(ctx, pr)
+	require.NoError(t, err)
+	assert.Equal(t, issues_model.PullRequestStatusMergeable, pr.Status)
+	// the queued task saves the status when it checks again
+	assert.Equal(t, issues_model.PullRequestStatusChecking, unittest.AssertExistsAndLoadBean(t, &issues_model.PullRequest{ID: 2}).Status)
+
+	// a pull that is not checking stays as it is
+	same, err := FinishPullRequestCheck(ctx, pr)
+	require.NoError(t, err)
+	assert.Same(t, pr, same)
 }

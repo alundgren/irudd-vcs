@@ -4,18 +4,14 @@
 package user_test
 
 import (
-	"crypto/rand"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"gitea.dev/models/auth"
 	"gitea.dev/models/db"
 	"gitea.dev/models/unittest"
 	user_model "gitea.dev/models/user"
-	"gitea.dev/modules/auth/password/hash"
-	"gitea.dev/modules/container"
 	"gitea.dev/modules/optional"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/structs"
@@ -112,24 +108,6 @@ func TestUserEmails(t *testing.T) {
 	})
 }
 
-func TestCanCreateOrganization(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	admin := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})
-	assert.True(t, admin.CanCreateOrganization())
-
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
-	assert.True(t, user.CanCreateOrganization())
-	// Disable user create organization permission.
-	user.AllowCreateOrganization = false
-	assert.False(t, user.CanCreateOrganization())
-
-	setting.Admin.DisableRegularOrgCreation = true
-	user.AllowCreateOrganization = true
-	assert.True(t, admin.CanCreateOrganization())
-	assert.False(t, user.CanCreateOrganization())
-}
-
 func TestSearchUsers(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 	testSuccess := func(opts user_model.SearchUserOptions, expectedUserOrOrgIDs []int64) {
@@ -192,9 +170,6 @@ func TestSearchUsers(t *testing.T) {
 	testUserSuccess(user_model.SearchUserOptions{ListOptions: db.ListOptions{Page: 1}, IsAdmin: optional.Some(true)},
 		[]int64{1})
 
-	testUserSuccess(user_model.SearchUserOptions{ListOptions: db.ListOptions{Page: 1}, IsRestricted: optional.Some(true)},
-		[]int64{29})
-
 	testUserSuccess(user_model.SearchUserOptions{ListOptions: db.ListOptions{Page: 1}, IsProhibitLogin: optional.Some(true)},
 		[]int64{37})
 }
@@ -218,42 +193,6 @@ func TestEmailNotificationPreferences(t *testing.T) {
 	} {
 		user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: test.userID})
 		assert.Equal(t, test.expected, user.EmailNotificationsPreference)
-	}
-}
-
-func TestHashPasswordDeterministic(t *testing.T) {
-	b := make([]byte, 16)
-	u := &user_model.User{}
-	algos := hash.RecommendedHashAlgorithms
-	for j := range algos {
-		u.PasswdHashAlgo = algos[j]
-		for range 50 {
-			// generate a random password
-			rand.Read(b)
-			pass := string(b)
-
-			// save the current password in the user - hash it and store the result
-			u.SetPassword(pass)
-			r1 := u.Passwd
-
-			// run again
-			u.SetPassword(pass)
-			r2 := u.Passwd
-
-			assert.NotEqual(t, r1, r2)
-			assert.True(t, u.ValidatePassword(pass))
-		}
-	}
-}
-
-func BenchmarkHashPassword(b *testing.B) {
-	// BenchmarkHashPassword ensures that it takes a reasonable amount of time
-	// to hash a password - in order to protect from brute-force attacks.
-	pass := "password1337"
-	u := &user_model.User{Passwd: pass}
-	b.ResetTimer()
-	for b.Loop() {
-		u.SetPassword(pass)
 	}
 }
 
@@ -288,11 +227,9 @@ func TestDisplayName(t *testing.T) {
 
 func TestCreateUserInvalidEmail(t *testing.T) {
 	user := &user_model.User{
-		Name:               "GiteaBot",
-		Email:              "GiteaBot@gitea.io\r\n",
-		Passwd:             ";p['////..-++']",
-		IsAdmin:            false,
-		MustChangePassword: false,
+		Name:    "GiteaBot",
+		Email:   "GiteaBot@gitea.io\r\n",
+		IsAdmin: false,
 	}
 
 	err := user_model.CreateUser(t.Context(), user, &user_model.Meta{})
@@ -452,7 +389,7 @@ func TestIsUserVisibleToViewer(t *testing.T) {
 	user1 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})   // admin, public
 	user4 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})   // normal, public
 	user20 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 20}) // public
-	user29 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 29}) // public, is restricted
+	user29 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 29}) // public
 	user31 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 31}) // private
 	user33 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 33}) // limited, followed 31 before follows were removed
 
@@ -487,7 +424,7 @@ func TestIsUserVisibleToViewer(t *testing.T) {
 	// limited user
 	test(user33, user33, true)
 	test(user33, user4, true)
-	test(user33, user29, false)
+	test(user33, user29, true) // user29 was restricted, there are no restricted users
 	test(user33, nil, false)
 
 	// private user
@@ -564,33 +501,6 @@ func TestEmailTo(t *testing.T) {
 	}
 }
 
-func TestDisabledUserFeatures(t *testing.T) {
-	assert.NoError(t, unittest.PrepareTestDatabase())
-
-	testValues := container.SetOf(setting.UserFeatureManageCredentials)
-	defer test.MockVariableValue(&setting.Admin.ExternalUserDisableFeatures, testValues)()
-
-	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 1})
-
-	assert.Empty(t, setting.Admin.UserDisabledFeatures.Values())
-
-	// no features should be disabled with a plain login type
-	assert.LessOrEqual(t, user.LoginType, auth.Plain)
-	assert.Empty(t, user_model.DisabledFeaturesWithLoginType(user).Values())
-	for _, f := range testValues.Values() {
-		assert.False(t, user_model.IsFeatureDisabledWithLoginType(user, f))
-	}
-
-	// check disabled features with external login type
-	user.LoginType = auth.OAuth2
-
-	// all features should be disabled
-	assert.NotEmpty(t, user_model.DisabledFeaturesWithLoginType(user).Values())
-	for _, f := range testValues.Values() {
-		assert.True(t, user_model.IsFeatureDisabledWithLoginType(user, f))
-	}
-}
-
 func TestGetInactiveUsers(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
 
@@ -610,7 +520,6 @@ func TestCanCreateRepo(t *testing.T) {
 	defer test.MockVariableValue(&setting.Repository.UserMaxCreationLimit)()
 	defer test.MockVariableValue(&setting.Repository.OrgMaxCreationLimit)()
 	const noLimit = -1
-	doerActions := user_model.NewActionsUser()
 	doerNormal := &user_model.User{ID: 2}
 	doerAdmin := &user_model.User{ID: 1, IsAdmin: true}
 	orgOwner := func(numRepos, maxRepoCreation int) *user_model.User {
@@ -627,8 +536,6 @@ func TestCanCreateRepo(t *testing.T) {
 		assert.True(t, doerAdmin.CanCreateRepoIn(&user_model.User{ID: 2, NumRepos: 10, MaxRepoCreation: 0}))
 		assert.True(t, doerAdmin.CanCreateRepoIn(&user_model.User{ID: 2, NumRepos: 10, MaxRepoCreation: 100}))
 		assert.True(t, doerAdmin.CanCreateRepoIn(&user_model.User{ID: 2, NumRepos: 10, MaxRepoCreation: noLimit}))
-		assert.False(t, doerActions.CanCreateRepoIn(&user_model.User{ID: 2, NumRepos: 10, MaxRepoCreation: noLimit}))
-		assert.False(t, doerAdmin.CanCreateRepoIn(doerActions))
 	})
 
 	t.Run("GlobalLimit50", func(t *testing.T) {

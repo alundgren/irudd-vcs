@@ -30,9 +30,10 @@ func TestAPIListRepoComments(t *testing.T) {
 	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: issue.RepoID})
 	repoOwner := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo.OwnerID})
 
+	session := loginUser(t, repoOwner.Name)
 	link, _ := url.Parse(fmt.Sprintf("/api/v1/repos/%s/%s/issues/comments", repoOwner.Name, repo.Name))
 	req := NewRequest(t, "GET", link.String())
-	resp := MakeRequest(t, req, http.StatusOK)
+	resp := session.MakeRequest(t, req, http.StatusOK)
 
 	apiComments := DecodeJSON(t, resp, []*api.Comment{})
 	assert.Len(t, apiComments, 2)
@@ -50,7 +51,7 @@ func TestAPIListRepoComments(t *testing.T) {
 	query.Add("before", before)
 	link.RawQuery = query.Encode()
 	req = NewRequest(t, "GET", link.String())
-	resp = MakeRequest(t, req, http.StatusOK)
+	resp = session.MakeRequest(t, req, http.StatusOK)
 	apiComments = DecodeJSON(t, resp, []*api.Comment{})
 	assert.Len(t, apiComments, 1)
 	assert.EqualValues(t, 2, apiComments[0].ID)
@@ -59,7 +60,7 @@ func TestAPIListRepoComments(t *testing.T) {
 	query.Add("since", since)
 	link.RawQuery = query.Encode()
 	req = NewRequest(t, "GET", link.String())
-	resp = MakeRequest(t, req, http.StatusOK)
+	resp = session.MakeRequest(t, req, http.StatusOK)
 	apiComments = DecodeJSON(t, resp, []*api.Comment{})
 	assert.Len(t, apiComments, 1)
 	assert.EqualValues(t, 3, apiComments[0].ID)
@@ -116,7 +117,7 @@ func TestAPIGetComment(t *testing.T) {
 
 	token := getUserToken(t, repoOwner.Name, auth_model.AccessTokenScopeReadIssue)
 	req := NewRequestf(t, "GET", "/api/v1/repos/%s/%s/issues/comments/%d", repoOwner.Name, repo.Name, comment.ID)
-	MakeRequest(t, req, http.StatusOK)
+	MakeRequest(t, req, http.StatusUnauthorized)
 	req = NewRequestf(t, "GET", "/api/v1/repos/%s/%s/issues/comments/%d", repoOwner.Name, repo.Name, comment.ID).
 		AddTokenAuth(token)
 	resp := MakeRequest(t, req, http.StatusOK)
@@ -141,7 +142,6 @@ func TestAPIGetSystemUserComment(t *testing.T) {
 
 	for _, systemUser := range []*user_model.User{
 		user_model.NewGhostUser(),
-		user_model.NewActionsUser(),
 	} {
 		body := "Hello " + systemUser.Name
 		comment, err := issues_model.CreateComment(t.Context(), &issues_model.CreateCommentOptions{
@@ -154,7 +154,7 @@ func TestAPIGetSystemUserComment(t *testing.T) {
 		assert.NoError(t, err)
 
 		req := NewRequestf(t, "GET", "/api/v1/repos/%s/%s/issues/comments/%d", repoOwner.Name, repo.Name, comment.ID)
-		resp := MakeRequest(t, req, http.StatusOK)
+		resp := loginUser(t, repoOwner.Name).MakeRequest(t, req, http.StatusOK)
 
 		apiComment := DecodeJSON(t, resp, &api.Comment{})
 
@@ -242,7 +242,7 @@ func TestAPIListIssueTimeline(t *testing.T) {
 
 	// make request
 	req := NewRequestf(t, "GET", "/api/v1/repos/%s/%s/issues/%d/timeline", repoOwner.Name, repo.Name, issue.Index)
-	resp := MakeRequest(t, req, http.StatusOK)
+	resp := loginUser(t, repoOwner.Name).MakeRequest(t, req, http.StatusOK)
 
 	// check if lens of list returned by API and
 	// lists extracted directly from DB are the same

@@ -98,8 +98,7 @@ func (c *Commit) HasPreviousCommit(objectID ObjectID) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	var exitError *exec.ExitError
-	if errors.As(err, &exitError) {
+	if exitError, ok := errors.AsType[*exec.ExitError](err); ok {
 		if exitError.ProcessState.ExitCode() == 1 && len(exitError.Stderr) == 0 {
 			return false, nil
 		}
@@ -223,6 +222,11 @@ func IsStringLikelyCommitID(objFmt ObjectFormat, s string, minLength ...int) boo
 		return false
 	}
 	return isStringLowerHex(s)
+}
+
+// IsFullCommitID reports whether s is a full sha1 or sha256 object ID, as opposed to a ref or a short ID
+func IsFullCommitID(s string) bool {
+	return (len(s) == 40 || len(s) == 64) && isStringLowerHex(s)
 }
 
 func isStringLowerHex(s string) bool {

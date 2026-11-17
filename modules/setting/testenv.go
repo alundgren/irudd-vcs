@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
-	"gitea.dev/modules/auth/password/hash"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/util"
 
@@ -106,10 +106,6 @@ func SetupGiteaTestEnv() {
 		if err := PrepareAppDataPath(); err != nil {
 			log.Fatal("Can not prepare APP_DATA_PATH: %v", err)
 		}
-
-		// register the dummy hash algorithm function used in the test fixtures
-		_ = hash.Register("dummy", hash.NewDummyHasher)
-		PasswordHashAlgo, _ = hash.SetDefaultPasswordHashAlgorithm("dummy")
 	}
 
 	initGiteaPaths()
@@ -139,16 +135,26 @@ func PrepareIntegrationTestConfig() error {
 		_, _ = fmt.Fprintf(os.Stderr, "Environment variable GITEA_TEST_DATABASE not set - defaulting to %s\n", testDatabase)
 	}
 
-	_ = os.Setenv("GITEA_TEST_ROOT", giteaTestRoot)
-	_ = os.Setenv("GITEA_TEST_CONF", filepath.Join("tests", testDatabase+".ini"))
+	// GITEA_TEST_INSTANCE gives the process its own work path, config file and port, for running several at once
+	name, port := testDatabase, 3003
+	if instance := os.Getenv("GITEA_TEST_INSTANCE"); instance != "" {
+		n, err := strconv.Atoi(instance)
+		if err != nil || n < 0 {
+			return fmt.Errorf("GITEA_TEST_INSTANCE must be a non-negative integer, got %q", instance)
+		}
+		name, port = testDatabase+"-"+instance, port+n
+	}
 
-	workPath := filepath.Join(giteaTestRoot, "tests/integration/gitea-integration-"+testDatabase)
+	_ = os.Setenv("GITEA_TEST_ROOT", giteaTestRoot)
+	_ = os.Setenv("GITEA_TEST_CONF", filepath.Join("tests", name+".ini"))
+
+	workPath := filepath.Join(giteaTestRoot, "tests/integration/gitea-integration-"+name)
 	if err := os.MkdirAll(workPath, 0o755); err != nil {
 		return err
 	}
 
-	confFile := filepath.Join(giteaTestRoot, "tests", testDatabase+".ini")
-	tmplBuf, err := os.ReadFile(confFile + ".tmpl")
+	confFile := filepath.Join(giteaTestRoot, "tests", name+".ini")
+	tmplBuf, err := os.ReadFile(filepath.Join(giteaTestRoot, "tests", testDatabase+".ini.tmpl"))
 	if err != nil {
 		return err
 	}
@@ -159,6 +165,7 @@ func PrepareIntegrationTestConfig() error {
 	}
 	envVarMap := map[string]string{
 		"TEST_WORK_PATH": workPath,
+		"TEST_HTTP_PORT": strconv.Itoa(port),
 		"TEST_LOGGER":    "test,file",
 	}
 	for _, env := range append(os.Environ(), envVars...) {

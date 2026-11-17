@@ -4,7 +4,9 @@
 package dump
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -19,11 +21,9 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
-
-	"github.com/mholt/archives"
 )
 
-var SupportedOutputTypes = []string{"zip", "tar", "tar.sz", "tar.gz", "tar.xz", "tar.bz2", "tar.br", "tar.lz4", "tar.zst"}
+var SupportedOutputTypes = []string{"zip", "tar", "tar.gz"}
 
 // PrepareFileNameAndType prepares the output file name and type, if the type is not supported, it returns an empty "outType"
 func PrepareFileNameAndType(argFile, argType string) (outFileName, outType string) {
@@ -66,64 +66,75 @@ func IsSubdir(upper, lower string) (bool, error) {
 type Dumper struct {
 	Verbose bool
 
-	jobs            chan archives.ArchiveAsyncJob
-	errArchiveAsync chan error
-	errArchiveJob   chan error
+	ctx  context.Context
+	zipw *zip.Writer
+	tarw *tar.Writer
+	gzw  *gzip.Writer
 
 	globalExcludeAbsPaths []string
 }
 
+// NewDumper writes zip, tar or tar.gz with the standard library; other formats need an external tool on the output
 func NewDumper(ctx context.Context, format string, output io.Writer) (*Dumper, error) {
-	d := &Dumper{
-		jobs:            make(chan archives.ArchiveAsyncJob, 1),
-		errArchiveAsync: make(chan error, 1),
-		errArchiveJob:   make(chan error, 1),
-	}
-
-	// TODO: in the future, we could completely drop the "mholt/archives" dependency.
-	// Then we only need to support "zip" and ".tar.gz" natively, and let users provide custom command line tools
-	// like "zstd" or "xz" with compression-level arguments.
-	var comp archives.ArchiverAsync
+	d := &Dumper{ctx: ctx}
 	switch format {
 	case "zip":
-		comp = archives.Zip{Compression: zip.Deflate}
+		d.zipw = zip.NewWriter(output)
 	case "tar":
-		comp = archives.Tar{}
-	case "tar.sz":
-		comp = archives.CompressedArchive{Compression: archives.Sz{}, Archival: archives.Tar{}}
+		d.tarw = tar.NewWriter(output)
 	case "tar.gz":
-		comp = archives.CompressedArchive{Compression: archives.Gz{}, Archival: archives.Tar{}}
-	case "tar.xz":
-		comp = archives.CompressedArchive{Compression: archives.Xz{}, Archival: archives.Tar{}}
-	case "tar.bz2":
-		comp = archives.CompressedArchive{Compression: archives.Bz2{}, Archival: archives.Tar{}}
-	case "tar.br":
-		comp = archives.CompressedArchive{Compression: archives.Brotli{}, Archival: archives.Tar{}}
-	case "tar.lz4":
-		comp = archives.CompressedArchive{Compression: archives.Lz4{}, Archival: archives.Tar{}}
-	case "tar.zst":
-		comp = archives.CompressedArchive{Compression: archives.Zstd{}, Archival: archives.Tar{}}
+		d.gzw = gzip.NewWriter(output)
+		d.tarw = tar.NewWriter(d.gzw)
 	default:
 		return nil, fmt.Errorf("unsupported format: %s", format)
 	}
-	go func() {
-		d.errArchiveAsync <- comp.ArchiveAsync(ctx, output, d.jobs)
-		close(d.errArchiveAsync)
-	}()
 	return d, nil
 }
 
-func (dumper *Dumper) runArchiveJob(job archives.ArchiveAsyncJob) error {
-	dumper.jobs <- job
-	select {
-	case err := <-dumper.errArchiveAsync:
-		if err == nil {
-			return errors.New("archiver has been closed")
-		}
-		return err
-	case err := <-dumper.errArchiveJob:
+// addEntry writes one entry; open is not called for directories
+func (dumper *Dumper) addEntry(name string, info fs.FileInfo, open func() (io.ReadCloser, error)) error {
+	if err := dumper.ctx.Err(); err != nil {
 		return err
 	}
+	var w io.Writer
+	if dumper.zipw != nil {
+		hdr, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return fmt.Errorf("zip header for %s: %w", name, err)
+		}
+		hdr.Name, hdr.Method = name, zip.Deflate
+		if info.IsDir() {
+			hdr.Name, hdr.Method = strings.TrimSuffix(name, "/")+"/", zip.Store // the slash marks a directory
+		}
+		if w, err = dumper.zipw.CreateHeader(hdr); err != nil {
+			return fmt.Errorf("zip entry for %s: %w", name, err)
+		}
+	} else {
+		hdr, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return fmt.Errorf("tar header for %s: %w", name, err)
+		}
+		hdr.Name = name
+		if err = dumper.tarw.WriteHeader(hdr); err != nil {
+			return fmt.Errorf("tar entry for %s: %w", name, err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			return nil
+		}
+		w = dumper.tarw
+	}
+	if info.IsDir() {
+		return nil
+	}
+	r, err := open()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	if _, err = io.Copy(w, r); err != nil {
+		return fmt.Errorf("copy %s: %w", name, err)
+	}
+	return nil
 }
 
 // AddFileByPath adds a file by its filesystem path
@@ -136,50 +147,26 @@ func (dumper *Dumper) AddFileByPath(filePath, absPath string) error {
 	if err != nil {
 		return err
 	}
-
-	archiveFileInfo := archives.FileInfo{
-		FileInfo:      fileInfo,
-		NameInArchive: filePath,
-		Open:          func() (fs.File, error) { return os.Open(absPath) },
-	}
-
-	return dumper.runArchiveJob(archives.ArchiveAsyncJob{
-		File:   archiveFileInfo,
-		Result: dumper.errArchiveJob,
-	})
+	return dumper.addEntry(filePath, fileInfo, func() (io.ReadCloser, error) { return os.Open(absPath) })
 }
-
-type readerFile struct {
-	r    io.Reader
-	info os.FileInfo
-}
-
-var _ fs.File = (*readerFile)(nil)
-
-func (f *readerFile) Stat() (fs.FileInfo, error)     { return f.info, nil }
-func (f *readerFile) Read(bytes []byte) (int, error) { return f.r.Read(bytes) }
-func (f *readerFile) Close() error                   { return nil }
 
 // AddFileByReader adds a file's contents from a Reader
 func (dumper *Dumper) AddFileByReader(r io.Reader, info os.FileInfo, customName string) error {
 	if dumper.Verbose {
 		log.Info("Adding storage file %s", customName)
 	}
-
-	fileInfo := archives.FileInfo{
-		FileInfo:      info,
-		NameInArchive: customName,
-		Open:          func() (fs.File, error) { return &readerFile{r, info}, nil },
-	}
-	return dumper.runArchiveJob(archives.ArchiveAsyncJob{
-		File:   fileInfo,
-		Result: dumper.errArchiveJob,
-	})
+	return dumper.addEntry(customName, info, func() (io.ReadCloser, error) { return io.NopCloser(r), nil })
 }
 
 func (dumper *Dumper) Close() error {
-	close(dumper.jobs)
-	return <-dumper.errArchiveAsync
+	if dumper.zipw != nil {
+		return dumper.zipw.Close()
+	}
+	err := dumper.tarw.Close()
+	if dumper.gzw != nil {
+		err = errors.Join(err, dumper.gzw.Close())
+	}
+	return err
 }
 
 func (dumper *Dumper) normalizeFilePath(absPath string) string {

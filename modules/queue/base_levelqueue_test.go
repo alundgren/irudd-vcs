@@ -4,10 +4,13 @@
 package queue
 
 import (
+	"path/filepath"
 	"testing"
+	"time"
 
 	"gitea.dev/modules/queue/lqinternal"
 	"gitea.dev/modules/setting"
+	"gitea.dev/modules/test"
 
 	"gitea.com/lunny/levelqueue"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +26,7 @@ func TestBaseLevelDB(t *testing.T) {
 	assert.ErrorContains(t, err, "invalid leveldb data dir")
 
 	testQueueBasic(t, newBaseLevelQueueSimple, toBaseConfig("baseLevelQueue", setting.QueueSettings{Datadir: t.TempDir() + "/queue-test", Length: 10}), false)
-	testQueueBasic(t, newBaseLevelQueueUnique, toBaseConfig("baseLevelQueueUnique", setting.QueueSettings{ConnStr: "leveldb://" + t.TempDir() + "/queue-test", Length: 10}), true)
+	testQueueBasic(t, newBaseLevelQueueUnique, toBaseConfig("baseLevelQueueUnique", setting.QueueSettings{ConnStr: "leveldb://" + filepath.ToSlash(t.TempDir()) + "/queue-test", Length: 10}), true)
 }
 
 func TestCorruptedLevelQueue(t *testing.T) {
@@ -74,4 +77,43 @@ func TestCorruptedLevelQueue(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("item-new-1"), itemValue)
 	assert.NoError(t, lq.Close())
+}
+
+func TestOpenLevelDBEarly(t *testing.T) {
+	dir := filepath.ToSlash(t.TempDir() + "/queues")
+	cfgProvider, err := setting.NewConfigProviderFromData("[queue]\nTYPE = level\nDATADIR = " + dir + "\n")
+	require.NoError(t, err)
+	defer test.MockVariableValue(&setting.CfgProvider, cfgProvider)()
+
+	release := OpenLevelDBEarly()
+	q, err := newBaseLevelQueueSimple(toBaseConfig("early", setting.QueueSettings{Datadir: dir, Length: 10}))
+	require.NoError(t, err)
+	release()
+	require.NoError(t, q.PushItem(t.Context(), []byte("item")))
+	require.NoError(t, q.Close())
+
+	// both references are gone, so the database is closed and its lock released
+	db, err := leveldb.OpenFile(dir, nil)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+}
+
+func TestLevelQueuePushWakesPop(t *testing.T) {
+	for _, newQueue := range []func(*BaseConfig) (baseQueue, error){newBaseLevelQueueSimple, newBaseLevelQueueUnique} {
+		q, err := newQueue(toBaseConfig("wake", setting.QueueSettings{Datadir: t.TempDir() + "/queue-test", Length: 10}))
+		require.NoError(t, err)
+
+		popped := make(chan time.Time, 1)
+		go func() {
+			data, err := q.PopItem(t.Context())
+			assert.NoError(t, err)
+			assert.Equal(t, "item", string(data))
+			popped <- time.Now()
+		}()
+		time.Sleep(1600 * time.Millisecond) // the empty queue has backed off to waits of 800 ms and more
+		pushed := time.Now()
+		require.NoError(t, q.PushItem(t.Context(), []byte("item")))
+		assert.Less(t, (<-popped).Sub(pushed), 200*time.Millisecond)
+		require.NoError(t, q.Close())
+	}
 }

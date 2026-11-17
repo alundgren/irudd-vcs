@@ -41,20 +41,15 @@ var CacheService = struct {
 	},
 }
 
-// MemcacheMaxTTL represents the maximum memcache TTL
-const MemcacheMaxTTL = 30 * 24 * time.Hour
-
 func loadCacheFrom(rootCfg ConfigProvider) {
 	sec := rootCfg.Section("cache")
 	if err := sec.MapTo(&CacheService); err != nil {
 		log.Fatal("Failed to map Cache settings: %v", err)
 	}
 
-	CacheService.Adapter = sec.Key("ADAPTER").In("memory", []string{"memory", "redis", "memcache", "twoqueue"})
+	CacheService.Adapter = sec.Key("ADAPTER").In("memory", []string{"memory", "twoqueue"})
 	switch CacheService.Adapter {
 	case "memory":
-	case "redis", "memcache":
-		CacheService.Conn = strings.Trim(sec.Key("HOST").String(), "\" ")
 	case "twoqueue":
 		CacheService.Conn = strings.TrimSpace(sec.Key("HOST").String())
 		if CacheService.Conn == "" {
@@ -68,18 +63,12 @@ func loadCacheFrom(rootCfg ConfigProvider) {
 	CacheService.LastCommit.CommitsCount = sec.Key("COMMITS_COUNT").MustInt64(1000)
 }
 
-// TTLSeconds returns the TTLSeconds or unix timestamp for memcache
+// TTLSeconds returns the TTL in seconds
 func (c Cache) TTLSeconds() int64 {
-	if c.Adapter == "memcache" && c.TTL > MemcacheMaxTTL {
-		return time.Now().Add(c.TTL).Unix()
-	}
 	return int64(c.TTL.Seconds())
 }
 
-// LastCommitCacheTTLSeconds returns the TTLSeconds or unix timestamp for memcache
+// LastCommitCacheTTLSeconds returns the last commit cache TTL in seconds
 func LastCommitCacheTTLSeconds() int64 {
-	if CacheService.Adapter == "memcache" && CacheService.LastCommit.TTL > MemcacheMaxTTL {
-		return time.Now().Add(CacheService.LastCommit.TTL).Unix()
-	}
 	return int64(CacheService.LastCommit.TTL.Seconds())
 }

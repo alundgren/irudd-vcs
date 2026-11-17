@@ -20,8 +20,6 @@ import (
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/json"
 	"gitea.dev/modules/lfs"
-	"gitea.dev/modules/setting"
-	"gitea.dev/modules/storage"
 	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
@@ -181,15 +179,6 @@ func GetRawFileOrLFS(ctx *context.APIContext) {
 	// Handle caching for the LFS object OID
 	if httpcache.HandleGenericETagPrivateCache(ctx.Req, ctx.Resp, `"`+pointer.Oid+`"`, meta.UpdatedUnix.AsTimePtr()) {
 		return
-	}
-
-	if setting.LFS.Storage.ServeDirect() {
-		// If we have a signed url (S3, object storage), redirect to this directly.
-		u, err := storage.LFS.ServeDirectURL(pointer.RelativePath(), blob.Name(), ctx.Req.Method, nil)
-		if u != nil && err == nil {
-			ctx.Redirect(u.String())
-			return
-		}
 	}
 
 	lfsDataFile, err := lfs.ReadMetaObject(meta.Pointer)
@@ -383,7 +372,7 @@ func ChangeFiles(ctx *context.APIContext) {
 	}
 
 	if opts.Message == "" {
-		opts.Message = changeFilesCommitMessage(ctx, opts.Files)
+		opts.Message = changeFilesCommitMessage(opts.Files)
 	}
 
 	if filesResponse, err := files_service.ChangeRepoFiles(ctx, ctx.Repo.Repository, ctx.Doer, opts); err != nil {
@@ -451,7 +440,7 @@ func CreateFile(ctx *context.APIContext) {
 		ContentReader: contentReader,
 	})
 	if opts.Message == "" {
-		opts.Message = changeFilesCommitMessage(ctx, opts.Files)
+		opts.Message = changeFilesCommitMessage(opts.Files)
 	}
 
 	if filesResponse, err := files_service.ChangeRepoFiles(ctx, ctx.Repo.Repository, ctx.Doer, opts); err != nil {
@@ -524,7 +513,7 @@ func UpdateFile(ctx *context.APIContext) {
 		TreePath:      ctx.PathParam("*"),
 	})
 	if opts.Message == "" {
-		opts.Message = changeFilesCommitMessage(ctx, opts.Files)
+		opts.Message = changeFilesCommitMessage(opts.Files)
 	}
 
 	if filesResponse, err := files_service.ChangeRepoFiles(ctx, ctx.Repo.Repository, ctx.Doer, opts); err != nil {
@@ -559,7 +548,7 @@ func handleChangeRepoFilesError(ctx *context.APIContext, err error) {
 }
 
 // format commit message if empty
-func changeFilesCommitMessage(ctx *context.APIContext, files []*files_service.ChangeRepoFile) string {
+func changeFilesCommitMessage(files []*files_service.ChangeRepoFile) string {
 	var (
 		createFiles []string
 		updateFiles []string
@@ -577,13 +566,13 @@ func changeFilesCommitMessage(ctx *context.APIContext, files []*files_service.Ch
 	}
 	message := ""
 	if len(createFiles) != 0 {
-		message += fmt.Sprintf("Add %s", strings.Join(createFiles, ", ")+"\n")
+		message += "Add " + strings.Join(createFiles, ", ") + "\n"
 	}
 	if len(updateFiles) != 0 {
-		message += fmt.Sprintf("Update %s", strings.Join(updateFiles, ", ")+"\n")
+		message += "Update " + strings.Join(updateFiles, ", ") + "\n"
 	}
 	if len(deleteFiles) != 0 {
-		message += fmt.Sprintf("Delete %s", strings.Join(deleteFiles, ", "))
+		message += "Delete " + strings.Join(deleteFiles, ", ")
 	}
 	return strings.Trim(message, "\n")
 }
@@ -643,7 +632,7 @@ func DeleteFile(ctx *context.APIContext) {
 		TreePath:  ctx.PathParam("*"),
 	})
 	if opts.Message == "" {
-		opts.Message = changeFilesCommitMessage(ctx, opts.Files)
+		opts.Message = changeFilesCommitMessage(opts.Files)
 	}
 
 	if filesResponse, err := files_service.ChangeRepoFiles(ctx, ctx.Repo.Repository, ctx.Doer, opts); err != nil {

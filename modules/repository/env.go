@@ -4,9 +4,11 @@
 package repository
 
 import (
+	"context"
 	"os"
 	"strconv"
 
+	git_model "gitea.dev/models/git"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/setting"
@@ -14,19 +16,20 @@ import (
 
 // env keys for git hooks need
 const (
-	EnvRepoName      = "GITEA_REPO_NAME"
-	EnvRepoUsername  = "GITEA_REPO_USER_NAME"
-	EnvRepoID        = "GITEA_REPO_ID"
-	EnvPusherName    = "GITEA_PUSHER_NAME"
-	EnvPusherEmail   = "GITEA_PUSHER_EMAIL"
-	EnvPusherID      = "GITEA_PUSHER_ID"
-	EnvDeployKeyID   = "GITEA_DEPLOY_KEY_ID"
-	EnvPRID          = "GITEA_PR_ID"
-	EnvPRIndex       = "GITEA_PR_INDEX" // not used by Gitea at the moment, it is for custom git hooks
-	EnvPushTrigger   = "GITEA_PUSH_TRIGGER"
-	EnvIsInternal    = "GITEA_INTERNAL_PUSH"
-	EnvAppURL        = "GITEA_ROOT_URL"
-	EnvActionsTaskID = "GITEA_ACTIONS_TASK_ID"
+	EnvRepoName     = "GITEA_REPO_NAME"
+	EnvRepoUsername = "GITEA_REPO_USER_NAME"
+	EnvRepoID       = "GITEA_REPO_ID"
+	EnvPusherName   = "GITEA_PUSHER_NAME"
+	EnvPusherEmail  = "GITEA_PUSHER_EMAIL"
+	EnvPusherID     = "GITEA_PUSHER_ID"
+	EnvPRID         = "GITEA_PR_ID"
+	EnvPRIndex      = "GITEA_PR_INDEX" // not used by Gitea at the moment, it is for custom git hooks
+	EnvPushTrigger  = "GITEA_PUSH_TRIGGER"
+	EnvIsInternal   = "GITEA_INTERNAL_PUSH"
+	EnvAppURL       = "GITEA_ROOT_URL"
+	EnvNoRefRules   = "GITEA_NO_REF_RULES" // the default branch, set when no branch or tag rule applies to the pusher
+
+	EnvPostReceiveFile = "GITEA_POST_RECEIVE_FILE" // where the post-receive hook writes its refs for the server to handle
 )
 
 type PushTrigger string
@@ -51,6 +54,18 @@ func PushingEnvironment(doer *user_model.User, repo *repo_model.Repository) []st
 	return FullPushingEnvironment(doer, doer, repo, 0, 0)
 }
 
+// NoRefRulesEnvironment lets the pre-receive hook skip gitea, which only checks a deletion of the default
+// branch then, when the repository protects no branch or tag and the doer may write every other ref
+func NoRefRulesEnvironment(ctx context.Context, doer *user_model.User, repo *repo_model.Repository) []string {
+	if doer == nil || (doer.ID != repo.OwnerID && !doer.IsAdmin) || repo.DefaultBranch == "" {
+		return nil
+	}
+	if has, err := git_model.HasProtectionRules(ctx, repo.ID); err != nil || has {
+		return nil
+	}
+	return []string{EnvNoRefRules + "=" + repo.DefaultBranch}
+}
+
 func DoerPushingEnvironment(doer *user_model.User, repo *repo_model.Repository) []string {
 	env := []string{
 		EnvAppURL + "=" + setting.AppURL,
@@ -62,9 +77,6 @@ func DoerPushingEnvironment(doer *user_model.User, repo *repo_model.Repository) 
 	}
 	if !doer.KeepEmailPrivate {
 		env = append(env, EnvPusherEmail+"="+doer.Email)
-	}
-	if taskID, isActionsUser := user_model.GetActionsUserTaskID(doer); isActionsUser {
-		env = append(env, EnvActionsTaskID+"="+strconv.FormatInt(taskID, 10))
 	}
 	return env
 }

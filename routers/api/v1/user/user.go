@@ -62,9 +62,6 @@ func Search(ctx *context.APIContext) {
 	case user_model.GhostUserID:
 		maxResults = 1
 		users = []*user_model.User{user_model.NewGhostUser()}
-	case user_model.ActionsUserID:
-		maxResults = 1
-		users = []*user_model.User{user_model.NewActionsUser()}
 	default:
 		opts := user_model.SearchUserOptions{
 			Actor:         ctx.Doer,

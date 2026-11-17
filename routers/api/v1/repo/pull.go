@@ -210,10 +210,7 @@ func GetPullRequest(ctx *context.APIContext) {
 		return
 	}
 
-	if err = pr.LoadBaseRepo(ctx); err != nil {
-		ctx.APIErrorInternal(err)
-		return
-	}
+	pr.BaseRepo, pr.Issue.Repo = ctx.Repo.Repository, ctx.Repo.Repository // found by this repository, so no second load
 	if err = pr.LoadHeadRepo(ctx); err != nil {
 		ctx.APIErrorInternal(err)
 		return
@@ -903,6 +900,10 @@ func MergePullRequest(ctx *context.APIContext) {
 	pr, err := issues_model.GetPullRequestByIndex(ctx, ctx.Repo.Repository.ID, ctx.PathParamInt64("index"))
 	if err != nil {
 		ctx.APIErrorAuto(err)
+		return
+	}
+	if pr, err = pull_service.FinishPullRequestCheck(ctx, pr); err != nil {
+		ctx.APIErrorInternal(err)
 		return
 	}
 

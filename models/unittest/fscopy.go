@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"gitea.dev/modules/git"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/util"
 )
@@ -42,6 +43,7 @@ func SyncFile(srcPath, destPath string) error {
 // It returns error when error occurs in underlying functions.
 func SyncDirs(srcPath, destPath string) error {
 	destPath = filepath.Clean(destPath)
+	git.ReleaseBatches(destPath) // pooled cat-file processes hold repository files open
 	destPathAbs, err := filepath.Abs(destPath)
 	if err != nil {
 		return err
@@ -80,8 +82,11 @@ func SyncDirs(srcPath, destPath string) error {
 		}
 		// if src file does not exist, remove dest file
 		if shouldRemove {
-			if err = os.RemoveAll(destFilePath); err != nil {
-				return err
+			if err = util.RemoveAll(destFilePath); err != nil { // retries, a background git process may still hold a file on Windows
+				git.ReleaseBatches(destFilePath) // a background task of the previous test may have pooled a cat-file process meanwhile
+				if err = util.RemoveAll(destFilePath); err != nil {
+					return err
+				}
 			}
 		}
 	}

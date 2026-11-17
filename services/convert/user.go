@@ -55,7 +55,6 @@ func toUser(ctx context.Context, user *user_model.User, signed, authed bool) *ap
 		AvatarURL:   user.AvatarLink(ctx),
 		HTMLURL:     user.HTMLURL(ctx),
 		Created:     user.CreatedUnix.AsTime(),
-		Restricted:  user.IsRestricted,
 		Location:    user.Location,
 		Website:     user.Website,
 		Description: user.Description,
@@ -75,8 +74,6 @@ func toUser(ctx context.Context, user *user_model.User, signed, authed bool) *ap
 	// only site admin will get these information and possibly user himself
 	if authed {
 		result.IsAdmin = user.IsAdmin
-		result.LoginName = user.LoginName
-		result.SourceID = user.LoginSource
 		result.LastLogin = user.LastLoginUnix.AsTime()
 		result.Language = user.Language
 		result.IsActive = user.IsActive
@@ -97,14 +94,5 @@ func User2UserSettings(user *user_model.User) api.UserSettings {
 		HideEmail:     user.KeepEmailPrivate,
 		HideActivity:  user.KeepActivityPrivate,
 		DiffViewStyle: user.DiffViewStyle,
-	}
-}
-
-// ToUserAndPermission return User and its collaboration permission for a repository
-func ToUserAndPermission(ctx context.Context, user, doer *user_model.User, accessMode perm.AccessMode) api.RepoCollaboratorPermission {
-	return api.RepoCollaboratorPermission{
-		User:       ToUser(ctx, user, doer),
-		Permission: api.AccessLevelName(accessMode.ToString()),
-		RoleName:   accessMode.ToString(),
 	}
 }

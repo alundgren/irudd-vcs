@@ -225,7 +225,6 @@ func applyConditions(sess db.Session, opts *IssuesOptions) {
 	if opts.Owner != nil {
 		sess.And(repo_model.UserOwnedRepoCond(opts.Owner.ID))
 	}
-
 }
 
 func applyAssigneeCondition(sess db.Session, assigneeID string) {

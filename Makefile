@@ -1,33 +1,20 @@
 DIST := dist
 DIST_DIRS := $(DIST)/binaries $(DIST)/release
 
-# By default use go's 1.25 experimental json v2 library when building
-# TODO: remove when no longer experimental
-export GOEXPERIMENT ?= jsonv2
-
 GO ?= go
 SHASUM ?= shasum -a 256
 COMMA := ,
 
-XGO_VERSION := go-1.26.x
-
-AIR_PACKAGE ?= github.com/air-verse/air@v1.65.3 # renovate: datasource=go
-EDITORCONFIG_CHECKER_PACKAGE ?= github.com/editorconfig-checker/editorconfig-checker/v3/cmd/editorconfig-checker@v3.7.0 # renovate: datasource=go
-GOLANGCI_LINT_PACKAGE ?= github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 # renovate: datasource=go
-GXZ_PACKAGE ?= github.com/ulikunitz/xz/cmd/gxz@v0.5.15 # renovate: datasource=go
+AIR_PACKAGE ?= github.com/air-verse/air@v1.67.4 # renovate: datasource=go
+EDITORCONFIG_CHECKER_PACKAGE ?= github.com/editorconfig-checker/editorconfig-checker/v3/cmd/editorconfig-checker@v3.11.3 # renovate: datasource=go
+GOLANGCI_LINT_PACKAGE ?= github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 # renovate: datasource=go
+GXZ_PACKAGE ?= github.com/ulikunitz/xz/cmd/gxz@v0.5.17 # renovate: datasource=go
 MISSPELL_PACKAGE ?= github.com/golangci/misspell/cmd/misspell@v0.8.0 # renovate: datasource=go
 SWAGGER_PACKAGE ?= github.com/go-swagger/go-swagger/cmd/swagger@v0.34.1 # renovate: datasource=go
-XGO_PACKAGE ?= src.techknowlogick.com/xgo@v1.9.0 # renovate: datasource=go
-GOVULNCHECK_PACKAGE ?= golang.org/x/vuln/cmd/govulncheck@v1.4.0 # renovate: datasource=go
+GOVULNCHECK_PACKAGE ?= golang.org/x/vuln/cmd/govulncheck@v1.9.0 # renovate: datasource=go
 SHELLCHECK_IMAGE ?= docker.io/koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d # renovate: datasource=docker
 
 CONTAINER_RUNTIME ?= $(shell hash docker >/dev/null 2>&1 && echo docker || echo podman)
-
-HAS_GO := $(shell hash $(GO) > /dev/null 2>&1 && echo yes)
-ifeq ($(HAS_GO), yes)
-	CGO_EXTRA_CFLAGS := -DSQLITE_MAX_VARIABLE_NUMBER=32766
-	CGO_CFLAGS ?= $(shell $(GO) env CGO_CFLAGS) $(CGO_EXTRA_CFLAGS)
-endif
 
 MAKE_EVIDENCE_DIR := .make_evidence
 
@@ -42,16 +29,8 @@ endif
 TAGS ?=
 TAGS_EVIDENCE := $(MAKE_EVIDENCE_DIR)/tags
 
+# nothing needs cgo, so go cross-compiles every target itself
 CGO_ENABLED ?= 0
-ifneq (,$(findstring sqlite_mattn,$(TAGS)))
-	CGO_ENABLED = 1
-endif
-
-STATIC ?=
-EXTLDFLAGS ?=
-ifneq ($(STATIC),)
-	EXTLDFLAGS = -extldflags "-static"
-endif
 
 ifeq ($(GOOS),windows)
 	IS_WINDOWS := yes
@@ -110,7 +89,7 @@ endif
 
 LDFLAGS := $(LDFLAGS) -X "main.Version=$(GITEA_VERSION)" -X "main.Tags=$(TAGS)"
 
-LINUX_ARCHS ?= linux/amd64,linux/386,linux/arm-5,linux/arm-6,linux/arm64,linux/riscv64
+RELEASE_TARGETS ?= windows/amd64 windows/arm64 linux/amd64 linux/386 linux/arm64 linux/riscv64 darwin/amd64 darwin/arm64 freebsd/amd64
 
 GO_TEST_PACKAGES ?= $(filter-out $(shell $(GO) list gitea.dev/models/migrations/...) gitea.dev/tests gitea.dev/tests/integration,$(shell $(GO) list ./... | grep -v /vendor/))
 MIGRATE_TEST_PACKAGES ?= $(shell $(GO) list gitea.dev/models/migrations/...)
@@ -135,8 +114,6 @@ SWAGGER_SPEC := modules/apispec/v1_json.tmpl
 SWAGGER_SPEC_INPUT := modules/apispec/v1_input.json
 SWAGGER_EXCLUDE := gitea.dev/sdk
 OPENAPI3_SPEC := modules/apispec/v1_openapi3_json.tmpl
-
-TEST_MINIO_ENDPOINT ?= minio:9000
 
 # Include local Makefile
 # Makefile.local is listed in .gitignore
@@ -332,8 +309,9 @@ test-integration:
 	@# Use a compiled binary: testlogger forwards gitea logs to t.Log, so `go test -v`
 	@# would flood output per passing test. testcache can't help these tests anyway —
 	@# they mutate the work directory, so cache inputs change between runs.
+	@# The runner starts each top-level test in its own process, TEST_PARALLEL (half the CPUs) at once.
 	$(GO) test $(GOTEST_FLAGS) -tags '$(TAGS)' -c gitea.dev/tests/integration -o ./test-integration-$(GITEA_TEST_DATABASE).test
-	./tools/test-integration.sh ./test-integration-$(GITEA_TEST_DATABASE).test
+	$(GO) run tools/test-integration.go $(if $(TEST_PARALLEL),-p $(TEST_PARALLEL)) ./test-integration-$(GITEA_TEST_DATABASE).test
 
 .PHONY: test-integration-compile
 test-integration-compile:
@@ -377,32 +355,19 @@ security-check:
 	GOEXPERIMENT= go run $(GOVULNCHECK_PACKAGE) -show color ./... || true
 
 $(EXECUTABLE): $(GO_SOURCES) $(TAGS_PREREQ)
-	CGO_ENABLED="$(CGO_ENABLED)" CGO_CFLAGS="$(CGO_CFLAGS)" $(GO) build $(GOFLAGS) $(EXTRA_GOFLAGS) -tags '$(TAGS)' -ldflags '-s -w $(EXTLDFLAGS) $(LDFLAGS)' -o $@
+	CGO_ENABLED="$(CGO_ENABLED)" $(GO) build $(GOFLAGS) $(EXTRA_GOFLAGS) -tags '$(TAGS)' -ldflags '-s -w $(LDFLAGS)' -o $@
 
 .PHONY: release
-release: generate release-windows release-linux release-darwin release-freebsd release-copy release-compress vendor release-sources release-check
+release: generate release-binaries release-copy release-compress vendor release-sources release-check
 
 $(DIST_DIRS):
 	mkdir -p $(DIST_DIRS)
 
-.PHONY: release-windows
-release-windows: | $(DIST_DIRS)
-	CGO_CFLAGS="$(CGO_CFLAGS)" $(GO) run $(XGO_PACKAGE) -go $(XGO_VERSION) -buildmode exe -dest $(DIST)/binaries -tags 'osusergo $(TAGS)' -ldflags '-s -w -linkmode external -extldflags "-static" $(LDFLAGS)' -targets 'windows/*' -out gitea-$(VERSION) .
-ifeq (,$(findstring gogit,$(TAGS)))
-	CGO_CFLAGS="$(CGO_CFLAGS)" $(GO) run $(XGO_PACKAGE) -go $(XGO_VERSION) -buildmode exe -dest $(DIST)/binaries -tags 'osusergo gogit $(TAGS)' -ldflags '-s -w -linkmode external -extldflags "-static" $(LDFLAGS)' -targets 'windows/*' -out gitea-$(VERSION)-gogit .
-endif
-
-.PHONY: release-linux
-release-linux: | $(DIST_DIRS)
-	CGO_CFLAGS="$(CGO_CFLAGS)" $(GO) run $(XGO_PACKAGE) -go $(XGO_VERSION) -dest $(DIST)/binaries -tags 'netgo osusergo $(TAGS)' -ldflags '-s -w -linkmode external -extldflags "-static" $(LDFLAGS)' -targets '$(LINUX_ARCHS)' -out gitea-$(VERSION) .
-
-.PHONY: release-darwin
-release-darwin: | $(DIST_DIRS)
-	CGO_CFLAGS="$(CGO_CFLAGS)" $(GO) run $(XGO_PACKAGE) -go $(XGO_VERSION) -dest $(DIST)/binaries -tags 'netgo osusergo $(TAGS)' -ldflags '-s -w $(LDFLAGS)' -targets 'darwin-10.12/amd64,darwin-10.12/arm64' -out gitea-$(VERSION) .
-
-.PHONY: release-freebsd
-release-freebsd: | $(DIST_DIRS)
-	CGO_CFLAGS="$(CGO_CFLAGS)" $(GO) run $(XGO_PACKAGE) -go $(XGO_VERSION) -dest $(DIST)/binaries -tags 'netgo osusergo $(TAGS)' -ldflags '-s -w $(LDFLAGS)' -targets 'freebsd/amd64' -out gitea-$(VERSION) .
+.PHONY: release-binaries
+release-binaries: | $(DIST_DIRS)
+	$(foreach target,$(RELEASE_TARGETS),CGO_ENABLED=0 GOOS=$(word 1,$(subst /, ,$(target))) GOARCH=$(word 2,$(subst /, ,$(target))) \
+		$(GO) build $(GOFLAGS) -trimpath -tags 'netgo osusergo $(TAGS)' -ldflags '-s -w $(LDFLAGS)' \
+		-o $(DIST)/binaries/gitea-$(VERSION)-$(subst /,-,$(target))$(if $(findstring windows,$(target)),.exe) . &&) true
 
 .PHONY: release-copy
 release-copy: | $(DIST_DIRS)
@@ -441,7 +406,6 @@ deps-tools: ## install tool dependencies
 	$(GO) install $(GXZ_PACKAGE) & \
 	$(GO) install $(MISSPELL_PACKAGE) & \
 	$(GO) install $(SWAGGER_PACKAGE) & \
-	$(GO) install $(XGO_PACKAGE) & \
 	$(GO) install $(GOVULNCHECK_PACKAGE) & \
 	wait
 
@@ -456,14 +420,6 @@ update-go: ## update go dependencies
 .PHONY: generate-gitignore
 generate-gitignore: ## update gitignore files
 	$(GO) run build/generate-gitignores.go
-
-.PHONY: generate-manpage
-generate-manpage: ## generate manpage
-	@[ -f gitea ] || make backend
-	@mkdir -p man/man1/ man/man5
-	@./gitea docs --man > man/man1/gitea.1
-	@gzip -9 man/man1/gitea.1 && echo man/man1/gitea.1.gz created
-	@#TODO A small script that formats config-cheat-sheet.en-us.md nicely for use as a config man page
 
 # Disable parallel execution because some targets don't specify exact dependencies
 .NOTPARALLEL:

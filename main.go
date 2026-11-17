@@ -14,8 +14,6 @@ import (
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/setting"
 
-	// register supported doc types
-
 	"github.com/urfave/cli/v3"
 )
 

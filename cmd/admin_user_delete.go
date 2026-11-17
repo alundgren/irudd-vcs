@@ -38,7 +38,7 @@ func microcmdUserDelete() *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:  "purge",
-				Usage: "Purge user, all their repositories, organizations and comments",
+				Usage: "Purge user, all their repositories and comments",
 			},
 		},
 		Action: runDeleteUser,

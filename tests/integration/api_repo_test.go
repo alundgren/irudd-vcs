@@ -218,9 +218,10 @@ func getRepo(t *testing.T, repoID int64) *repo_model.Repository {
 
 func TestAPIViewRepo(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
+	ownerSession := loginUser(t, "user2") // adds the token to requests without one
 
 	req := NewRequest(t, "GET", "/api/v1/repos/user2/repo1")
-	resp := MakeRequest(t, req, http.StatusOK)
+	resp := ownerSession.MakeRequest(t, req, http.StatusOK)
 	repo := DecodeJSON(t, resp, &api.Repository{})
 	assert.EqualValues(t, 1, repo.ID)
 	assert.Equal(t, "repo1", repo.Name)
@@ -229,7 +230,7 @@ func TestAPIViewRepo(t *testing.T) {
 	assert.Equal(t, 3, repo.OpenPulls)
 
 	req = NewRequest(t, "GET", "/api/v1/repos/user12/repo10")
-	resp = MakeRequest(t, req, http.StatusOK)
+	resp = ownerSession.MakeRequest(t, req, http.StatusOK)
 	repo = DecodeJSON(t, resp, &api.Repository{})
 	assert.EqualValues(t, 10, repo.ID)
 	assert.Equal(t, "repo10", repo.Name)
@@ -237,21 +238,23 @@ func TestAPIViewRepo(t *testing.T) {
 	assert.Equal(t, 1, repo.Forks)
 
 	req = NewRequest(t, "GET", "/api/v1/repos/user5/repo4")
-	resp = MakeRequest(t, req, http.StatusOK)
+	resp = ownerSession.MakeRequest(t, req, http.StatusOK)
 	repo = DecodeJSON(t, resp, &api.Repository{})
 	assert.EqualValues(t, 4, repo.ID)
 	assert.Equal(t, "repo4", repo.Name)
 	assert.Equal(t, 1, repo.Stars)
 }
 
-func TestAPIGetRepoByIDUnauthorized(t *testing.T) {
+func TestAPIGetRepoByIDOtherUser(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})
 	session := loginUser(t, user.Name)
 	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeReadRepository)
+	// user4 owns user2's private repo2 like every signed-in user; anonymous requests get nothing
 	req := NewRequest(t, "GET", "/api/v1/repositories/2").
 		AddTokenAuth(token)
-	MakeRequest(t, req, http.StatusNotFound)
+	MakeRequest(t, req, http.StatusOK)
+	MakeRequest(t, NewRequest(t, "GET", "/api/v1/repositories/2"), http.StatusUnauthorized)
 }
 
 func TestAPIRepoCreateConflict(t *testing.T) {

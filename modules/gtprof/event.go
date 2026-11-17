@@ -3,9 +3,7 @@
 
 package gtprof
 
-type EventConfig struct {
-	attributes []*TraceAttribute
-}
+type EventConfig struct{}
 
 type EventOption interface {
 	applyEvent(*EventConfig)

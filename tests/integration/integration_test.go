@@ -67,6 +67,9 @@ func testMain(m *testing.M) int {
 }
 
 func TestMain(m *testing.M) {
+	if tests.RunAsGitea() {
+		os.Exit(0)
+	}
 	// -test.list must skip InitIntegrationTest, which requires a database.
 	flag.Parse()
 	if flag.Lookup("test.list").Value.String() != "" {
@@ -95,11 +98,6 @@ func (s *TestSession) MakeRequest(t testing.TB, rw *RequestWrapper, expectedStat
 // gitUserInfo is the userinfo of a git remote URL, with an all-scope token as the password
 func gitUserInfo(t testing.TB, userName string) *url.Userinfo {
 	return url.UserPassword(userName, getUserToken(t, userName, auth.AccessTokenScopeAll))
-}
-
-func emptyTestSession(t testing.TB) *TestSession {
-	t.Helper()
-	return &TestSession{}
 }
 
 func getUserToken(t testing.TB, userName string, scope ...auth.AccessTokenScope) string {

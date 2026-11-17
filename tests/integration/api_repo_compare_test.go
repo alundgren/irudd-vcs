@@ -204,9 +204,9 @@ func TestAPIDownloadCompareDiffOrPatch(t *testing.T) {
 		t.Run("PrivateRepoAnonymous", func(t *testing.T) {
 			defer tests.PrintCurrentTest(t)()
 
-			// repo16 is private; an unauthenticated request must not leak its existence.
+			// an unauthenticated request gets nothing
 			req := NewRequest(t, "GET", "/api/v1/repos/user2/repo16/compare/master...good-sign?output=diff")
-			MakeRequest(t, req, http.StatusNotFound)
+			MakeRequest(t, req, http.StatusUnauthorized)
 		})
 
 		t.Run("CrossRepoFork", func(t *testing.T) {

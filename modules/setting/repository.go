@@ -6,6 +6,7 @@ package setting
 import (
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"gitea.dev/modules/log"
@@ -136,6 +137,15 @@ var (
 	RepoRootPath string
 	ScriptType   = "bash"
 )
+
+// HookShebang is the interpreter line of generated hooks. Git for Windows runs its /bin/sh, which is bash, itself,
+// where /usr/bin/env starts one more process for every hook, about 20 ms
+func HookShebang() string {
+	if runtime.GOOS == "windows" && (ScriptType == "bash" || ScriptType == "sh") {
+		return "#!/bin/sh"
+	}
+	return "#!/usr/bin/env " + ScriptType
+}
 
 func loadRepositoryFrom(rootCfg ConfigProvider) {
 	var err error

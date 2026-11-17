@@ -36,7 +36,6 @@ func TestCORS(t *testing.T) {
 			assert.NotEmpty(t, resp.Header().Get("Access-Control-Allow-Origin"))
 			assert.Contains(t, resp.Header().Values("Vary"), "Origin")
 		})
-
 	})
 
 	t.Run("CORS disabled", func(t *testing.T) {
@@ -56,6 +55,5 @@ func TestCORS(t *testing.T) {
 			assert.Empty(t, resp.Header().Get("Access-Control-Allow-Origin"))
 			assert.Empty(t, resp.Header().Values("Vary"))
 		})
-
 	})
 }

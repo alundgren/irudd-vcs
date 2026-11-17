@@ -97,13 +97,9 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 
 		if opts.RefFullName.IsTag() {
 			if pusher == nil || pusher.ID != opts.PusherID {
-				if opts.PusherID == user_model.ActionsUserID {
-					pusher = user_model.NewActionsUser()
-				} else {
-					var err error
-					if pusher, err = user_model.GetUserByID(ctx, opts.PusherID); err != nil {
-						return err
-					}
+				var err error
+				if pusher, err = user_model.GetUserByID(ctx, opts.PusherID); err != nil {
+					return err
 				}
 			}
 			tagName := opts.RefFullName.TagName()
@@ -114,7 +110,8 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 						RefFullName: git.RefNameFromTag(tagName),
 						OldCommitID: opts.OldCommitID,
 						NewCommitID: objectFormat.EmptyObjectID().String(),
-					}, repo_module.NewPushCommits())
+					}, repo_module.NewPushCommits(),
+				)
 
 				delTags = append(delTags, tagName)
 				notify_service.DeleteRef(ctx, pusher, repo, opts.RefFullName)
@@ -136,7 +133,8 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 							RefFullName: opts.RefFullName,
 							OldCommitID: objectFormat.EmptyObjectID().String(),
 							NewCommitID: opts.NewCommitID,
-						}, commits)
+						}, commits,
+					)
 
 					addTags = append(addTags, tagName)
 					notify_service.CreateRef(ctx, pusher, repo, opts.RefFullName, opts.NewCommitID)
@@ -144,13 +142,9 @@ func pushQueueHandleUpdates(optsList []*repo_module.PushUpdateOptions) error {
 			}
 		} else if opts.RefFullName.IsBranch() {
 			if pusher == nil || pusher.ID != opts.PusherID {
-				if opts.PusherID == user_model.ActionsUserID {
-					pusher = user_model.NewActionsUser()
-				} else {
-					var err error
-					if pusher, err = user_model.GetUserByID(ctx, opts.PusherID); err != nil {
-						return err
-					}
+				var err error
+				if pusher, err = user_model.GetUserByID(ctx, opts.PusherID); err != nil {
+					return err
 				}
 			}
 

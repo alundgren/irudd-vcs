@@ -46,30 +46,30 @@ func testAPIListIssues(t *testing.T) {
 	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeReadIssue)
 	link, _ := url.Parse(fmt.Sprintf("/api/v1/repos/%s/%s/issues", owner.Name, repo.Name))
 
-	link.RawQuery = url.Values{"token": {token}, "state": {"all"}}.Encode()
-	resp := MakeRequest(t, NewRequest(t, "GET", link.String()), http.StatusOK)
+	link.RawQuery = url.Values{"state": {"all"}}.Encode()
+	resp := MakeRequest(t, NewRequest(t, "GET", link.String()).AddTokenAuth(token), http.StatusOK)
 	apiIssues := DecodeJSON(t, resp, []*api.Issue{})
 	assert.Len(t, apiIssues, unittest.GetCount(t, &issues_model.Issue{RepoID: repo.ID}))
 	for _, apiIssue := range apiIssues {
 		unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: apiIssue.ID, RepoID: repo.ID})
 	}
 
-	link.RawQuery = url.Values{"token": {token}, "state": {"all"}, "created_by": {"user2"}}.Encode()
-	resp = MakeRequest(t, NewRequest(t, "GET", link.String()), http.StatusOK)
+	link.RawQuery = url.Values{"state": {"all"}, "created_by": {"user2"}}.Encode()
+	resp = MakeRequest(t, NewRequest(t, "GET", link.String()).AddTokenAuth(token), http.StatusOK)
 	apiIssues = DecodeJSON(t, resp, []*api.Issue{})
 	if assert.Len(t, apiIssues, 1) {
 		assert.EqualValues(t, 5, apiIssues[0].ID)
 	}
 
-	link.RawQuery = url.Values{"token": {token}, "state": {"all"}, "assigned_by": {"user1"}}.Encode()
-	resp = MakeRequest(t, NewRequest(t, "GET", link.String()), http.StatusOK)
+	link.RawQuery = url.Values{"state": {"all"}, "assigned_by": {"user1"}}.Encode()
+	resp = MakeRequest(t, NewRequest(t, "GET", link.String()).AddTokenAuth(token), http.StatusOK)
 	apiIssues = DecodeJSON(t, resp, []*api.Issue{})
 	if assert.Len(t, apiIssues, 1) {
 		assert.EqualValues(t, 1, apiIssues[0].ID)
 	}
 
-	link.RawQuery = url.Values{"token": {token}, "state": {"all"}, "mentioned_by": {"user4"}}.Encode()
-	resp = MakeRequest(t, NewRequest(t, "GET", link.String()), http.StatusOK)
+	link.RawQuery = url.Values{"state": {"all"}, "mentioned_by": {"user4"}}.Encode()
+	resp = MakeRequest(t, NewRequest(t, "GET", link.String()).AddTokenAuth(token), http.StatusOK)
 	apiIssues = DecodeJSON(t, resp, []*api.Issue{})
 	if assert.Len(t, apiIssues, 1) {
 		assert.EqualValues(t, 1, apiIssues[0].ID)
@@ -318,13 +318,6 @@ func testAPISearchIssues(t *testing.T) {
 	apiIssues = DecodeJSON(t, resp, []*api.Issue{})
 	assert.Len(t, apiIssues, 5)
 
-	query = url.Values{"owner": {"org3"}, "team": {"team1"}} // organization + team
-	link.RawQuery = query.Encode()
-	req = NewRequest(t, "GET", link.String()).AddTokenAuth(token)
-	resp = MakeRequest(t, req, http.StatusOK)
-	apiIssues = DecodeJSON(t, resp, []*api.Issue{})
-	assert.Len(t, apiIssues, 2)
-
 	query = url.Values{"created": {"1"}} // issues created by the auth user
 	link.RawQuery = query.Encode()
 	req = NewRequest(t, "GET", link.String()).AddTokenAuth(token)
@@ -470,12 +463,6 @@ func testAPIIssueAssignees(t *testing.T) {
 	token := getTokenForLoggedInUser(t, session, auth_model.AccessTokenScopeWriteIssue)
 
 	urlStr := fmt.Sprintf("/api/v1/repos/%s/%s/issues/%d/assignees", owner.Name, repo.Name, issue.Index)
-
-	t.Run("NonWriter", func(t *testing.T) {
-		req := NewRequestWithJSON(t, "POST", urlStr, &api.IssueAssigneesOption{Assignees: []string{"user40"}}).
-			AddTokenAuth(getUserToken(t, "user5", auth_model.AccessTokenScopeWriteIssue))
-		MakeRequest(t, req, http.StatusForbidden)
-	})
 
 	t.Run("MissingIssue", func(t *testing.T) {
 		req := NewRequestWithJSON(t, "POST", fmt.Sprintf("/api/v1/repos/%s/%s/issues/99999/assignees", owner.Name, repo.Name), &api.IssueAssigneesOption{Assignees: []string{"user40"}}).

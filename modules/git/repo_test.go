@@ -43,3 +43,24 @@ func TestCloneRefusesRedirects(t *testing.T) {
 	assert.Error(t, err)
 	assert.False(t, targetHit.Load(), "git must not follow the redirect to the target")
 }
+
+func TestShowPrettyFormatLogToListCached(t *testing.T) {
+	repo, err := OpenRepository(t.Context(), filepath.Join(testReposDir, "repo1_bare"))
+	assert.NoError(t, err)
+	defer repo.Close()
+	const from, to = "37991dec2c8e592043f47155ce4808d4580f9123", "ce064814f4a0d337b333e646ece456cd39fab612"
+
+	for range 2 {
+		commits, err := repo.ShowPrettyFormatLogToList(t.Context(), from+".."+to)
+		assert.NoError(t, err)
+		if assert.Len(t, commits, 2) {
+			assert.Equal(t, to, commits[0].ID.String())
+			assert.Equal(t, "feaf4ba6bc635fec442f46ddd4512416ec43c2c2", commits[1].ID.String())
+		}
+		assert.True(t, commitRangeLogs.Contains(from+".."+to))
+	}
+
+	_, err = repo.ShowPrettyFormatLogToList(t.Context(), from+"..master")
+	assert.NoError(t, err)
+	assert.False(t, commitRangeLogs.Contains(from+"..master"), "refs move, so they are not cached")
+}

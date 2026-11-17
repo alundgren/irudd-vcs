@@ -55,66 +55,64 @@ func (err ErrProtectedTagName) Unwrap() error {
 	return util.ErrPermissionDenied
 }
 
-func createTag(ctx context.Context, gitRepo *git.Repository, rel *repo_model.Release, msg string) (bool, error) {
+func createTag(ctx context.Context, gitRepo *git.Repository, rel *repo_model.Release, msg string) error {
 	err := rel.LoadAttributes(ctx)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	err = rel.Repo.MustNotBeArchived()
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	var created bool
 	// Only actual create when publish.
 	if !rel.IsDraft {
 		if !gitrepo.IsTagExist(ctx, rel.Repo, rel.TagName) {
 			if err := rel.LoadAttributes(ctx); err != nil {
 				log.Error("LoadAttributes: %v", err)
-				return false, err
+				return err
 			}
 
 			protectedTags, err := git_model.GetProtectedTags(ctx, rel.Repo.ID)
 			if err != nil {
-				return false, fmt.Errorf("GetProtectedTags: %w", err)
+				return fmt.Errorf("GetProtectedTags: %w", err)
 			}
 
 			// Trim '--' prefix to prevent command line argument vulnerability.
 			rel.TagName = strings.TrimPrefix(rel.TagName, "--")
 			isAllowed, err := git_model.IsUserAllowedToControlTag(ctx, protectedTags, rel.TagName, rel.PublisherID)
 			if err != nil {
-				return false, err
+				return err
 			}
 			if !isAllowed {
-				return false, ErrProtectedTagName{
+				return ErrProtectedTagName{
 					TagName: rel.TagName,
 				}
 			}
 
 			commit, err := gitRepo.GetCommit(rel.Target)
 			if err != nil {
-				return false, err
+				return err
 			}
 
 			if len(msg) > 0 {
 				if err = gitRepo.CreateAnnotatedTag(rel.TagName, msg, commit.ID.String()); err != nil {
 					if strings.Contains(err.Error(), "is not a valid tag name") {
-						return false, ErrInvalidTagName{
+						return ErrInvalidTagName{
 							TagName: rel.TagName,
 						}
 					}
-					return false, err
+					return err
 				}
 			} else if err = gitRepo.CreateTag(rel.TagName, commit.ID.String()); err != nil {
 				if strings.Contains(err.Error(), "is not a valid tag name") {
-					return false, ErrInvalidTagName{
+					return ErrInvalidTagName{
 						TagName: rel.TagName,
 					}
 				}
-				return false, err
+				return err
 			}
-			created = true
 			rel.LowerTagName = strings.ToLower(rel.TagName)
 
 			objectFormat := git.ObjectFormatFromName(rel.Repo.ObjectFormatName)
@@ -129,19 +127,20 @@ func createTag(ctx context.Context, gitRepo *git.Repository, rel *repo_model.Rel
 					RefFullName: refFullName,
 					OldCommitID: objectFormat.EmptyObjectID().String(),
 					NewCommitID: commit.ID.String(),
-				}, commits)
+				}, commits,
+			)
 			notify_service.CreateRef(ctx, rel.Publisher, rel.Repo, refFullName, commit.ID.String())
 			rel.CreatedUnix = timeutil.TimeStampNow()
 		}
 		commit, err := gitRepo.GetTagCommit(rel.TagName)
 		if err != nil {
-			return false, fmt.Errorf("GetTagCommit: %w", err)
+			return fmt.Errorf("GetTagCommit: %w", err)
 		}
 
 		rel.Sha1 = commit.ID.String()
 		rel.NumCommits, err = gitrepo.CommitsCountOfCommit(ctx, rel.Repo, commit.ID.String())
 		if err != nil {
-			return false, fmt.Errorf("CommitsCount: %w", err)
+			return fmt.Errorf("CommitsCount: %w", err)
 		}
 
 		if rel.PublisherID <= 0 {
@@ -153,7 +152,7 @@ func createTag(ctx context.Context, gitRepo *git.Repository, rel *repo_model.Rel
 	} else {
 		rel.CreatedUnix = timeutil.TimeStampNow()
 	}
-	return created, nil
+	return nil
 }
 
 // ErrTagAlreadyExists represents an error that tag with such name already exists.
@@ -204,7 +203,7 @@ func CreateNewTag(ctx context.Context, doer *user_model.User, repo *repo_model.R
 		IsTag:        true,
 	}
 
-	if _, err = createTag(ctx, gitRepo, rel, msg); err != nil {
+	if err = createTag(ctx, gitRepo, rel, msg); err != nil {
 		return err
 	}
 
@@ -243,7 +242,8 @@ func DeleteReleaseByID(ctx context.Context, repo *repo_model.Repository, rel *re
 				RefFullName: refName,
 				OldCommitID: rel.Sha1,
 				NewCommitID: objectFormat.EmptyObjectID().String(),
-			}, repository.NewPushCommits())
+			}, repository.NewPushCommits(),
+		)
 		notify_service.DeleteRef(ctx, doer, repo, refName)
 
 		if _, err := db.DeleteByID[repo_model.Release](ctx, rel.ID); err != nil {

@@ -34,7 +34,9 @@ type Version struct {
 // prepareMigrationTasks returns the irudd-vcs schema migrations. Add new migrations to the bottom of the list,
 // numbered from minDBVersion.
 func prepareMigrationTasks() []*migration {
-	return nil
+	return []*migration{
+		{idNumber: 1000, description: "Drop password, login source, restricted and organization data", migrate: dropSingleOwnerLeftovers},
+	}
 }
 
 // GetCurrentDBVersion returns the current db version

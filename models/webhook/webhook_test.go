@@ -389,3 +389,24 @@ func TestCleanupHookTaskTable_OlderThan_LeavesTaskEarlierThanAgeToDelete(t *test
 	assert.NoError(t, CleanupHookTaskTable(t.Context(), OlderThan, 168*time.Hour, 0))
 	unittest.AssertExistsAndLoadBean(t, hookTask)
 }
+
+func TestHasActiveWebhooks(t *testing.T) {
+	require.NoError(t, unittest.PrepareTestDatabase())
+	_, err := db.GetEngine(t.Context()).Where(builder.Expr("1=1")).Delete(new(Webhook))
+	require.NoError(t, err)
+	has, err := HasActiveWebhooks(t.Context())
+	require.NoError(t, err)
+	assert.False(t, has)
+
+	hook := &Webhook{RepoID: 1, URL: "https://example.invalid/hook", ContentType: ContentTypeJSON, IsActive: false}
+	require.NoError(t, CreateWebhook(t.Context(), hook))
+	has, err = HasActiveWebhooks(t.Context())
+	require.NoError(t, err)
+	assert.False(t, has, "an inactive webhook receives nothing")
+
+	hook.IsActive = true
+	require.NoError(t, UpdateWebhook(t.Context(), hook))
+	has, err = HasActiveWebhooks(t.Context())
+	require.NoError(t, err)
+	assert.True(t, has)
+}

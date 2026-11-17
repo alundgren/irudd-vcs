@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"gitea.dev/modules/git"
-	"gitea.dev/modules/git/gitcmd"
 	"gitea.dev/modules/log"
 	"gitea.dev/modules/private"
 	repo_module "gitea.dev/modules/repository"
@@ -173,8 +172,6 @@ Gitea or set your environment appropriately.`, "")
 	reponame := os.Getenv(repo_module.EnvRepoName)
 	userID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPusherID), 10, 64)
 	prID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvPRID), 10, 64)
-	deployKeyID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvDeployKeyID), 10, 64)
-	actionsTaskID, _ := strconv.ParseInt(os.Getenv(repo_module.EnvActionsTaskID), 10, 64)
 
 	hookOptions := private.HookOptions{
 		UserID:                          userID,
@@ -183,8 +180,6 @@ Gitea or set your environment appropriately.`, "")
 		GitQuarantinePath:               os.Getenv(private.GitQuarantinePath),
 		GitPushOptions:                  pushOptions(),
 		PullRequestID:                   prID,
-		DeployKeyID:                     deployKeyID,
-		ActionsTaskID:                   actionsTaskID,
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -288,10 +283,7 @@ func runHookUpdate(_ context.Context, c *cli.Command) error {
 func runHookPostReceive(ctx context.Context, c *cli.Command) error {
 	setup(ctx, c.Bool("debug"))
 
-	// First of all run update-server-info no matter what
-	if err := gitcmd.NewCommand("update-server-info").RunWithStderr(ctx); err != nil {
-		return fmt.Errorf("failed to call 'git update-server-info': %w", err)
-	}
+	// no update-server-info here: dumb HTTP runs it when info/refs is requested
 
 	// Now if we're an internal don't do anything else
 	if isInternal, _ := strconv.ParseBool(os.Getenv(repo_module.EnvIsInternal)); isInternal {
@@ -429,8 +421,7 @@ func pushOptions() map[string]string {
 type pktLineType int64
 
 const (
-	// Unknown type
-	pktLineTypeUnknown pktLineType = 0
+	_ pktLineType = 0 // unknown type
 	// flush-pkt "0000"
 	pktLineTypeFlush pktLineType = iota
 	// data line
@@ -501,7 +492,7 @@ func writeFlushPktLine(ctx context.Context, out io.Writer) error {
 func writeDataPktLine(ctx context.Context, out io.Writer, data []byte) error {
 	hexchar := []byte("0123456789abcdef")
 	hex := func(n uint64) byte {
-		return hexchar[(n)&15]
+		return hexchar[n&15]
 	}
 
 	length := uint64(len(data) + 4)

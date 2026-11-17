@@ -287,7 +287,6 @@ func TestAPIRepoEdit(t *testing.T) {
 			DefaultDeleteBranchAfterMerge: &bFalse,
 		}).AddTokenAuth(token2)
 		_ = MakeRequest(t, req, http.StatusOK)
-
 	})
 }
 

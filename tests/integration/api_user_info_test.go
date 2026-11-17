@@ -38,13 +38,7 @@ func TestAPIUserInfo(t *testing.T) {
 		assert.Equal(t, user2, u.UserName)
 
 		req = NewRequest(t, "GET", "/api/v1/users/"+user2)
-		MakeRequest(t, req, http.StatusNotFound)
-
-		// test if the placaholder Mail is returned if a User is not logged in
-		req = NewRequest(t, "GET", "/api/v1/users/"+org3.Name)
-		resp = MakeRequest(t, req, http.StatusOK)
-		u = DecodeJSON(t, resp, &api.User{})
-		assert.Equal(t, org3.GetPlaceholderEmail(), u.Email)
+		MakeRequest(t, req, http.StatusUnauthorized)
 
 		// Test if the correct Mail is returned if a User is logged in
 		req = NewRequest(t, "GET", "/api/v1/users/"+org3.Name).

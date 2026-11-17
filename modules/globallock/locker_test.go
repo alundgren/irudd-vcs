@@ -5,39 +5,15 @@ package globallock
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
-	"gitea.dev/modules/test"
-	"gitea.dev/modules/util"
-
-	"github.com/go-redsync/redsync/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestRedisLocker(t *testing.T) Locker {
-	t.Helper()
-	redisURL := util.IfZero(os.Getenv("TEST_REDIS_URL"), "redis://127.0.0.1:6379/0")
-	rl := NewRedisLocker(redisURL).(*redisLocker)
-	err := rl.conn.Ping(t.Context()).Err()
-	if err != nil && test.AllowSkipExternalService() {
-		t.Skip("no redis server for testing, skipped")
-	}
-	require.NoError(t, err, "redis error for testing: %v", err)
-	return rl
-}
-
 func TestLocker(t *testing.T) {
-	t.Run("redis", func(t *testing.T) {
-		defer test.MockVariableValue(&redisLockExpiry, 5*time.Second)() // make it shorter for testing
-		locker := newTestRedisLocker(t)
-		testLocker(t, locker)
-		testRedisLocker(t, locker.(*redisLocker))
-		require.NoError(t, locker.(*redisLocker).Close())
-	})
 	t.Run("memory", func(t *testing.T) {
 		locker := NewMemoryLocker()
 		testLocker(t, locker)
@@ -149,32 +125,4 @@ func testLocker(t *testing.T, locker Locker) {
 // testMemoryLocker does specific tests for memoryLocker
 func testMemoryLocker(t *testing.T, locker *memoryLocker) {
 	// nothing to do
-}
-
-// testRedisLocker does specific tests for redisLocker
-func testRedisLocker(t *testing.T, locker *redisLocker) {
-	defer func() {
-		// This case should be tested at the end.
-		// Otherwise, it will affect other tests.
-		t.Run("close", func(t *testing.T) {
-			assert.NoError(t, locker.Close())
-			_, err := locker.Lock(t.Context(), "test")
-			assert.Error(t, err)
-		})
-	}()
-
-	t.Run("failed extend", func(t *testing.T) {
-		release, err := locker.Lock(t.Context(), "test")
-		defer release()
-		require.NoError(t, err)
-
-		// It simulates that there are some problems with extending like network issues or redis server down.
-		v, ok := locker.mutexM.Load("test")
-		require.True(t, ok)
-		m := v.(*redsync.Mutex)
-		_, _ = m.Unlock() // release it to make it impossible to extend
-
-		// In current design, callers can't know the lock can't be extended.
-		// Just keep this case to improve the test coverage.
-	})
 }

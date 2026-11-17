@@ -17,10 +17,6 @@ type User struct {
 	ID int64 `json:"id"`
 	// login of the user, same as `username`
 	UserName string `json:"login"`
-	// identifier of the user, provided by the external authenticator (if configured)
-	LoginName string `json:"login_name"`
-	// The ID of the user's Authentication Source
-	SourceID int64 `json:"source_id"`
 	// the user's full name
 	FullName string `json:"full_name"`
 	// swagger:strfmt email
@@ -37,8 +33,6 @@ type User struct {
 	LastLogin time.Time `json:"last_login"`
 	// swagger:strfmt date-time
 	Created time.Time `json:"created"`
-	// Is user restricted
-	Restricted bool `json:"restricted"`
 	// Is user active
 	IsActive bool `json:"active"`
 	// Is user login prohibited
@@ -96,13 +90,4 @@ type UserSettingsOptions struct {
 	// Privacy
 	HideEmail    *bool `json:"hide_email"`
 	HideActivity *bool `json:"hide_activity"`
-}
-
-// RenameUserOption options when renaming a user
-type RenameUserOption struct {
-	// New username for this user. This name cannot be in use yet by any other user.
-	//
-	// required: true
-	// unique: true
-	NewName string `json:"new_username" binding:"Required"`
 }

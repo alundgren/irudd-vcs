@@ -520,7 +520,8 @@ func GetReviewByIssueIDAndUserID(ctx context.Context, issueID, userID int64) (*R
 
 	has, err := db.GetEngine(ctx).Where(
 		builder.In("type", ReviewTypeApprove, ReviewTypeReject, ReviewTypeRequest).
-			And(builder.Eq{"issue_id": issueID, "reviewer_id": userID, "original_author_id": 0})).
+			And(builder.Eq{"issue_id": issueID, "reviewer_id": userID, "original_author_id": 0}),
+	).
 		Desc("id").
 		Get(review)
 	if err != nil {
@@ -584,7 +585,7 @@ func DismissReview(ctx context.Context, review *Review, isDismiss bool) (err err
 }
 
 // AddReviewRequest add a review request from one reviewer
-func AddReviewRequest(ctx context.Context, issue *Issue, reviewer, doer *user_model.User, isCodeOwners bool) (*Comment, error) {
+func AddReviewRequest(ctx context.Context, issue *Issue, reviewer, doer *user_model.User) (*Comment, error) {
 	return db.WithTx2(ctx, func(ctx context.Context) (*Comment, error) {
 		sess := db.GetEngine(ctx)
 
@@ -643,7 +644,6 @@ func AddReviewRequest(ctx context.Context, issue *Issue, reviewer, doer *user_mo
 			RemovedAssignee: false,       // Use RemovedAssignee as !isRequest
 			AssigneeID:      reviewer.ID, // Use AssigneeID as reviewer ID
 			ReviewID:        review.ID,
-			SpecialDoerName: util.Iif(isCodeOwners, SpecialDoerNameCodeOwners, ""),
 		})
 		if err != nil {
 			return nil, err

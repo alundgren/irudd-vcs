@@ -5,12 +5,15 @@ package dump
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,6 +80,7 @@ func TestDumperIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(tmpDir, "test.txt"), nil, 0o644)
 	f, _ := os.Open(filepath.Join(tmpDir, "test.txt"))
+	defer f.Close() // Windows cannot remove the temp dir while it is open
 
 	fi, _ := f.Stat()
 	err = dumper.AddFileByReader(f, fi, "test.txt")
@@ -149,3 +153,71 @@ func extractTarFileNames(t *testing.T, buf *bytes.Buffer) (fileNames []string) {
 	}
 	return fileNames
 }
+
+func TestDumperFormats(t *testing.T) {
+	tmpDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "data/sub"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "data/a.txt"), []byte("hello"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "data/sub/b.txt"), []byte("world"), 0o644))
+	expected := map[string]string{"data/a.txt": "hello", "data/sub/": "", "data/sub/b.txt": "world", "extra.txt": "from reader"}
+
+	for _, format := range SupportedOutputTypes {
+		t.Run(format, func(t *testing.T) {
+			var buf bytes.Buffer
+			dumper, err := NewDumper(t.Context(), format, &buf)
+			require.NoError(t, err)
+			require.NoError(t, dumper.AddRecursiveExclude("data", filepath.Join(tmpDir, "data"), nil))
+			info, err := os.Stat(filepath.Join(tmpDir, "data/a.txt"))
+			require.NoError(t, err)
+			require.NoError(t, dumper.AddFileByReader(strings.NewReader("from reader"), fakeFileInfo{info, 11}, "extra.txt"))
+			require.NoError(t, dumper.Close())
+
+			got := map[string]string{}
+			if format == "zip" {
+				zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+				require.NoError(t, err)
+				for _, f := range zr.File {
+					rc, err := f.Open()
+					require.NoError(t, err)
+					content, err := io.ReadAll(rc)
+					require.NoError(t, err)
+					rc.Close()
+					got[f.Name] = string(content)
+				}
+			} else {
+				var r io.Reader = &buf
+				if format == "tar.gz" {
+					gz, err := gzip.NewReader(&buf)
+					require.NoError(t, err)
+					r = gz
+				}
+				tr := tar.NewReader(r)
+				for {
+					hdr, err := tr.Next()
+					if err == io.EOF {
+						break
+					}
+					require.NoError(t, err)
+					content, err := io.ReadAll(tr)
+					require.NoError(t, err)
+					name := hdr.Name
+					if hdr.Typeflag == tar.TypeDir {
+						name += "/"
+					}
+					got[name] = string(content)
+				}
+			}
+			assert.Equal(t, expected, got)
+		})
+	}
+
+	_, err := NewDumper(t.Context(), "tar.zst", io.Discard)
+	assert.Error(t, err)
+}
+
+type fakeFileInfo struct {
+	os.FileInfo
+	size int64
+}
+
+func (f fakeFileInfo) Size() int64 { return f.size }

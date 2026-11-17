@@ -474,9 +474,7 @@ func ResolveIssueMentionsByVisibility(ctx context.Context, issue *Issue, doer *u
 		return users, err
 	}
 
-	if users == nil {
-		users = make([]*user_model.User, 0, len(mentionUsers))
-	}
+	users = make([]*user_model.User, 0, len(mentionUsers))
 
 	unchecked := make([]*user_model.User, 0, len(mentionUsers))
 	if err := db.GetEngine(ctx).

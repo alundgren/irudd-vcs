@@ -30,6 +30,7 @@ import (
 	"gitea.dev/modules/graceful"
 	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/log"
+	"gitea.dev/modules/private"
 	repo_module "gitea.dev/modules/repository"
 	"gitea.dev/modules/setting"
 	"gitea.dev/modules/timeutil"
@@ -282,6 +283,10 @@ func handleMergePostProcess(ctx context.Context, prID int64, doer *user_model.Us
 
 // doMergeAndPush performs the merge operation without changing any pull information in database and pushes it up to the base repository
 func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *user_model.User, mergeStyle repo_model.MergeStyle, expectedHeadCommitID, message string, pushTrigger repo_module.PushTrigger) (string, error) { //nolint:unparam // non-error result is never used
+	if mergeCommitID, ok, err := mergeInRepository(ctx, pr, doer, mergeStyle, expectedHeadCommitID, message, pushTrigger); ok {
+		return mergeCommitID, err
+	}
+
 	// Clone base repo.
 	mergeCtx, cancel, err := createTemporaryRepoForMerge(ctx, pr, doer, expectedHeadCommitID)
 	if err != nil {
@@ -312,18 +317,14 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 	}
 
 	// OK we should cache our current head and origin/headbranch
-	mergeHeadSHA, err := git.GetFullCommitID(ctx, mergeCtx.tmpBasePath, "HEAD")
-	if err != nil {
-		return "", fmt.Errorf("Failed to get full commit id for HEAD: %w", err)
+	// one rev-parse for the three, since each process costs 10-20 ms on Windows
+	stdout, _, err := gitcmd.NewCommand("rev-parse").AddDynamicArguments("HEAD", "original_"+tmpRepoBaseBranch, tmpRepoBaseBranch).
+		WithDir(mergeCtx.tmpBasePath).RunStdString(ctx)
+	commitIDs := strings.Fields(stdout)
+	if err != nil || len(commitIDs) != 3 {
+		return "", fmt.Errorf("Failed to get full commit ids for HEAD, origin/%s and the new merge: %w", pr.BaseBranch, err)
 	}
-	mergeBaseSHA, err := git.GetFullCommitID(ctx, mergeCtx.tmpBasePath, "original_"+tmpRepoBaseBranch)
-	if err != nil {
-		return "", fmt.Errorf("Failed to get full commit id for origin/%s: %w", pr.BaseBranch, err)
-	}
-	mergeCommitID, err := git.GetFullCommitID(ctx, mergeCtx.tmpBasePath, tmpRepoBaseBranch)
-	if err != nil {
-		return "", fmt.Errorf("Failed to get full commit id for the new merge: %w", err)
-	}
+	mergeHeadSHA, mergeBaseSHA, mergeCommitID := commitIDs[0], commitIDs[1], commitIDs[2]
 
 	// Now it's questionable about where this should go - either after or before the push
 	// I think in the interests of data safety - failures to push to the lfs should prevent
@@ -356,12 +357,18 @@ func doMergeAndPush(ctx context.Context, pr *issues_model.PullRequest, doer *use
 	)
 
 	mergeCtx.env = append(mergeCtx.env, repo_module.EnvPushTrigger+"="+string(pushTrigger))
+	mergeCtx.env = append(mergeCtx.env, repo_module.NoRefRulesEnvironment(ctx, doer, pr.BaseRepo)...)
 	pushCmd := gitcmd.NewCommand("push", "origin").AddDynamicArguments(tmpRepoBaseBranch + ":" + git.BranchPrefix + pr.BaseBranch)
 
 	// Push back to upstream.
 	// This cause an api call to "/api/internal/hook/post-receive/...",
 	// If it's merge, all db transaction and operations should be there but not here to prevent deadlock.
-	if err := mergeCtx.PrepareGitCmd(pushCmd).RunWithStderr(ctx); err != nil {
+	var pushErr gitcmd.RunStdError // keeps the stderr for the checks below
+	_ = private.RunServerPush(ctx, mergeCtx.env, func(env []string) error {
+		pushErr = mergeCtx.PrepareGitCmd(pushCmd).WithEnv(env).RunWithStderr(ctx)
+		return pushErr
+	})
+	if err := pushErr; err != nil {
 		if strings.Contains(err.Stderr(), "non-fast-forward") {
 			return "", &git.ErrPushOutOfDate{
 				StdOut: mergeCtx.outbuf.String(),

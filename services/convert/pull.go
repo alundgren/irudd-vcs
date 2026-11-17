@@ -166,21 +166,27 @@ func ToAPIPullRequest(ctx context.Context, pr *issues_model.PullRequest, doer *u
 	}
 
 	if pr.HeadRepo != nil && pr.Flow == issues_model.PullRequestFlowGithub {
-		p, err := access_model.GetDoerRepoPermission(ctx, pr.HeadRepo, doer)
-		if err != nil {
-			log.Error("GetDoerRepoPermission[%d]: %v", pr.HeadRepoID, err)
-			p.AccessMode = perm.AccessModeNone
-		}
-
 		apiPullRequest.Head.RepoID = pr.HeadRepo.ID
-		apiPullRequest.Head.Repository = ToRepo(ctx, pr.HeadRepo, p)
-
-		headGitRepo, err := gitrepo.OpenRepository(ctx, pr.HeadRepo)
-		if err != nil {
-			log.Error("OpenRepository[%s]: %v", pr.HeadRepo.RelativePath(), err)
-			return nil
+		if pr.HeadRepoID == pr.BaseRepoID {
+			apiPullRequest.Head.Repository = apiPullRequest.Base.Repository // same repository and doer
+		} else {
+			p, err := access_model.GetDoerRepoPermission(ctx, pr.HeadRepo, doer)
+			if err != nil {
+				log.Error("GetDoerRepoPermission[%d]: %v", pr.HeadRepoID, err)
+				p.AccessMode = perm.AccessModeNone
+			}
+			apiPullRequest.Head.Repository = ToRepo(ctx, pr.HeadRepo, p)
 		}
-		defer headGitRepo.Close()
+
+		headGitRepo := gitRepo // a pull request within one repository needs no second git process
+		if pr.HeadRepoID != pr.BaseRepoID {
+			headGitRepo, err = gitrepo.OpenRepository(ctx, pr.HeadRepo)
+			if err != nil {
+				log.Error("OpenRepository[%s]: %v", pr.HeadRepo.RelativePath(), err)
+				return nil
+			}
+			defer headGitRepo.Close()
+		}
 
 		exist, err = git_model.IsBranchExist(ctx, pr.HeadRepoID, pr.HeadBranch)
 		if err != nil {
@@ -231,13 +237,7 @@ func ToAPIPullRequest(ctx context.Context, pr *issues_model.PullRequest, doer *u
 	}
 
 	if len(apiPullRequest.Head.Sha) == 0 && len(apiPullRequest.Head.Ref) != 0 {
-		baseGitRepo, err := gitrepo.OpenRepository(ctx, pr.BaseRepo)
-		if err != nil {
-			log.Error("OpenRepository[%s]: %v", pr.BaseRepo.RelativePath(), err)
-			return nil
-		}
-		defer baseGitRepo.Close()
-		refs, err := baseGitRepo.GetRefsFiltered(apiPullRequest.Head.Ref)
+		refs, err := gitRepo.GetRefsFiltered(apiPullRequest.Head.Ref)
 		if err != nil {
 			log.Error("GetRefsFiltered[%s]: %v", apiPullRequest.Head.Ref, err)
 			return nil

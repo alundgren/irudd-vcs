@@ -212,19 +212,12 @@ func CheckPullMergeable(stdCtx context.Context, doer *user_model.User, perm *acc
 			}
 		}
 
-		return checkSigningRequirements(ctx, pr, doer, mergeStyle)
+		return checkSigningRequirements(ctx, pr)
 	})
 }
 
-// checkSigningRequirements enforces the target branch's RequireSignedCommits rule
-// against the selected merge style:
-//   - fast-forward-only and merge keep the user's commits on the base branch, so
-//     those commits must all be verified, or the pre-receive hook will reject the
-//     push with a generic error.
-//   - fast-forward-only creates no Gitea commit, so Gitea's signing key is not used.
-//   - merge, rebase, rebase-merge and squash produce a Gitea-signed commit, so
-//     Gitea must be configured to sign it.
-func checkSigningRequirements(ctx context.Context, pr *issues_model.PullRequest, doer *user_model.User, mergeStyle repo_model.MergeStyle) error {
+// checkSigningRequirements enforces the target branch's RequireSignedCommits rule for every merge style
+func checkSigningRequirements(ctx context.Context, pr *issues_model.PullRequest) error {
 	pb, err := git_model.GetFirstMatchProtectedBranchRule(ctx, pr.BaseRepoID, pr.BaseBranch)
 	if err != nil {
 		return err
@@ -259,7 +252,6 @@ func markPullRequestAsMergeable(ctx context.Context, pr *issues_model.PullReques
 	if _, err := pr.UpdateColsIfNotMerged(ctx, "merge_base", "status", "conflicted_files", "changed_protected_files"); err != nil {
 		log.Error("Update[%-v]: %v", pr, err)
 	}
-
 }
 
 // getMergeCommit checks if a pull request has been merged
@@ -416,12 +408,32 @@ func InitializePullRequests(ctx context.Context) {
 	}
 }
 
+// FinishPullRequestCheck runs the pending check of a pull request now, so that a merge right after a push to it,
+// such as by the update endpoint, does not fail for the moment the check waits in the queue. It waits for a check
+// that runs already, and returns the pull request as checked. The status it returns may not be saved yet: that
+// waits for the queued task, which checks again.
+func FinishPullRequestCheck(ctx context.Context, pr *issues_model.PullRequest) (*issues_model.PullRequest, error) {
+	if !pr.IsChecking() {
+		return pr, nil
+	}
+	if checked := runPullRequestCheck(ctx, pr.ID, true); checked != nil {
+		return checked, nil
+	}
+	return issues_model.GetPullRequestByID(ctx, pr.ID)
+}
+
 func checkPullRequestMergeable(id int64) {
-	ctx := graceful.GetManager().HammerContext()
+	runPullRequestCheck(graceful.GetManager().HammerContext(), id, false)
+}
+
+// runPullRequestCheck checks a pull request under the lock of its queue task, and returns it as checked, or nil when
+// it was not loaded or the check changed more than its status. onlyChecking skips one that is not checking anymore,
+// as when the queue checked it while this waited for the lock.
+func runPullRequestCheck(ctx context.Context, id int64, onlyChecking bool) *issues_model.PullRequest {
 	releaser, err := globallock.Lock(ctx, getPullWorkingLockKey(id))
 	if err != nil {
 		log.Error("lock.Lock(): %v", err)
-		return
+		return nil
 	}
 	defer releaser()
 
@@ -431,7 +443,7 @@ func checkPullRequestMergeable(id int64) {
 	pr, err := issues_model.GetPullRequestByID(ctx, id)
 	if err != nil {
 		log.Error("Unable to GetPullRequestByID[%d] for checkPullRequestMergeable: %v", id, err)
-		return
+		return nil
 	}
 
 	log.Trace("Testing %-v", pr)
@@ -441,12 +453,15 @@ func checkPullRequestMergeable(id int64) {
 
 	if pr.HasMerged {
 		log.Trace("%-v is already merged (status: %s, merge commit: %s)", pr, pr.Status, pr.MergedCommitID)
-		return
+		return pr
+	}
+	if onlyChecking && !pr.IsChecking() {
+		return pr
 	}
 
 	if manuallyMerged(ctx, pr) {
 		log.Trace("%-v is manually merged (status: %s, merge commit: %s)", pr, pr.Status, pr.MergedCommitID)
-		return
+		return nil
 	}
 
 	if err := checkPullRequestBranchMergeable(ctx, pr); err != nil {
@@ -455,9 +470,10 @@ func checkPullRequestMergeable(id int64) {
 		if err := pr.UpdateCols(ctx, "status"); err != nil {
 			log.Error("update pr [%-v] status to PullRequestStatusError failed: %v", pr, err)
 		}
-		return
+		return pr
 	}
 	markPullRequestAsMergeable(ctx, pr)
+	return pr
 }
 
 // CheckPRsForBaseBranch check all pulls with baseBrannch
