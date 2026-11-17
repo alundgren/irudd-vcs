@@ -67,6 +67,9 @@ func testMain(m *testing.M) int {
 }
 
 func TestMain(m *testing.M) {
+	if tests.RunAsGitea() {
+		os.Exit(0)
+	}
 	// -test.list must skip InitIntegrationTest, which requires a database.
 	flag.Parse()
 	if flag.Lookup("test.list").Value.String() != "" {

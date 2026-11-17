@@ -111,6 +111,11 @@ func CreateDelegateHooks(_ context.Context, repo Repository) (err error) {
 	return createDelegateHooks(filepath.Join(repoPath(repo), "hooks"))
 }
 
+// CreateDelegateHooksInDir creates the hooks scripts in a hooks directory outside the repository root, such as of test fixtures
+func CreateDelegateHooksInDir(hookDir string) error {
+	return createDelegateHooks(hookDir)
+}
+
 func createDelegateHooks(hookDir string) (err error) {
 	hookNames, hookTpls, giteaHookTpls := getHookTemplates()
 
