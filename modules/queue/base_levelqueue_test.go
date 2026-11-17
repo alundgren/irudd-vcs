@@ -6,6 +6,7 @@ package queue
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gitea.dev/modules/queue/lqinternal"
 	"gitea.dev/modules/setting"
@@ -95,4 +96,24 @@ func TestOpenLevelDBEarly(t *testing.T) {
 	db, err := leveldb.OpenFile(dir, nil)
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
+}
+
+func TestLevelQueuePushWakesPop(t *testing.T) {
+	for _, newQueue := range []func(*BaseConfig) (baseQueue, error){newBaseLevelQueueSimple, newBaseLevelQueueUnique} {
+		q, err := newQueue(toBaseConfig("wake", setting.QueueSettings{Datadir: t.TempDir() + "/queue-test", Length: 10}))
+		require.NoError(t, err)
+
+		popped := make(chan time.Time, 1)
+		go func() {
+			data, err := q.PopItem(t.Context())
+			assert.NoError(t, err)
+			assert.Equal(t, "item", string(data))
+			popped <- time.Now()
+		}()
+		time.Sleep(1600 * time.Millisecond) // the empty queue has backed off to waits of 800 ms and more
+		pushed := time.Now()
+		require.NoError(t, q.PushItem(t.Context(), []byte("item")))
+		assert.Less(t, (<-popped).Sub(pushed), 200*time.Millisecond)
+		require.NoError(t, q.Close())
+	}
 }

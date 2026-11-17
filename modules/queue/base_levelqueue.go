@@ -17,9 +17,10 @@ import (
 type baseLevelQueue struct {
 	internal atomic.Pointer[levelqueue.Queue]
 
-	conn string
-	cfg  *BaseConfig
-	db   *leveldb.DB
+	conn   string
+	cfg    *BaseConfig
+	db     *leveldb.DB
+	pushed chan struct{}
 }
 
 var _ baseQueue = (*baseLevelQueue)(nil)
@@ -36,7 +37,7 @@ func newBaseLevelQueueSimple(cfg *BaseConfig) (baseQueue, error) {
 	if err != nil {
 		return nil, err
 	}
-	q := &baseLevelQueue{conn: conn, cfg: cfg, db: db}
+	q := &baseLevelQueue{conn: conn, cfg: cfg, db: db, pushed: make(chan struct{}, 1)}
 	lq, err := levelqueue.NewQueue(db, []byte(cfg.QueueFullName), false)
 	if err != nil {
 		return nil, err
@@ -46,12 +47,12 @@ func newBaseLevelQueueSimple(cfg *BaseConfig) (baseQueue, error) {
 }
 
 func (q *baseLevelQueue) PushItem(ctx context.Context, data []byte) error {
-	c := baseLevelQueueCommon(q.cfg, nil, func() baseLevelQueuePushPoper { return q.internal.Load() })
+	c := baseLevelQueueCommon(q.cfg, nil, q.pushed, func() baseLevelQueuePushPoper { return q.internal.Load() })
 	return c.PushItem(ctx, data)
 }
 
 func (q *baseLevelQueue) PopItem(ctx context.Context) ([]byte, error) {
-	c := baseLevelQueueCommon(q.cfg, nil, func() baseLevelQueuePushPoper { return q.internal.Load() })
+	c := baseLevelQueueCommon(q.cfg, nil, q.pushed, func() baseLevelQueuePushPoper { return q.internal.Load() })
 	return c.PopItem(ctx)
 }
 
