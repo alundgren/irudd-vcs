@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -306,6 +308,9 @@ func (t *TemporaryUploadRepository) CommitTree(ctx context.Context, opts *Commit
 func (t *TemporaryUploadRepository) Push(ctx context.Context, doer *user_model.User, commitHash, branch string, force bool) error {
 	// Because calls hooks we need to pass in the environment
 	env := append(repo_module.PushingEnvironment(doer, t.repo), repo_module.NoRefRulesEnvironment(ctx, doer, t.repo)...)
+	if t.updateRef(ctx, env, strings.TrimSpace(commitHash), strings.TrimSpace(branch), force) {
+		return nil
+	}
 	if err := private.RunServerPush(ctx, env, func(env []string) error {
 		return gitrepo.PushFromLocal(ctx, t.basePath, t.repo, git.PushOptions{
 			Branch: strings.TrimSpace(commitHash) + ":" + git.BranchPrefix + strings.TrimSpace(branch),
@@ -327,6 +332,104 @@ func (t *TemporaryUploadRepository) Push(ctx context.Context, doer *user_model.U
 }
 
 // GetBranchCommit Gets the commit object of the given branch
+// updateRef moves the branch to the commit without a push, when the push would create the branch, fast-forward it
+// or force it and would run no rules or hooks. The new objects are loose in the temporary repository, whose other
+// objects are the repository's, so they are linked into the repository first.
+func (t *TemporaryUploadRepository) updateRef(ctx context.Context, env []string, commitID, branch string, force bool) bool {
+	// UpdateServerRef checks this too, but before the objects are linked
+	if !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, repo_module.EnvNoRefRules+"=") }) {
+		return false
+	}
+	oldCommitID, err := gitrepo.GetBranchCommitID(ctx, t.repo, branch)
+	if err != nil {
+		if !git.IsErrNotExist(err) {
+			return false
+		}
+		oldCommitID = "" // the push creates the branch
+	} else if !force {
+		// a fast-forward from the commit the new one was made on; the push checks any other
+		if commit, err := t.GetCommit(commitID); err != nil || commit.ParentCount() == 0 || commit.Parents[0].String() != oldCommitID {
+			return false
+		}
+	}
+	if err := linkLooseObjects(t.basePath, filepath.Join(t.repo.RepoPath(), "objects")); err != nil {
+		log.Debug("objects of %s for %s, pushing instead: %v", t.basePath, t.repo.FullName(), err)
+		return false
+	}
+	return private.UpdateServerRef(ctx, t.repo, env, git.RefNameFromBranch(branch), oldCommitID, commitID)
+}
+
+// linkLooseObjects puts the loose objects of a temporary repository into the objects dir of a repository, as git
+// names and writes them; packed objects are not handled
+func linkLooseObjects(tmpRepoPath, objectsDir string) error {
+	srcDir := filepath.Join(tmpRepoPath, ".git", "objects")
+	if _, err := os.Stat(srcDir); err != nil {
+		srcDir = filepath.Join(tmpRepoPath, "objects") // a bare clone
+	}
+	if packs, _ := filepath.Glob(filepath.Join(srcDir, "pack", "*.pack")); len(packs) > 0 {
+		return errors.New("packed objects")
+	}
+	dirs, err := os.ReadDir(srcDir)
+	if err != nil {
+		return err
+	}
+	for _, dir := range dirs {
+		if !dir.IsDir() || len(dir.Name()) != 2 { // info and pack
+			continue
+		}
+		files, err := os.ReadDir(filepath.Join(srcDir, dir.Name()))
+		if err != nil {
+			return err
+		}
+		if len(files) > 0 {
+			if err := os.MkdirAll(filepath.Join(objectsDir, dir.Name()), 0o755); err != nil {
+				return err
+			}
+		}
+		for _, file := range files {
+			src, dst := filepath.Join(srcDir, dir.Name(), file.Name()), filepath.Join(objectsDir, dir.Name(), file.Name())
+			if _, err := os.Stat(dst); err == nil {
+				continue
+			}
+			if err := os.Link(src, dst); err == nil || errors.Is(err, os.ErrExist) {
+				continue
+			}
+			if err := copyObjectFile(src, dst); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// copyObjectFile writes a temporary file and renames it, as git does, so a reader never sees part of an object
+func copyObjectFile(src, dst string) error {
+	content, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(dst), "tmp_obj_")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	_, err = f.Write(content)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		_ = os.Chmod(tmp, 0o444)
+		err = os.Rename(tmp, dst)
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+		if _, statErr := os.Stat(dst); statErr == nil {
+			return nil // written by another
+		}
+	}
+	return err
+}
+
 func (t *TemporaryUploadRepository) GetBranchCommit(branch string) (*git.Commit, error) {
 	if t.gitRepo == nil {
 		return nil, errors.New("repository has not been cloned")

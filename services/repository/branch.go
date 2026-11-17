@@ -196,7 +196,11 @@ func CreateNewBranchFromCommit(ctx context.Context, doer *user_model.User, repo 
 		return err
 	}
 
-	if err := private.RunServerPush(ctx, append(repo_module.PushingEnvironment(doer, repo), repo_module.NoRefRulesEnvironment(ctx, doer, repo)...), func(env []string) error {
+	env := append(repo_module.PushingEnvironment(doer, repo), repo_module.NoRefRulesEnvironment(ctx, doer, repo)...)
+	if private.UpdateServerRef(ctx, repo, env, git.RefNameFromBranch(branchName), "", commitID) {
+		return nil
+	}
+	if err := private.RunServerPush(ctx, env, func(env []string) error {
 		return gitrepo.Push(ctx, repo, repo, git.PushOptions{
 			Branch: fmt.Sprintf("%s:%s%s", commitID, git.BranchPrefix, branchName),
 			Env:    env,
@@ -340,6 +344,11 @@ func UpdateBranch(ctx context.Context, repo *repo_model.Repository, gitRepo *git
 
 	if expectedOldCommitID != "" {
 		pushOpts.ForceWithLease = fmt.Sprintf("%s:%s", git.BranchPrefix+branchName, branch.CommitID)
+	}
+
+	// the push without a lease moves a branch at the same commit as the lease does
+	if private.UpdateServerRef(ctx, repo, pushOpts.Env, git.RefNameFromBranch(branchName), branch.CommitID, newCommit.ID.String()) {
+		return nil
 	}
 
 	// branch protection will be checked in the pre received hook, so that we don't need any check here
