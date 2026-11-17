@@ -24,122 +24,123 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGitPush(t *testing.T) {
-	onGiteaRun(t, testGitPush)
+// gitPushTest runs a push into a new repository and checks its branches, each in its own top-level test to run in parallel
+func gitPushTest(t *testing.T, gitOperation func(t *testing.T, gitPath string) (pushed, deleted []string)) {
+	onGiteaRun(t, func(t *testing.T, u *url.URL) {
+		runTestGitPush(t, u, gitOperation)
+	})
 }
 
-func testGitPush(t *testing.T, u *url.URL) {
-	t.Run("Push branches at once", func(t *testing.T) {
-		runTestGitPush(t, u, func(t *testing.T, gitPath string) (pushed, deleted []string) {
-			for i := range 100 {
-				branchName := fmt.Sprintf("branch-%d", i)
-				pushed = append(pushed, branchName)
-				doGitCreateBranch(gitPath, branchName)(t)
-			}
-			pushed = append(pushed, "master")
-			doGitPushTestRepository(gitPath, "origin", "--all")(t)
-			return pushed, deleted
-		})
-	})
-
-	t.Run("Push branches exists", func(t *testing.T) {
-		runTestGitPush(t, u, func(t *testing.T, gitPath string) (pushed, deleted []string) {
-			for i := range 10 {
-				branchName := fmt.Sprintf("branch-%d", i)
-				if i < 5 {
-					pushed = append(pushed, branchName)
-				}
-				doGitCreateBranch(gitPath, branchName)(t)
-			}
-			// only push master and the first 5 branches
-			pushed = append(pushed, "master")
-			args := append([]string{"origin"}, pushed...)
-			doGitPushTestRepository(gitPath, args...)(t)
-
-			pushed = pushed[:0]
-			// do some changes for the first 5 branches created above
-			for i := range 5 {
-				branchName := fmt.Sprintf("branch-%d", i)
-				pushed = append(pushed, branchName)
-				doGitCheckoutWriteFileCommit(localGitAddCommitOptions{
-					LocalRepoPath:   gitPath,
-					CheckoutBranch:  branchName,
-					TreeFilePath:    fmt.Sprintf("file-%s.txt", branchName),
-					TreeFileContent: "file " + branchName,
-				})(t)
-			}
-
-			for i := 5; i < 10; i++ {
-				pushed = append(pushed, fmt.Sprintf("branch-%d", i))
-			}
-			pushed = append(pushed, "master")
-
-			// push all, so that master is not changed
-			doGitPushTestRepository(gitPath, "origin", "--all")(t)
-
-			return pushed, deleted
-		})
-	})
-
-	t.Run("Push branches one by one", func(t *testing.T) {
-		runTestGitPush(t, u, func(t *testing.T, gitPath string) (pushed, deleted []string) {
-			for i := range 100 {
-				branchName := fmt.Sprintf("branch-%d", i)
-				doGitCreateBranch(gitPath, branchName)(t)
-				doGitPushTestRepository(gitPath, "origin", branchName)(t)
-				pushed = append(pushed, branchName)
-			}
-			return pushed, deleted
-		})
-	})
-
-	t.Run("Push branch with options", func(t *testing.T) {
-		runTestGitPush(t, u, func(t *testing.T, gitPath string) (pushed, deleted []string) {
-			branchName := "branch-with-options"
-			doGitCreateBranch(gitPath, branchName)(t)
-			doGitPushTestRepository(gitPath, "origin", branchName, "-o", "repo.private=true", "-o", "repo.template=true")(t)
+func TestGitPushBranchesAtOnce(t *testing.T) {
+	gitPushTest(t, func(t *testing.T, gitPath string) (pushed, deleted []string) {
+		for i := range 100 {
+			branchName := fmt.Sprintf("branch-%d", i)
 			pushed = append(pushed, branchName)
-
-			return pushed, deleted
-		})
+			doGitCreateBranch(gitPath, branchName)(t)
+		}
+		pushed = append(pushed, "master")
+		doGitPushTestRepository(gitPath, "origin", "--all")(t)
+		return pushed, deleted
 	})
+}
 
-	t.Run("Delete branches", func(t *testing.T) {
-		runTestGitPush(t, u, func(t *testing.T, gitPath string) (pushed, deleted []string) {
-			doGitPushTestRepository(gitPath, "origin", "master")(t) // make sure master is the default branch instead of a branch we are going to delete
-			pushed = append(pushed, "master")
-
-			for i := range 100 {
-				branchName := fmt.Sprintf("branch-%d", i)
+func TestGitPushBranchesExist(t *testing.T) {
+	gitPushTest(t, func(t *testing.T, gitPath string) (pushed, deleted []string) {
+		for i := range 10 {
+			branchName := fmt.Sprintf("branch-%d", i)
+			if i < 5 {
 				pushed = append(pushed, branchName)
-				doGitCreateBranch(gitPath, branchName)(t)
 			}
-			doGitPushTestRepository(gitPath, "origin", "--all")(t)
+			doGitCreateBranch(gitPath, branchName)(t)
+		}
+		// only push master and the first 5 branches
+		pushed = append(pushed, "master")
+		args := append([]string{"origin"}, pushed...)
+		doGitPushTestRepository(gitPath, args...)(t)
 
-			for i := range 10 {
-				branchName := fmt.Sprintf("branch-%d", i)
-				doGitPushTestRepository(gitPath, "origin", "--delete", branchName)(t)
-				deleted = append(deleted, branchName)
-			}
-			return pushed, deleted
-		})
+		pushed = pushed[:0]
+		// do some changes for the first 5 branches created above
+		for i := range 5 {
+			branchName := fmt.Sprintf("branch-%d", i)
+			pushed = append(pushed, branchName)
+			doGitCheckoutWriteFileCommit(localGitAddCommitOptions{
+				LocalRepoPath:   gitPath,
+				CheckoutBranch:  branchName,
+				TreeFilePath:    fmt.Sprintf("file-%s.txt", branchName),
+				TreeFileContent: "file " + branchName,
+			})(t)
+		}
+
+		for i := 5; i < 10; i++ {
+			pushed = append(pushed, fmt.Sprintf("branch-%d", i))
+		}
+		pushed = append(pushed, "master")
+
+		// push all, so that master is not changed
+		doGitPushTestRepository(gitPath, "origin", "--all")(t)
+
+		return pushed, deleted
 	})
+}
 
-	t.Run("Push to deleted branch", func(t *testing.T) {
-		runTestGitPush(t, u, func(t *testing.T, gitPath string) (pushed, deleted []string) {
-			doGitPushTestRepository(gitPath, "origin", "master")(t) // make sure master is the default branch instead of a branch we are going to delete
-			pushed = append(pushed, "master")
+func TestGitPushBranchesOneByOne(t *testing.T) {
+	gitPushTest(t, func(t *testing.T, gitPath string) (pushed, deleted []string) {
+		for i := range 10 { // each push takes 0.5 s on Windows, and the 100 at once cover the batches
+			branchName := fmt.Sprintf("branch-%d", i)
+			doGitCreateBranch(gitPath, branchName)(t)
+			doGitPushTestRepository(gitPath, "origin", branchName)(t)
+			pushed = append(pushed, branchName)
+		}
+		return pushed, deleted
+	})
+}
 
-			doGitCreateBranch(gitPath, "branch-1")(t)
-			doGitPushTestRepository(gitPath, "origin", "branch-1")(t)
-			pushed = append(pushed, "branch-1")
+func TestGitPushBranchWithOptions(t *testing.T) {
+	gitPushTest(t, func(t *testing.T, gitPath string) (pushed, deleted []string) {
+		branchName := "branch-with-options"
+		doGitCreateBranch(gitPath, branchName)(t)
+		doGitPushTestRepository(gitPath, "origin", branchName, "-o", "repo.private=true", "-o", "repo.template=true")(t)
+		pushed = append(pushed, branchName)
 
-			// delete and restore
-			doGitPushTestRepository(gitPath, "origin", "--delete", "branch-1")(t)
-			doGitPushTestRepository(gitPath, "origin", "branch-1")(t)
+		return pushed, deleted
+	})
+}
 
-			return pushed, deleted
-		})
+func TestGitPushDeleteBranches(t *testing.T) {
+	gitPushTest(t, func(t *testing.T, gitPath string) (pushed, deleted []string) {
+		doGitPushTestRepository(gitPath, "origin", "master")(t) // make sure master is the default branch instead of a branch we are going to delete
+		pushed = append(pushed, "master")
+
+		for i := range 100 {
+			branchName := fmt.Sprintf("branch-%d", i)
+			pushed = append(pushed, branchName)
+			doGitCreateBranch(gitPath, branchName)(t)
+		}
+		doGitPushTestRepository(gitPath, "origin", "--all")(t)
+
+		for i := range 3 {
+			branchName := fmt.Sprintf("branch-%d", i)
+			doGitPushTestRepository(gitPath, "origin", "--delete", branchName)(t)
+			deleted = append(deleted, branchName)
+		}
+		return pushed, deleted
+	})
+}
+
+func TestGitPushToDeletedBranch(t *testing.T) {
+	gitPushTest(t, func(t *testing.T, gitPath string) (pushed, deleted []string) {
+		doGitPushTestRepository(gitPath, "origin", "master")(t) // make sure master is the default branch instead of a branch we are going to delete
+		pushed = append(pushed, "master")
+
+		doGitCreateBranch(gitPath, "branch-1")(t)
+		doGitPushTestRepository(gitPath, "origin", "branch-1")(t)
+		pushed = append(pushed, "branch-1")
+
+		// delete and restore
+		doGitPushTestRepository(gitPath, "origin", "--delete", "branch-1")(t)
+		doGitPushTestRepository(gitPath, "origin", "branch-1")(t)
+
+		return pushed, deleted
 	})
 }
 
