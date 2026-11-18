@@ -245,6 +245,17 @@ func TestAPIViewRepo(t *testing.T) {
 	assert.Equal(t, 1, repo.Stars)
 }
 
+func TestAPIRepoTopics(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+	ownerSession := loginUser(t, "user2")
+
+	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
+	resp := ownerSession.MakeRequest(t, NewRequest(t, "GET", "/api/v1/repos/user2/repo1/topics"), http.StatusOK)
+	topics := DecodeJSON(t, resp, &api.TopicName{})
+	assert.NotNil(t, topics.TopicNames) // tea expects a list, never null
+	assert.ElementsMatch(t, repo.Topics, topics.TopicNames)
+}
+
 func TestAPIGetRepoByIDOtherUser(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 4})

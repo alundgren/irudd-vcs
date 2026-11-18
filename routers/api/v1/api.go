@@ -484,6 +484,7 @@ func Routes() *web.Router {
 				m.Combo("").Get(repo.Get).
 					Delete(reqToken(), repo.Delete).
 					Patch(reqToken(), bind(api.EditRepoOption{}), repo.Edit)
+				m.Get("/topics", repo.ListTopics)
 
 				m.Group("/hooks/git", func() {
 					m.Combo("").Get(repo.ListGitHooks)

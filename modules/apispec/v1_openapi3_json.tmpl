@@ -716,6 +716,16 @@
         },
         "description": "TimelineList"
       },
+      "TopicNames": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TopicName"
+            }
+          }
+        },
+        "description": "TopicNames"
+      },
       "User": {
         "content": {
           "application/json": {
@@ -5260,6 +5270,21 @@
           },
           "user": {
             "$ref": "#/components/schemas/User"
+          }
+        },
+        "type": "object",
+        "x-go-package": "gitea.dev/modules/structs"
+      },
+      "TopicName": {
+        "description": "TopicName a list of repo topic names",
+        "properties": {
+          "topics": {
+            "description": "List of topic names",
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "x-go-name": "TopicNames"
           }
         },
         "type": "object",
@@ -13278,6 +13303,43 @@
           }
         },
         "summary": "Get the tag of a repository by tag name",
+        "tags": [
+          "repository"
+        ]
+      }
+    },
+    "/repos/{owner}/{repo}/topics": {
+      "get": {
+        "operationId": "repoListTopics",
+        "parameters": [
+          {
+            "description": "owner of the repo",
+            "in": "path",
+            "name": "owner",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "name of the repo",
+            "in": "path",
+            "name": "repo",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TopicNames"
+          },
+          "404": {
+            "$ref": "#/components/responses/notFound"
+          }
+        },
+        "summary": "Get list of topics that a repository has",
         "tags": [
           "repository"
         ]
