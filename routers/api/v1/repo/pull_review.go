@@ -681,21 +681,11 @@ func preparePullReviewType(ctx *context.APIContext, pr *issues_model.PullRequest
 
 	var reviewType issues_model.ReviewType
 	switch event {
-	case api.ReviewStateApproved:
-		// can not approve your own PR
-		if pr.Issue.IsPoster(ctx.Doer.ID) {
-			ctx.APIError(http.StatusUnprocessableEntity, "approve your own pull is not allowed")
-			return -1, true
-		}
+	case api.ReviewStateApproved: // the single owner posts every pull, so it may review its own
 		reviewType = issues_model.ReviewTypeApprove
 		needsBody = false
 
 	case api.ReviewStateRequestChanges:
-		// can not reject your own PR
-		if pr.Issue.IsPoster(ctx.Doer.ID) {
-			ctx.APIError(http.StatusUnprocessableEntity, "reject your own pull is not allowed")
-			return -1, true
-		}
 		reviewType = issues_model.ReviewTypeReject
 
 	case api.ReviewStateComment:

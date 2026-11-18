@@ -31,6 +31,24 @@ func TestAPIPullReview(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 	t.Run("General", testAPIPullReviewGeneral)
 	t.Run("CommentReply", testAPIPullReviewCommentReply)
+	t.Run("OwnPull", testAPIPullReviewOwnPull)
+}
+
+func testAPIPullReviewOwnPull(t *testing.T) {
+	pullIssue := unittest.AssertExistsAndLoadBean(t, &issues_model.Issue{ID: 3})
+	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: pullIssue.RepoID})
+	poster := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: pullIssue.PosterID})
+	token := getTokenForLoggedInUser(t, loginUser(t, poster.Name), auth_model.AccessTokenScopeWriteRepository)
+
+	for _, event := range []api.ReviewStateType{api.ReviewStateApproved, api.ReviewStateRequestChanges} {
+		req := NewRequestWithJSON(t, http.MethodPost, fmt.Sprintf("/api/v1/repos/%s/%s/pulls/%d/reviews", repo.OwnerName, repo.Name, pullIssue.Index), &api.CreatePullReviewOptions{
+			Event: event,
+			Body:  "own review",
+		}).AddTokenAuth(token)
+		resp := MakeRequest(t, req, http.StatusOK)
+		review := DecodeJSON(t, resp, &api.PullReview{})
+		assert.Equal(t, event, review.State)
+	}
 }
 
 func testAPIPullReviewGeneral(t *testing.T) {
