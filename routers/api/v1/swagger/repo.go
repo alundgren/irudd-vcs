@@ -319,3 +319,10 @@ type swaggerMergeUpstreamResponse struct {
 	// in:body
 	Body api.MergeUpstreamResponse `json:"body"`
 }
+
+// TopicNames
+// swagger:response TopicNames
+type swaggerTopicNames struct {
+	// in: body
+	Body api.TopicName `json:"body"`
+}

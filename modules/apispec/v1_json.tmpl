@@ -7071,6 +7071,42 @@
         }
       }
     },
+    "/repos/{owner}/{repo}/topics": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "repository"
+        ],
+        "summary": "Get list of topics that a repository has",
+        "operationId": "repoListTopics",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "owner of the repo",
+            "name": "owner",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "name of the repo",
+            "name": "repo",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/TopicNames"
+          },
+          "404": {
+            "$ref": "#/responses/notFound"
+          }
+        }
+      }
+    },
     "/repositories/{id}": {
       "get": {
         "produces": [
@@ -12044,6 +12080,21 @@
       },
       "x-go-package": "gitea.dev/modules/structs"
     },
+    "TopicName": {
+      "description": "TopicName a list of repo topic names",
+      "type": "object",
+      "properties": {
+        "topics": {
+          "description": "List of topic names",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-go-name": "TopicNames"
+        }
+      },
+      "x-go-package": "gitea.dev/modules/structs"
+    },
     "UpdateBranchProtectionPriories": {
       "description": "UpdateBranchProtectionPriories a list to update the branch protection rule priorities",
       "type": "object",
@@ -12822,6 +12873,12 @@
         "items": {
           "$ref": "#/definitions/TimelineComment"
         }
+      }
+    },
+    "TopicNames": {
+      "description": "TopicNames",
+      "schema": {
+        "$ref": "#/definitions/TopicName"
       }
     },
     "User": {
