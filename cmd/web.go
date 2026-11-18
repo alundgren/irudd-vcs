@@ -194,7 +194,6 @@ func runWeb(ctx context.Context, cmd *cli.Command) error {
 	if err := bootstrapConfig(cmd); err != nil {
 		return err
 	}
-	NoInstallListener()
 
 	if setting.EnablePprof {
 		go servePprof()

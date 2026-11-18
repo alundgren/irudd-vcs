@@ -13,8 +13,13 @@ elsewhere (the server then logs `No readme templates found` at startup).
 cd M:\repos\irudd-vcs
 Push-Location modules/options; go run ../../build/generate-bindata.go ../../options bindata.dat; Pop-Location
 $env:CGO_ENABLED = "0"
-go build -trimpath -tags bindata -ldflags "-s -w -X main.Version=$(git describe --tags --always) -X main.Tags=bindata" -o gitea.exe .
+$version = (git describe --tags --always) -replace '^v', '' -replace '^([^-]+)-', '$1+'
+go build -trimpath -tags bindata -ldflags "-s -w -X main.Version=$version -X main.Tags=bindata" -o gitea.exe .
 ```
+
+The version must be a semantic version such as `1.27.3+125-gf8b3409315`, so the build needs the
+`v1.27.3` tag on the upstream commit the fork starts from. Without it the server reports a bare
+commit hash, and `tea` and the Gitea SDK treat it as Gitea 1.11 and turn off newer features.
 
 With make (Linux, macOS or WSL), `TAGS=bindata make backend` does the same.
 
