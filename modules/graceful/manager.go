@@ -32,13 +32,11 @@ type RunCanceler interface {
 // There are some places that could inherit sockets:
 //
 // * HTTP or HTTPS main listener
-// * HTTP or HTTPS install listener
 // * HTTP redirection fallback
-// * Builtin SSH listener
 //
 // If you add a new place you must increment this number
 // and add a function to call manager.InformCleanup if it's not going to be used
-const numberOfServersToCreate = 4
+const numberOfServersToCreate = 2
 
 var (
 	manager  *Manager
