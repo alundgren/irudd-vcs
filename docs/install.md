@@ -64,8 +64,8 @@ scopes for an agent, use `gitea admin user generate-access-token --help`.
 t3code talks to Forgejo and Gitea servers through the `fj` or `tea` CLI. It tries `fj` first
 for each remote, then `tea`.
 
-Use `fj` (tested with 0.7.0) if `tea` on your `PATH` belongs to something else, such as the
-LocalGit `tea` shim. Each remote then goes to the CLI that has a login for it:
+Use `fj` (tested with 0.7.0) if `tea` on your `PATH` belongs to another tool.
+Each remote then goes to the CLI that has a login for it:
 
 ```powershell
 cargo install forgejo-cli --version 0.7.0 --locked
@@ -103,9 +103,89 @@ Create repositories with `POST /api/v1/user/repos`, or from t3code, then push to
 A push to a repository that doesn't exist yet fails, unless you set
 `[repository] ENABLE_PUSH_CREATE_USER = true` so the push creates it.
 
+## 7. Run it as a Windows service
+
+`gitea.exe web` in a terminal keeps a console window open. As a Windows service it runs from
+boot with no window and without anyone logged in, and restarts if it crashes. Run these steps once
+in an elevated PowerShell.
+
+Services usually keep their data under `C:\ProgramData`. Stop the server, move its folder there and
+point `WORK_PATH` in `custom\conf\app.ini` at the new folder. The service has no console, so also
+log to files under `log\`:
+
+```powershell
+$dir = "C:\ProgramData\irudd-vcs"
+Move-Item "$env:LOCALAPPDATA\irudd-vcs" $dir
+```
+
+```ini
+WORK_PATH = C:\ProgramData\irudd-vcs
+
+[log]
+MODE = file
+```
+
+Create the service under the low-privilege LocalService account. Give that account write access to
+the folder, and keep full access for your own account so the `gitea admin` commands still work:
+
+```powershell
+icacls $dir /grant '*S-1-5-19:(OI)(CI)M' "${env:USERNAME}:(OI)(CI)F" /T /Q
+sc.exe create irudd-vcs binPath= "`"$dir\gitea.exe`" web --work-path `"$dir`"" start= delayed-auto obj= 'NT AUTHORITY\LocalService' DisplayName= 'irudd-vcs'
+sc.exe failure irudd-vcs reset= 86400 actions= restart/5000/restart/5000/restart/60000
+sc.exe start irudd-vcs
+```
+
+To stop and start the service from your own account without elevation, for example to update
+the binary, add your account to the service's permissions:
+
+```powershell
+$me = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
+$sd = (sc.exe sdshow irudd-vcs | Where-Object { $_ }) -join ''
+sc.exe sdset irudd-vcs ($sd -replace '^(D:)', "`$1(A;;RPWPLCLORC;;;$me)")
+```
+
+To update the binary, stop the service and wait for its process to exit before you copy. The
+process keeps the file locked for a moment after the service reports that it stopped:
+
+```powershell
+$id = (Get-CimInstance Win32_Service -Filter "Name='irudd-vcs'").ProcessId
+Stop-Service irudd-vcs
+while (Get-Process -Id $id -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 250 }
+Copy-Item gitea.exe "$dir\gitea.exe" -Force
+Start-Service irudd-vcs
+```
+
+## 8. Reach it from other machines over HTTPS
+
+The server can keep listening on `127.0.0.1` only. To reach it from other machines, put an HTTPS
+proxy in front of it. With Tailscale, `tailscale serve` uses a certificate for the machine's
+MagicDNS name, once HTTPS certificates are enabled for the tailnet. Any free port works; this
+example uses 8443:
+
+```powershell
+tailscale serve --bg --https=8443 http://127.0.0.1:3000
+```
+
+`--bg` saves the setting in Tailscale, so it survives restarts. On Windows, changing the serve
+config needs an elevated terminal while any serve entry shares a folder.
+
+Then set the public address in `app.ini`, so clone URLs and links use it, while the hooks keep
+using the local one:
+
+```ini
+[server]
+ROOT_URL = https://<machine>.<tailnet>.ts.net:8443/
+LOCAL_ROOT_URL = http://127.0.0.1:3000/
+```
+
+Log clients in with that address instead of `http://localhost:3000`, for example
+`tea login add --name irudd-vcs --url https://<machine>.<tailnet>.ts.net:8443 --token <token>`,
+and store the git credential with `protocol=https` and `host=<machine>.<tailnet>.ts.net:8443`. With
+Git Credential Manager, also run
+`git config --global credential.https://<machine>.<tailnet>.ts.net:8443.provider generic`,
+so it doesn't try to detect the host type on each request.
+
 ## Not covered yet
 
-- Running at logon or as a Windows service. The binary supports running as a Windows service,
-  but this setup hasn't been tried.
 - Backups. Stop the server and copy its folder, or use `gitea dump`.
 - Web links. API responses still contain `html_url` links, but there is no web UI to open them.
